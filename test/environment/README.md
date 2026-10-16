@@ -172,6 +172,23 @@ http://localhost:3101/projects/mirror-state-demo and `mirror-custom-fields-demo`
 manual trial, create a destination project, select the modules, enter the source project
 ID shown by the source API, then refresh the references.
 
+## Older source versions
+
+Mirror reads the source only through its REST API, so the source can run an older
+Redmine. `versions.sh` starts a separate, disposable stack with the official image of the
+source and a destination on a local `reporting-compat-ready:<version>` image, then runs
+the write smokes. Stop the main stack first: both publish ports 3101 and 3102.
+
+```sh
+bash test/environment/versions.sh redmine:4.2 6.1.4
+bash test/environment/versions.sh redmine:5.0 6.1.4
+bash test/environment/versions.sh redmine:4.2 5.1.13
+```
+
+IDs differ across versions: the browser setup maps references by name and anonymizes
+the source administrator, and `smoke.rb` uses those UI mappings. The stack and its
+volumes are deleted at the end.
+
 ## Reporting adapters
 
 Mount a redmine_reporting checkout on both instances with the extra Compose file:

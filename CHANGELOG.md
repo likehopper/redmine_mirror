@@ -66,4 +66,5 @@ First public pre-release, for testing before 1.0.0. No stable release has been p
   credit policies are provided by redmine_reporting when both are installed.
 - Some historical detail types fail explicitly.
 - HTTP writes and mapping persistence are not atomic; interrupted imports require inspection.
-- SQLite/Redmine 6.1.4 is the current validated combination; see the compatibility matrix.
+- Validated with SQLite only: destinations Redmine 6.1.4 and 5.1.13, sources Redmine 4.2,
+  5.0 and 6.1; see the compatibility matrix.

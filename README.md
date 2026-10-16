@@ -19,7 +19,8 @@ Document Mirror setup, operation, extension points or validation evidence.
 # <img src="assets/images/synchronisation-des-donnees-64.png" width="64" height="64" alt=""> Redmine Mirror
 
 ![Version](https://img.shields.io/badge/Version-1.0.0--beta.1-orange)
-![Redmine tested](https://img.shields.io/badge/Redmine_tested-6.1.4-blue)
+![Destination tested](https://img.shields.io/badge/Destination_tested-5.1_%7C_6.1-blue)
+![Source tested](https://img.shields.io/badge/Source_tested-4.2_%7C_5.0_%7C_6.1-blue)
 ![Database tested](https://img.shields.io/badge/Database_tested-SQLite_3-blue)
 ![License](https://img.shields.io/badge/License-GPL--2.0--or--later-green)
 
@@ -61,11 +62,14 @@ Version **1.0.0-beta.1** is a pre-release for testing before 1.0.0, not a stable
 - Source: any Redmine with the REST API enabled; Mirror is not needed there. The API key
   determines which data can be imported.
 - HTTPS URLs on both sides.
+- With SQLite, keep the `timeout: 5000` of Redmine's sample `database.yml`: the worker and
+  the web process write to the same database.
 - Existing destination projects, users, trackers, statuses, priorities, activities and
   custom field definitions: Mirror maps them, it never creates them.
 
-The plugin declares Redmine 5.0 or later, but only **Redmine 6.1.4 with SQLite** is
-validated. See the [compatibility matrix](test/compatibility/README.md) and the
+Validated with SQLite: destinations **Redmine 6.1.4 and 5.1.13**, sources **Redmine 4.2,
+5.0 and 6.1**. Other versions and databases are not validated yet. See the
+[compatibility matrix](test/compatibility/README.md) and the
 [validation record](test/environment/VALIDATION.md).
 
 ## Installation

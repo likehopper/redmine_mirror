@@ -14,7 +14,9 @@
 #
 # Configure or run the isolated local Redmine integration-test environment.
 
-FROM reporting-compat-ready:6.1.4
+# The destination Redmine version is selectable for cross-version checks (versions.sh).
+ARG BASE_IMAGE=reporting-compat-ready:6.1.4
+FROM ${BASE_IMAGE}
 USER root
 RUN rm -rf plugins/redmine_sla plugins/redmine_reporting \
  && printf 'production:\n  adapter: sqlite3\n  database: /mirror-data/manual.sqlite3\ntest:\n  adapter: sqlite3\n  database: /mirror-data/automated.sqlite3\n' > config/database.yml \

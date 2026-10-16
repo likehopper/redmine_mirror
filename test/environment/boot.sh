@@ -28,10 +28,12 @@ production:
   adapter: sqlite3
   database: /mirror-data/manual.sqlite3
   pool: 5
+  timeout: 5000
 test:
   adapter: sqlite3
   database: /mirror-data/automated.sqlite3
   pool: 5
+  timeout: 5000
 YAML
 mkdir -p config/initializers
 cat > config/initializers/mirror_test_schema.rb <<'RUBY'

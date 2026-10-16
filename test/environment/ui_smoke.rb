@@ -26,6 +26,18 @@ options.binary = "/usr/bin/chromium"
 service = Selenium::WebDriver::Chrome::Service.new(path: "/usr/bin/chromedriver")
 driver = Selenium::WebDriver.for(:chrome, options: options, service: service)
 wait = Selenium::WebDriver::Wait.new(timeout: 20)
+# Same-version instances are seeded with identical IDs. Across Redmine versions the IDs
+# differ, so fall back to the local object named like the source one.
+choose = lambda do |select, value|
+  menu = Selenium::WebDriver::Support::Select.new(select)
+  next menu.select_by(:value, value) if menu.options.any? { |option| option.attribute("value") == value }
+  name = select.find_element(xpath: "ancestor::tr/td[1]").text.sub(/ \(#\d+\)\z/, "")
+  option = menu.options.find { |entry| entry.text.sub(/ \(#\d+\)\z/, "") == name }
+  # A source account without a local member (the administrator, in a fresh stack) is anonymized.
+  option ||= menu.options.find { |entry| entry.attribute("value") == "anonymous" }
+  abort "No local match for #{select.attribute('name')} (#{name})" unless option
+  menu.select_by(:value, option.attribute("value"))
+end
 begin
   base = "http://gateway:3102"
   driver.navigate.to("#{base}/login")
@@ -45,8 +57,7 @@ begin
       driver.navigate.to("#{base}/projects/mirror-demo/mirror/settings?tab=#{key}")
       driver.find_elements(css: 'select[name^="mappings["]').each do |select|
         kind, source_id = select.attribute("name").scan(/\[([^\]]+)\]/).flatten
-        value = config.fetch("mappings").fetch(kind).fetch(source_id).to_s
-        Selenium::WebDriver::Support::Select.new(select).select_by(:value, value)
+        choose.call(select, config.fetch("mappings").fetch(kind, {}).fetch(source_id, "").to_s)
       end
       driver.find_element(name: "commit").click
       wait.until { driver.find_elements(id: "flash_notice").any? }
@@ -82,7 +93,7 @@ begin
   if ENV["MIRROR_COMPLETE_STATUS_MAPPINGS"] == "1"
     driver.find_elements(css: 'select[name^="mappings[status]"]').each do |select|
       source_id = select.attribute("name").scan(/\[([^\]]+)\]/).flatten.last
-      Selenium::WebDriver::Support::Select.new(select).select_by(:value, config.fetch("mappings").fetch("status").fetch(source_id).to_s)
+      choose.call(select, config.fetch("mappings").fetch("status").fetch(source_id, "").to_s)
     end
     driver.find_element(name: "commit").click
     wait.until { driver.find_elements(id: "flash_notice").any? }

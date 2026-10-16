@@ -156,3 +156,13 @@ Redmine de l'environnement : 74 tests / 315 assertions, aucun échec.
 `synchronization_smoke.rb` utilise désormais une sélection fixe de modules (27 objets)
 au lieu de celle du projet manuel, et attend la connexion et l'enregistrement de la
 planification avant de vérifier : deux exécutions consécutives réussies.
+
+Versions croisées (16 octobre 2026), `versions.sh`, piles jetables, SQLite, production :
+source Redmine 4.2.10 (Ruby 2.7.8) → destination 6.1.4, source 5.0.12 (Ruby 3.1.7) →
+destination 6.1.4, source 4.2.10 → destination 5.1.13 (Ruby 3.2.11). Pour chaque paire,
+configuration par l'interface (correspondances par nom, administrateur source anonymisé)
+puis `smoke.rb`, `synchronization_smoke.rb`, `history_smoke.rb`, `relations_smoke.rb`,
+`issue_state_smoke.rb`, `custom_fields_smoke.rb` et `conflicts_smoke.rb` réussis.
+Sur la destination 5.1 (Rails 6.1), SQLite renvoyait « database is locked » entre le
+worker et le serveur web, y compris pour les mails de Redmine : l'environnement déclare
+désormais `timeout: 5000`, comme le `database.yml` d'exemple de Redmine.

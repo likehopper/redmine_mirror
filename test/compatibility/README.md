@@ -19,12 +19,26 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 Minimum declared Redmine version: **5.0**. This is not a compatibility certification.
 Current plugin version: **1.0.0-beta.1**.
 
+Destination (Redmine running Mirror):
+
 | Redmine | Database | Evidence |
 | --- | --- | --- |
-| 6.1.4 | SQLite 3 | Official-image CI runner passed locally: Ruby 3.4.11 / Rails 7.2.3.2, 74 Redmine tests / 315 assertions, `zeitwerk:check`, fresh install and uninstall/reinstall. Separate two-instance smoke evidence in the [validation record](../environment/VALIDATION.md). |
-| 5.0 / 5.1 / 6.0 / other 6.1 releases | Not validated | No compatibility claim |
-| 7.x | Not validated | No compatibility claim |
+| 6.1.4 | SQLite 3 | Official-image CI runner, locally and on GitHub: Ruby 3.4.11 / Rails 7.2.3.2, 74 Redmine tests / 315 assertions, `zeitwerk:check`, fresh install and uninstall/reinstall. All two-instance smokes in production mode. |
+| 5.1.13 | SQLite 3 | Two-instance write smokes in production mode (`versions.sh`). The Redmine test suite is not run on 5.1. |
+| 5.0 / 6.0 / 7.x | Not validated | No compatibility claim |
 | Any version | PostgreSQL / MariaDB / MySQL | Not validated |
+
+Source (read through its REST API only, Mirror not installed):
+
+| Redmine | Evidence |
+| --- | --- |
+| 6.1.4 | All two-instance smokes |
+| 5.0.12 | Write smokes into a 6.1.4 destination (`versions.sh`) |
+| 4.2.10 | Write smokes into 6.1.4 and 5.1.13 destinations (`versions.sh`) |
+
+The write smokes cover issues, time entries, categories and versions, history and
+attachments, relations, hierarchy and watchers, custom fields and conflicts. See the
+[validation record](../environment/VALIDATION.md).
 
 ## Standalone CI runner
 
