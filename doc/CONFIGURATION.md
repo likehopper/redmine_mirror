@@ -44,7 +44,20 @@ API.
 ![REST API setting](screenshots/configuration/02-rest-api.png)
 
 The source API key determines what can be imported: data it cannot see is skipped.
-Use an administrator key to import private issues and notes, and for custom fields.
+Use the key of a dedicated, non-administrator source account, member of the source
+projects with a read-only role:
+
+| Source permission | Needed for |
+| --- | --- |
+| View issues, issues visibility **All issues** | Issues, private issues, history, relations, hierarchy, versions |
+| View private notes | Private notes |
+| View spent time, visibility **All time entries** | Time tracking |
+| View watchers list | Watchers |
+| Manage issue categories (optional) | Category default assignees; without it, categories come from the issues that use them |
+
+Two exceptions need an administrator key: the **Issue custom fields** module (Redmine
+gives custom field definitions to administrators only) and projects the account is
+not a member of.
 
 ## 3. Grant the permissions
 

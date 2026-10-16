@@ -18,6 +18,11 @@
 x-health: &health
   # Official images do not all ship curl.
   test: ["CMD", "ruby", "-rnet/http", "-e", "exit Net::HTTP.get_response(URI('http://127.0.0.1:3000/login')).code == '200'"]
+  # A fresh source loads its default data and every seed before serving.
+  interval: 5s
+  timeout: 5s
+  start_period: 300s
+  retries: 60
 services:
   source:
     image: ${MIRROR_SOURCE_IMAGE:?Set MIRROR_SOURCE_IMAGE, for example redmine:4.2}

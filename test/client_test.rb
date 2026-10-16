@@ -59,7 +59,8 @@ class MirrorClientTest < Minitest::Test
   def test_http_errors_hide_private_response_and_do_not_follow_redirects
     serve([["302 Found", "private secret"]]) do |client, _requests|
       error = assert_raises(RedmineMirror::Error) { client.get("issues.json") }
-      assert_equal "Redmine API returned HTTP 302", error.message
+      assert_equal "Redmine API returned HTTP 302 for GET issues.json", error.message
+      refute_includes error.message, "secret"
     end
   end
 

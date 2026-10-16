@@ -42,10 +42,20 @@ for seed in issue_state_seed custom_fields_seed; do
   # A seed normally takes seconds; never let one stall the whole run.
   "${compose[@]}" exec -T source timeout 300 bundle exec rails runner "/mirror-environment/$seed.rb" > /dev/null
 done
-script=ui_smoke run
-script=ui_smoke run -e MIRROR_ENABLE_HISTORY=1 -e MIRROR_REFRESH_TEST=1 -e MIRROR_COMPLETE_STATUS_MAPPINGS=1
+# MIRROR_SOURCE_ACCOUNT=reader configures the connection with a non-administrator key.
+key_args=()
+if [ "${MIRROR_SOURCE_ACCOUNT:-admin}" = reader ]; then
+  "${compose[@]}" exec -T source bundle exec rails runner /mirror-environment/reader_account.rb
+  key_args=(-e "MIRROR_SOURCE_API_KEY=$(printf '3%.0s' $(seq 40))")
+fi
+script=ui_smoke run "${key_args[@]}"
+script=ui_smoke run "${key_args[@]}" -e MIRROR_ENABLE_HISTORY=1 -e MIRROR_REFRESH_TEST=1 -e MIRROR_COMPLETE_STATUS_MAPPINGS=1
 failed=0
 for script in smoke synchronization_smoke history_smoke relations_smoke issue_state_smoke custom_fields_smoke conflicts_smoke; do
+  if [ "$script" = custom_fields_smoke ] && [ "${MIRROR_SOURCE_ACCOUNT:-admin}" = reader ]; then
+    echo "SKIP $script: custom field definitions need an administrator source key"
+    continue
+  fi
   # smoke.rb otherwise assumes identical IDs on both sides; use the UI mappings instead.
   output=$(run -e MIRROR_PROJECT_CONFIG_SMOKE=1) || true
   if grep -q "passed" <<< "$output"; then echo "PASS $script"; else echo "FAIL $script: $output"; failed=1; fi

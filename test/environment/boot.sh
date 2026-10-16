@@ -39,6 +39,8 @@ mkdir -p config/initializers
 cat > config/initializers/mirror_test_schema.rb <<'RUBY'
 Rails.application.config.active_record.schema_format = :ruby
 Rails.application.config.action_mailer.delivery_method = :test
+# Background mail jobs read SQLite while seeds write it; run them in the same thread.
+Rails.application.config.active_job.queue_adapter = :inline
 RUBY
 cat > config/additional_environment.rb <<'RUBY'
 config.session_store :cookie_store,

@@ -62,6 +62,16 @@ module RedmineMirror
       def model; IssueCategory; end
       def fields; %w[name assigned_to_id]; end
       def referenced_users(record); [record["assigned_to"]].compact; end
+
+      # Listing categories requires "Manage issue categories" on the source. A read-only
+      # account still sees the categories its issues use, without their default assignee.
+      def records(client, project_id)
+        super
+      rescue Error => error
+        raise unless error.message.start_with?("Redmine API returned HTTP 403")
+        Issues.new.records(client, project_id).filter_map { |issue| issue["category"] }.uniq { |category| category.fetch("id") }
+          .map { |category| { "project" => { "id" => project_id }, "id" => category.fetch("id"), "name" => category.fetch("name") } }
+      end
       def attributes(record, mappings)
         { "name" => record.fetch("name"), "assigned_to_id" => record["assigned_to"] ? Users.new.resolve(mappings, record["assigned_to"].fetch("id")) : nil }
       end

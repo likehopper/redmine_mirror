@@ -89,7 +89,7 @@ module RedmineMirror
         attachment_bytes = +"".b
         http_client.start do |connection|
           connection.request(request) do |response|
-            raise Error, "Redmine API returned HTTP #{response.code}" unless response.is_a?(Net::HTTPSuccess)
+            raise Error, "Redmine API returned HTTP #{response.code} for GET #{path}" unless response.is_a?(Net::HTTPSuccess)
             response.read_body do |chunk|
               raise Error, "Attachment exceeds 32 MiB import limit" if attachment_bytes.bytesize + chunk.bytesize > 32 * 1024 * 1024
               attachment_bytes << chunk
@@ -100,7 +100,8 @@ module RedmineMirror
       end
       response = http_client.start { |connection| connection.request(request) }
       # Never follow redirects or expose response bodies (which can contain private data).
-      raise Error, "Redmine API returned HTTP #{response.code}" unless response.is_a?(Net::HTTPSuccess)
+      # The path names the refused resource, typically a missing source permission.
+      raise Error, "Redmine API returned HTTP #{response.code} for #{method.to_s.upcase} #{path}" unless response.is_a?(Net::HTTPSuccess)
       response.body.to_s.empty? ? {} : JSON.parse(response.body)
     rescue JSON::ParserError, KeyError, ArgumentError
       raise Error, "Invalid Redmine API response"

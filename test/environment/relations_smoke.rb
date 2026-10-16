@@ -81,10 +81,17 @@ begin
   raise "Notes duplicated after resolution" unless notes.count == 4
   raise "Permanent pending relations missing" unless MirrorPendingRelation.where(project_id: projects.first.id, status: "pending").count == 2
   raise "Resolved relations still blocked" if MirrorPendingRelation.where(project_id: projects.first.id, status: "blocked").exists?
+  # A read-only source key cannot list categories, so their default assignee is unknown.
+  categories_listed = begin
+    original.source_client.get("projects/#{original.source_project_id}/issue_categories.json")
+    true
+  rescue RedmineMirror::Error
+    false
+  end
   projects.each do |project|
     category = project.issue_categories.find_by!(name: "Mirror category")
     version = project.versions.find_by!(name: "Mirror v1")
-    raise "Category assignee lost" unless category.assigned_to_id == User.find_by!(login: "alice").id
+    raise "Category assignee lost" unless category.assigned_to_id == (categories_listed ? User.find_by!(login: "alice").id : nil)
     raise "Version due date lost" unless version.effective_date == Date.new(2026, 12, 1)
     raise "Version metadata lost" unless version.status == "open" && version.sharing == "none"
     issue = project.issues.where.not(category_id: nil).first!

@@ -28,6 +28,14 @@ module RedmineMirror
       SCALAR_FORMATS = %w[string text int float date bool link].freeze
       def key; "issue_custom_fields"; end
       def mapping_tables; [CustomFieldMappingTable.new]; end
+
+      # Redmine restricts custom field definitions to administrators.
+      def definitions(client)
+        client.get("custom_fields.json").fetch("custom_fields")
+      rescue Error => error
+        raise unless error.message.start_with?("Redmine API returned HTTP 403")
+        raise Error, "The custom fields module needs an administrator API key on the source: Redmine restricts custom field definitions to administrators"
+      end
       def records(client, project_id); Issues.new.records(client, project_id); end
       def empty_state; {}; end
       def accept_existing_state?; true; end
@@ -45,7 +53,7 @@ module RedmineMirror
             end
           end
         end
-        fields = client.get("custom_fields.json").fetch("custom_fields").select do |field|
+        fields = definitions(client).select do |field|
           field["customized_type"] == "issue" && observed.key?(field.fetch("id"))
         end
         users = []

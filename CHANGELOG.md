@@ -23,6 +23,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   project's issues and history, plus those already mapped; local statuses are limited
   to the project's tracker workflows.
 - Long choice lists, such as users, can be filtered by typing.
+- A dedicated read-only source account is enough except for custom fields: categories
+  fall back to those the issues use, and API errors name the refused request.
 
 ## 1.0.0-beta.1 — 2026-10-16
 

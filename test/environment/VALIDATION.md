@@ -171,3 +171,12 @@ Saisie du projet source par identifiant, références limitées à celles utilis
 listes filtrables (17 octobre 2026) : runner CI 80 tests Redmine / 339 assertions,
 `zeitwerk:check`, moteur 26 / 89. `versions.sh` réussi pour source 5.0.12 →
 destination 5.1.13 et source 4.2.10 → destination 6.1.4 (sept smokes d'écriture).
+
+Compte source non administrateur (17 octobre 2026), `MIRROR_SOURCE_ACCOUNT=reader`
+(`reader_account.rb` : rôle en lecture seule sur tous les projets source), source 4.2.10
+→ destination 6.1.4 : six smokes d'écriture réussis. Les catégories, dont la liste exige
+« Gérer les catégories », sont reprises des demandes, sans assigné par défaut ;
+`custom_fields_smoke` est sauté, Redmine réservant les définitions de champs aux
+administrateurs. L'environnement exécute désormais les tâches de mail en ligne pour
+éviter les verrous SQLite pendant l'initialisation, et attend jusqu'à 5 minutes une
+source neuve.

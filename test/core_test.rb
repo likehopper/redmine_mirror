@@ -231,6 +231,22 @@ class MirrorCoreTest < Minitest::Test
     assert_nil registry["missing"]
   end
 
+  def test_read_only_source_key_lists_categories_from_issues
+    client = Object.new
+    def client.get(path, _params = {})
+      raise RedmineMirror::Error, "Redmine API returned HTTP 403 for GET #{path}" if path.include?("issue_categories")
+      raise RedmineMirror::Error, "Redmine API returned HTTP 500 for GET #{path}"
+    end
+    def client.each_record(_collection, _params)
+      [{ "id" => 1, "category" => { "id" => 4, "name" => "Backend" } }, { "id" => 2 },
+       { "id" => 3, "category" => { "id" => 4, "name" => "Backend" } }].each
+    end
+    records = RedmineMirror::Adapters::Categories.new.records(client, 7)
+    assert_equal [{ "project" => { "id" => 7 }, "id" => 4, "name" => "Backend" }], records
+    def client.get(path, _params = {}) = raise(RedmineMirror::Error, "Redmine API returned HTTP 500 for GET #{path}")
+    assert_raises(RedmineMirror::Error) { RedmineMirror::Adapters::Categories.new.records(client, 7) }
+  end
+
   def test_history_reports_the_statuses_trackers_and_priorities_it_uses
     journal = { "details" => [
       { "property" => "attr", "name" => "status_id", "old_value" => "1", "new_value" => "5" },
