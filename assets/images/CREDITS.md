@@ -28,5 +28,7 @@ The 64-pixel variant is used in the main README; smaller variants are available
 for navigation. Image contents are preserved; all variants use the same filename convention.
 
 These images are third-party artwork and are not covered by the GPL declaration
-for Mirror source code. Keep the author attribution and license evidence associated
-with the downloaded files when distributing them. The supplied PNG files alone do not establish which download license was used.
+for Mirror source code. They were downloaded with a free Flaticon account, whose
+license requires crediting the author ([pricing](https://www.flaticon.com/pricing),
+[attribution rules](https://support.flaticon.com/s/article/Attribution-How-when-and-where-FI?language=en_US)).
+Keep this attribution, and the README credit, wherever the images are distributed.
