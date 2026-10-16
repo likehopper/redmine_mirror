@@ -1,0 +1,34 @@
+# File: redmine_mirror/.github/ISSUE_TEMPLATE/feature_request.yml
+#
+# Redmine Mirror - modular project import and asynchronous replication.
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 2 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+name: Feature or adapter request
+description: Describe a synchronization need or a new adapter.
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: Use case and intended behavior
+      description: What data should be imported and why? Include the source and destination modules.
+    validations:
+      required: true
+  - type: textarea
+    id: api
+    attributes:
+      label: API contract and permissions
+      description: Available endpoints, project ownership, identity, dependencies and authorization. Link to documentation when available.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Mappings, conflicts and repeat imports
+      description: Explain desired handling of missing references, local edits, historical data and cross-project links.

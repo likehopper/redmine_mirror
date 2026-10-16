@@ -1,0 +1,29 @@
+<%#
+File: redmine_mirror/app/views/mirror_settings/_objects.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Render project-scoped Mirror controls and diagnostics using native Redmine helpers.
+%><%= form_tag project_mirror_settings_path(@project), method: :get do %>
+<%= hidden_field_tag :tab, "objects" %>
+<fieldset><legend><%= l(:label_filter_plural) %></legend>
+<%= label_tag :module_key, l(:label_mirror_modules) %><%= select_tag :module_key, options_for_select([[l(:label_all), ""]] + RedmineMirror::REGISTRY.keys.map { |key| [mirror_module_label(key), key] }, params[:module_key]) %>
+<%= label_tag :source_id, l(:label_mirror_remote_id) %><%= number_field_tag :source_id, params[:source_id], min: 1 %>
+<%= label_tag :destination_id, l(:label_mirror_local_id) %><%= number_field_tag :destination_id, params[:destination_id], min: 1 %>
+<%= submit_tag l(:button_apply) %>
+</fieldset>
+<% end %>
+<table class="list" id="mirror-object-mappings"><thead><tr><th><%= l(:label_mirror_modules) %></th><th><%= l(:label_mirror_remote_id) %></th><th><%= l(:label_mirror_local_id) %></th></tr></thead><tbody>
+<% @objects.each do |row| %><tr><td><%= mirror_module_label(row.module_key) %></td><td><%= mirror_object_link(row.module_key, row.source_id, source_url: @setting.source_url) %></td><td><%= mirror_object_link(row.module_key, row.destination_id) %></td></tr><% end %>
+</tbody></table>
+<span class="pagination"><%= pagination_links_full @object_pages, @object_count %></span>

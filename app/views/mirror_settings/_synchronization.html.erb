@@ -1,0 +1,47 @@
+<%#
+File: redmine_mirror/app/views/mirror_settings/_synchronization.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Render project-scoped Mirror controls and diagnostics using native Redmine helpers.
+%><p><%= l(:text_mirror_worker_required) %></p>
+<%= form_tag project_mirror_schedule_path(@project), method: :patch do %>
+  <div class="box tabular">
+    <p><%= label_tag "schedule-enabled", l(:label_mirror_auto_sync) %>
+      <%= hidden_field_tag "schedule[enabled]", "0" %>
+      <%= check_box_tag "schedule[enabled]", "1", @setting.auto_sync_enabled?, id: "schedule-enabled" %></p>
+    <p><%= label_tag "schedule-interval", l(:label_mirror_frequency) %>
+      <%= select_tag "schedule[interval_minutes]", options_for_select(MirrorProjectSetting::SYNC_INTERVALS.map { |minutes| [l(:label_mirror_interval, minutes: minutes), minutes] }, @setting.sync_interval_minutes), id: "schedule-interval" %></p>
+    <p><label><%= l(:label_mirror_next_sync) %></label><%= @setting.next_sync_at ? format_time(@setting.next_sync_at) : "—" %></p>
+  </div>
+  <%= submit_tag l(:button_save) %>
+<% end %>
+<p><%= button_to l(:button_mirror_preview), project_mirror_enqueue_path(@project), params: { mode: "preview" }, method: :post %></p>
+<p><%= button_to l(:button_mirror_sync_now), project_mirror_enqueue_path(@project), params: { mode: "apply" }, method: :post %></p>
+<% active = @project.mirror_sync_runs.where(status: %w[queued running]).order(id: :desc).first %>
+<% last_started = @project.mirror_sync_runs.where.not(started_at: nil).order(started_at: :desc).first %>
+<% last_finished = @project.mirror_sync_runs.where.not(finished_at: nil).order(finished_at: :desc).first %>
+<div class="box tabular" id="mirror-sync-summary">
+  <p><label><%= l(:field_status) %></label><%= active ? l("label_mirror_run_#{active.status}".to_sym) : l(:label_mirror_idle) %>
+    <% current = active || @project.mirror_sync_runs.order(id: :desc).first %>
+    <% if current %> — <%= link_to l(:label_mirror_log), project_mirror_run_path(@project, current) %><% end %></p>
+  <p><label><%= l(:label_mirror_progress) %></label>
+    <% if current && !current.progress_percentage.nil? %><progress value="<%= current.progress_percentage %>" max="100"></progress> <%= current.progress_percentage %>%
+    <% else %>—<% end %></p>
+  <p><label><%= l(:label_mirror_sync_started) %></label><%= last_started ? format_time(last_started.started_at) : "—" %></p>
+  <p><label><%= l(:label_mirror_sync_finished) %></label><%= last_finished ? format_time(last_finished.finished_at) : "—" %></p>
+</div>
+
+<p><%= link_to l(:label_mirror_pending_count, count: @pending_count), project_mirror_settings_path(@project, tab: "issue_relations") %></p>
+
+<p><%= link_to l(:label_mirror_pending_parent_count, count: @pending_parent_count), project_mirror_settings_path(@project, tab: "issue_hierarchy") %></p>

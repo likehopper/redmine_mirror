@@ -1,0 +1,114 @@
+# frozen_string_literal: true
+# File: redmine_mirror/lib/redmine_mirror/synchronization.rb
+#
+# Redmine Mirror - modular project import and asynchronous replication.
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 2 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+#
+# Queue, lease and execute independent project runs with persisted progress and scheduling.
+
+require "fileutils"
+
+module RedmineMirror
+  class Synchronization
+    # Lock the project configuration so concurrent manual requests cannot queue
+    # two imports before either worker has acquired the execution lease.
+    def self.enqueue(setting, apply:, trigger:, user: nil)
+      setting.with_lock do
+        raise Error, "Mirror module is disabled" unless setting.project.module_enabled?(:mirror)
+        raise Error, "Synchronization already queued or running" if setting.running_run_id || setting.project.mirror_sync_runs.where(status: %w[queued running]).exists?
+        raise Error, "Unavailable modules: #{setting.unavailable_modules.join(', ')}" if setting.unavailable_modules.any?
+        setting.project.mirror_sync_runs.create!(apply: apply, trigger: trigger, requested_by: user, module_totals: JSON.generate(setting.selected_modules.to_h { |key| [key, 0] }))
+      end
+    end
+
+    # Schedule only one due run per project; missed intervals do not accumulate
+    # catch-up jobs. Each completed run calculates its next deadline.
+    def self.tick
+      now = Time.current
+      MirrorProjectSetting.where(auto_sync_enabled: true).where("next_sync_at IS NULL OR next_sync_at <= ?", now).find_each do |setting|
+        setting.with_lock do
+          next unless setting.auto_sync_enabled? && (setting.next_sync_at.nil? || setting.next_sync_at <= now)
+          next unless setting.project.module_enabled?(:mirror)
+          next if setting.running_run_id || setting.project.mirror_sync_runs.where(status: %w[queued running]).exists?
+          setting.project.mirror_sync_runs.create!(apply: true, trigger: "automatic", module_totals: JSON.generate(setting.selected_modules.to_h { |key| [key, 0] }))
+          setting.update_columns(next_sync_at: now + setting.sync_interval_minutes.minutes)
+        end
+      end
+      MirrorSyncRun.where(status: "queued").find_each { |run| execute(run) }
+    end
+
+    # Claim the database lease before reading remote data. This guards project-mode
+    # workers on different hosts; the file lock also coordinates legacy local tasks.
+    def self.execute(run)
+      setting = run.project.mirror_project_setting
+      return unless setting
+      acquired = false
+      setting.with_lock do
+        run.reload
+        return unless run.status == "queued" && setting.running_run_id.nil?
+        if run.trigger == "automatic" && !setting.auto_sync_enabled?
+          run.update!(status: "cancelled", finished_at: Time.current)
+          return
+        end
+        setting.update_columns(running_run_id: run.id)
+        run.update!(status: "running", started_at: Time.current)
+        acquired = true
+      end
+      begin
+        raise Error, "Mirror module is disabled" unless setting.project.module_enabled?(:mirror)
+        # A removed or unavailable adapter must not silently shrink a scheduled run.
+        raise Error, "Unavailable modules: #{setting.unavailable_modules.join(', ')}" if setting.unavailable_modules.any?
+        destination_url = ENV.fetch("MIRROR_DESTINATION_URL") { raise Error, "MIRROR_DESTINATION_URL is not configured for the worker" }
+        config = setting.synchronization_config(destination_url: destination_url)
+        source_url = config.fetch("source_url").sub(%r{/+\z}, "")
+        destination_url = destination_url.sub(%r{/+\z}, "")
+        raise Error, "Cannot mirror a project onto itself" if source_url == destination_url && setting.source_project_id == setting.project_id
+        key = Digest::SHA256.hexdigest(JSON.generate([source_url, setting.source_project_id, destination_url, setting.project_id]))
+        run.update!(source_url: source_url, connection_key: key)
+        destination_key = ENV.fetch("MIRROR_DESTINATION_API_KEY") { raise Error, "MIRROR_DESTINATION_API_KEY is not configured for the worker" }
+        destination = Client.new(url: destination_url, api_key: destination_key, allow_http: config.fetch("allow_http"))
+        runner = Runner.new(source: setting.source_client, destination: destination, store: DatabaseStore.new(key, project_id: setting.project_id))
+        # Also share the legacy operator task's local lock on this host.
+        FileUtils.mkdir_p(Rails.root.join("tmp"))
+        File.open(Rails.root.join("tmp", "mirror-#{key}.lock"), "a", 0600) do |lock|
+          raise Error, "Synchronization already running" unless lock.flock(File::LOCK_EX | File::LOCK_NB)
+          # Complete prevalidation before the first import write. An apply request
+          # also records blocked secondary links so managers can diagnose the failure.
+          preview = runner.run(config, track_relation_blocks: run.apply?)
+          totals = setting.selected_modules.to_h { |key| [key, 0] }
+          preview.each { |event| totals[event.fetch(:module)] += 1 }
+          run.update!(total_records: preview.size, module_totals: JSON.generate(totals))
+          if run.apply?
+            runner.run(config, apply: true) { |event| run.append_event(event) }
+          else
+            preview.each { |event| run.append_event(event) }
+          end
+        end
+        run.update!(status: "succeeded", finished_at: Time.current)
+      rescue StandardError => error
+        # Unexpected exception text can contain URLs, credentials or private records.
+        message = error.is_a?(Error) ? error.message : "Internal synchronization error (#{error.class.name})"
+        run.update!(status: "failed", finished_at: Time.current, error_message: message)
+      # Release only our own lease. A process crash cannot run this cleanup, so
+      # recovery requires checking whether a write succeeded before another run.
+      ensure
+        setting.with_lock do
+          if acquired && setting.running_run_id == run.id
+            values = { running_run_id: nil }
+            values[:next_sync_at] = Time.current + setting.sync_interval_minutes.minutes if setting.auto_sync_enabled?
+            setting.update_columns(values)
+          end
+        end
+      end
+    end
+  end
+end

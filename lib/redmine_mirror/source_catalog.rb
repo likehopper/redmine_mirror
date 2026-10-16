@@ -1,0 +1,63 @@
+# frozen_string_literal: true
+# File: redmine_mirror/lib/redmine_mirror/source_catalog.rb
+#
+# Redmine Mirror - modular project import and asynchronous replication.
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 2 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+#
+# Discover source references and historical identities for project-scoped mapping forms.
+
+module RedmineMirror
+  class SourceCatalog
+    def initialize(client:, project_id:, adapters:)
+      @client, @project_id, @adapters = client, project_id, adapters
+    end
+
+    # Adapters declare their mapping tables before contributing references.
+    # Preserve field metadata separately from labels for compatibility checks.
+    def fetch
+      @client.get("projects/#{Integer(@project_id)}.json")
+      tables = {}
+      @adapters.each do |adapter|
+        adapter.mapping_tables.each { |table| tables[table.key] ||= {} }
+        adapter.catalog_references(@client, @project_id).each do |kind, references|
+          raise Error, "Undeclared module mapping table" unless tables.key?(kind)
+          references.each do |reference|
+            id = Integer(reference.fetch("id"))
+            tables[kind][id.to_s] = reference.fetch("name", "##{id}")
+            table = adapter.mapping_tables.find { |entry| entry.key == kind }
+            if table && !table.metadata_fields.empty?
+              (tables["#{kind}_definitions"] ||= {})[id.to_s] = reference.select { |key, _| table.metadata_fields.include?(key) }
+            end
+          end
+        end
+        adapter.records(@client, @project_id).each do |record|
+          next unless record.fetch("project").fetch("id").to_i == @project_id.to_i
+          # Historical authors and observers may not be project members. Discover
+          # their remote identities without creating any destination accounts.
+          if tables.key?("user")
+            adapter.referenced_users(record).each do |reference|
+              id = Integer(reference.fetch("id"))
+              tables["user"][id.to_s] = reference.fetch("name", "##{id}")
+            end
+          end
+          adapter.mapping_tables.each do |table|
+            table.references(record).each do |reference|
+              id = Integer(reference.fetch("id"))
+              tables[table.key][id.to_s] = reference.fetch("name", "##{id}")
+            end
+          end
+        end
+      end
+      tables
+    end
+  end
+end

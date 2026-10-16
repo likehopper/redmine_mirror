@@ -1,0 +1,14 @@
+{
+  "source_url": "https://source.example/redmine",
+  "destination_url": "https://destination.example/redmine",
+  "source_project_id": 12,
+  "destination_project_id": 34,
+  "modules": ["issue_tracking", "time_tracking"],
+  "mappings": {
+    "tracker": {"1": 2},
+    "status": {"1": 1, "5": 5},
+    "priority": {"2": 2},
+    "user": {"7": 11},
+    "activity": {"9": 10}
+  }
+}

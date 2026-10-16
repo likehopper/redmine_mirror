@@ -1,0 +1,39 @@
+<%#
+File: redmine_mirror/app/views/mirror_settings/_history.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Render project-scoped Mirror controls and diagnostics using native Redmine helpers.
+%><%= form_tag project_mirror_settings_path(@project), method: :get do %>
+  <%= hidden_field_tag :tab, "history" %>
+  <fieldset><legend><%= l(:label_filter_plural) %></legend>
+    <%= label_tag :status, l(:field_status) %>
+    <%= select_tag :status, options_for_select([[l(:label_all), ""]] + MirrorSyncRun::STATUSES.map { |value| [l("label_mirror_run_#{value}".to_sym), value] }, params[:status]) %>
+    <%= label_tag :mode, l(:label_mirror_sync_mode) %>
+    <%= select_tag :mode, options_for_select([[l(:label_all), ""], [l(:button_mirror_preview), "preview"], [l(:button_mirror_sync_now), "apply"]], params[:mode]) %>
+    <%= label_tag :trigger, l(:label_mirror_trigger) %>
+    <%= select_tag :trigger, options_for_select([[l(:label_all), ""]] + MirrorSyncRun::TRIGGERS.map { |value| [l("label_mirror_trigger_#{value}".to_sym), value] }, params[:trigger]) %>
+    <%= label_tag :module_key, l(:label_mirror_modules) %>
+    <%= select_tag :module_key, options_for_select([[l(:label_all), ""]] + RedmineMirror::REGISTRY.keys.map { |key| [l("label_mirror_module_#{key}".to_sym), key] }, params[:module_key]) %>
+    <%= label_tag :from, l(:label_mirror_from) %><%= date_field_tag :from, params[:from] %>
+    <%= label_tag :to, l(:label_mirror_to) %><%= date_field_tag :to, params[:to] %>
+    <%= submit_tag l(:button_apply) %>
+    <%= link_to l(:button_clear), project_mirror_settings_path(@project, tab: "history") %>
+  </fieldset>
+<% end %>
+<table class="list" id="mirror-history"><thead><tr><th>#</th><th><%= l(:field_created_on) %></th><th><%= l(:field_status) %></th><th><%= l(:label_mirror_sync_mode) %></th><th><%= l(:label_mirror_trigger) %></th><th><%= l(:label_mirror_progress) %></th></tr></thead><tbody>
+<% @runs.each do |run| %>
+<tr><td><%= link_to run.id, project_mirror_run_path(@project, run) %></td><td><%= format_time(run.created_at) %></td><td><%= l("label_mirror_run_#{run.status}".to_sym) %></td><td><%= run.apply? ? l(:button_mirror_sync_now) : l(:button_mirror_preview) %></td><td><%= l("label_mirror_trigger_#{run.trigger}".to_sym) %></td><td><%= run.progress_percentage.nil? ? "—" : "#{run.progress_percentage}%" %></td></tr>
+<% end %>
+</tbody></table>
+<span class="pagination"><%= pagination_links_full @run_pages, @run_count %></span>

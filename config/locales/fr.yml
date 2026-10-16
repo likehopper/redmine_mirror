@@ -1,0 +1,127 @@
+# File: redmine_mirror/config/locales/fr.yml
+#
+# Redmine Mirror - modular project import and asynchronous replication.
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 2 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+#
+# Provide French labels for Mirror configuration, synchronization and diagnostics.
+
+fr:
+  label_mirror: Mirror
+  project_module_mirror: Mirror
+  permission_view_mirror: Voir Mirror
+  text_mirror_operator_sync: "La synchronisation est actuellement exécutée par un opérateur avec la tâche redmine_mirror:sync. La simulation est activée par défaut."
+  label_mirror_settings: "Configuration Mirror"
+  label_mirror_connection: "Connexion"
+  label_mirror_source_url: "URL du Redmine source"
+  label_mirror_source_project: "Identifiant du projet source"
+  label_mirror_api_key: "Clé API source"
+  label_mirror_modules: "Modules"
+  label_mirror_module_issue_tracking: "Demandes"
+  label_mirror_module_time_tracking: "Temps passé"
+  label_mirror_mapping_tracker: "Trackers"
+  label_mirror_mapping_status: "Statuts"
+  label_mirror_mapping_priority: "Priorités"
+  label_mirror_mapping_user: "Utilisateurs"
+  label_mirror_mapping_activity: "Activités de temps"
+  label_mirror_source: "Référence distante"
+  label_mirror_destination: "Correspondance locale"
+  label_mirror_unmapped: "À configurer"
+  label_mirror_anonymous: "Anonymiser"
+  label_mirror_invalid_destination: "Référence locale indisponible - choisir un remplacement"
+  label_mirror_anonymous_time_user: "Compte local pour le temps anonymisé"
+  permission_manage_mirror: "Configurer les correspondances Mirror"
+  button_mirror_refresh: "Actualiser les références source"
+  text_mirror_connection_admin: "Un administrateur configure la connexion distante. Les membres autorisés du projet peuvent gérer les tables de correspondance."
+  text_mirror_unavailable_modules: "Ces modules sélectionnés sont indisponibles sur ce Redmine : %{modules}. La synchronisation est suspendue jusqu’à la réinstallation de leur plugin ou leur désélection par un administrateur."
+  text_mirror_keep_api_key: "Laisser vide pour conserver la clé existante. La clé ne sera jamais affichée."
+  text_mirror_mapping_help: "Les identifiants distants sont associés aux références locales de ce projet. Les correspondances utilisateurs sont partagées entre modules. Actualiser les références de connexion lorsque de nouvelles données sont ajoutées."
+  text_mirror_anonymous_time_user: "Les demandes anonymisées ne sont pas assignées. Les saisies de temps exigent un compte local : sélectionner un membre actif dédié du projet."
+  text_mirror_invalid_configuration: "Configuration de connexion invalide"
+  text_mirror_invalid_mapping: "Correspondance invalide. Vérifier les identifiants source, les références locales actives et les options du module."
+  label_mirror_module_users: Utilisateurs
+  label_mirror_synchronization: "Synchronisation"
+  label_mirror_auto_sync: "Activer la synchronisation automatique"
+  label_mirror_frequency: "Fréquence"
+  label_mirror_interval: "Toutes les %{minutes} minutes"
+  label_mirror_next_sync: "Prochaine exécution automatique"
+  label_mirror_sync_history: "Historique des exécutions"
+  label_mirror_sync_mode: "Mode"
+  label_mirror_sync_started: "Début"
+  label_mirror_sync_finished: "Fin"
+  label_mirror_action: "Action"
+  button_mirror_preview: "Lancer une simulation"
+  button_mirror_sync_now: "Synchroniser maintenant"
+  label_mirror_run_queued: "En attente"
+  label_mirror_run_running: "En cours"
+  label_mirror_run_succeeded: "Réussie"
+  label_mirror_run_failed: "Échouée"
+  text_mirror_worker_required: "Un worker doit traiter les exécutions en attente. La synchronisation manuelle applique les correspondances du projet ; la synchronisation automatique utilise la même configuration."
+  text_mirror_invalid_schedule: "Planification de synchronisation invalide"
+  text_mirror_sync_queued: "Exécution mise en attente. Actualiser cette page pour voir son résultat."
+  label_mirror_run_cancelled: Annulée
+  label_mirror_idle: "À l’arrêt"
+  label_mirror_log: "Journal de l’exécution"
+  label_mirror_progress: "Avancement"
+  label_mirror_trigger: "Origine du lancement"
+  label_mirror_trigger_manual: "Manuel"
+  label_mirror_trigger_automatic: "Automatique"
+  label_mirror_trigger_operator: "Opérateur"
+  label_mirror_from: "Du"
+  label_mirror_to: "Au"
+  label_mirror_objects: Correspondances des objets
+  label_mirror_remote_id: ID distant
+  label_mirror_local_id: ID local
+  label_mirror_module_issue_journals: "Historique des demandes"
+  label_mirror_module_issue_attachments: "Pièces jointes des demandes"
+  label_mirror_module_issue_relations: "Relations des demandes"
+  label_mirror_missing_relation: "Cible non synchronisée"
+  label_mirror_relation_ignore: "Ignorer et journaliser"
+  label_mirror_relation_note: "Ajouter une note privée"
+  label_mirror_reason: "Motif"
+  label_mirror_module_issue_categories: "Catégories des demandes"
+  label_mirror_module_project_versions: "Versions du projet"
+  label_mirror_pending_relations: "Relations en attente ou bloquées"
+  label_mirror_pending_count: "%{count} relations en attente ou bloquées"
+  label_mirror_relation_pending: "En attente"
+  label_mirror_relation_blocked: "Bloquée"
+  label_mirror_relation_delay: "Délai"
+  label_mirror_relation_checked: "Dernier contrôle"
+  text_mirror_reference_objects: "Ces références sont créées ou mises à jour avant les demandes. Leurs correspondances sont enregistrées automatiquement."
+  label_mirror_remote_relation_id: "Relation distante"
+  label_mirror_local_issue_id: "Demande locale"
+  label_mirror_missing_remote_issue: "Demande distante manquante"
+  label_mirror_existing_note: "Note privée ajoutée"
+  text_mirror_remote_endpoint_missing: "Demande distante non synchronisée"
+  label_mirror_source_issue: "Demande source Mirror"
+  label_mirror_pending_source_issue: "Demande source"
+  label_mirror_sync_configuration: "Configuration de la synchronisation"
+  label_mirror_module_configuration: "Modules et correspondances"
+  label_mirror_module_issue_hierarchy: "Hiérarchie des demandes"
+  label_mirror_module_issue_watchers: "Observateurs des demandes"
+  text_mirror_issue_hierarchy: "Les parents sont reliés après l’import des demandes. Un parent non synchronisé est signalé avec son lien dans le journal. Synchroniser son projet puis relancer celui de l’enfant. Les règles Redmine de sous-demandes interprojets s’appliquent."
+  text_mirror_issue_watchers: "Actualiser les références de connexion pour découvrir les observateurs, même hors projet source, puis configurer leurs correspondances dans Utilisateurs. Les utilisateurs anonymisés ne sont pas abonnés. Les utilisateurs mappés doivent avoir accès à la demande. Les abonnements locaux sont conservés ; les suppressions distantes ne sont pas propagées."
+  label_mirror_module_issue_custom_fields: "Champs personnalisés des demandes"
+  label_mirror_mapping_custom_field: "Champ personnalisé"
+  text_mirror_custom_fields: "Associer les champs puis enregistrer pour configurer les valeurs des listes. Les formats et le caractère multiple doivent correspondre. Les champs locaux sont créés dans l’administration Redmine. La découverte des définitions exige une clé API administrateur sur la source."
+  label_mirror_ignore_field: "Ignorer ce champ"
+  label_mirror_conflicts: "Conflits"
+  label_mirror_conflict_open: "À résoudre"
+  label_mirror_conflict_ignored: "Conservé localement"
+  label_mirror_conflict_resolved: "Résolu"
+  button_mirror_keep_local: "Conserver cet objet local"
+  button_mirror_recheck: "Réexaminer après correction"
+  text_mirror_conflicts: "Les conflits sont détectés pendant la prévalidation. Conserver un objet local exclut uniquement cet objet de ce module pour ce projet, sans supprimer sa correspondance. Les autres modules restent actifs. Corriger les données ou les correspondances, réexaminer, puis lancer une synchronisation. Les empreintes ne sont pas réinitialisées et aucun écrasement forcé n’est effectué."
+  text_mirror_keep_local_confirm: "Exclure cet objet des prochaines synchronisations de ce module et conserver ses données locales ?"
+  label_mirror_pending_parents: "Parents en attente ou bloqués"
+  label_mirror_remote_parent: "Parent distant"
+  label_mirror_pending_parent_count: "%{count} parents en attente ou bloqués"
+  text_mirror_remote_parent_missing: "Le parent distant n’est pas synchronisé. Synchroniser son projet puis relancer ce projet."

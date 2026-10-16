@@ -1,0 +1,36 @@
+<%#
+File: redmine_mirror/app/views/mirror_settings/_custom_field_values.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Render project-scoped Mirror controls and diagnostics using native Redmine helpers.
+%><p><%= l(:text_mirror_custom_fields) %></p>
+<% @setting.source_catalog.fetch("custom_field_definitions", {}).each do |source_id, definition| %>
+  <% next unless %w[list enumeration].include?(definition["field_format"]) %>
+  <% local_id = @mapping_values[["custom_field", source_id]] %>
+  <% field = adapter.mapping_tables.first.local_records(@project).find { |candidate| candidate.id.to_s == local_id } %>
+  <% next unless field %>
+  <h3><%= @setting.source_catalog.fetch("custom_field").fetch(source_id) %> → <%= field.name %></h3>
+  <table class="list mirror-custom-field-values"><thead><tr><th><%= l(:label_mirror_source) %></th><th><%= l(:label_mirror_destination) %></th></tr></thead><tbody>
+  <% definition.fetch("possible_values", []).each do |value| %>
+    <% hash = adapter.value_key(value.fetch("value")) %>
+    <% selected = @setting.module_options.dig(adapter.key, "value_mappings", source_id, hash) %>
+    <% choices = [[l(:label_mirror_unmapped), ""]] + field.possible_values_options.map { |label, id| [label, (id || label).to_s] } %>
+    <% choices << [l(:label_mirror_invalid_destination), selected] if selected.present? && choices.none? { |choice| choice.last == selected } %>
+    <tr><td><%= value.fetch("label", value.fetch("value")) %></td><td>
+    <%= label_tag "mirror-cf-value-#{source_id}-#{hash}", l(:label_mirror_destination), class: "hidden-for-sighted" %>
+    <%= select_tag "module_options[value_mappings][#{source_id}][#{hash}]", options_for_select(choices, selected), id: "mirror-cf-value-#{source_id}-#{hash}" %>
+    </td></tr>
+  <% end %>
+  </tbody></table>
+<% end %>

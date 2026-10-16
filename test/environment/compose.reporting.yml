@@ -1,0 +1,26 @@
+#
+# Redmine Mirror - modular project import and asynchronous replication.
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 2 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+#
+#
+# Add redmine_reporting to both instances, for the Reporting adapter checks.
+# MIRROR_REPORTING_PATH points to a redmine_reporting checkout.
+
+x-reporting: &reporting
+  - ${MIRROR_REPORTING_PATH:?Set MIRROR_REPORTING_PATH to a redmine_reporting checkout}:/reporting-plugin:ro
+services:
+  source:
+    volumes: *reporting
+  destination:
+    volumes: *reporting
+  worker:
+    volumes: *reporting

@@ -1,0 +1,42 @@
+# File: redmine_mirror/.github/workflows/ci.yml
+#
+# Redmine Mirror - modular project import and asynchronous replication.
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 2 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+name: Mirror validation
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  redmine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TMPDIR: /tmp
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Redmine 6.1.4 / SQLite / Chromium
+        run: bash test/compatibility/run.sh
+      - name: Package committed candidate
+        run: bash scripts/package.sh HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mirror-validation
+          path: |
+            /tmp/redmine-mirror-compat.*/build.log
+            /tmp/redmine-mirror-compat.*/test.log
+            /tmp/redmine-mirror-compat.*/screenshots/
+            dist/*.tar.gz
+            dist/*.sha256

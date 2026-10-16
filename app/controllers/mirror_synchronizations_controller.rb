@@ -1,0 +1,74 @@
+# frozen_string_literal: true
+# File: redmine_mirror/app/controllers/mirror_synchronizations_controller.rb
+#
+# Redmine Mirror - modular project import and asynchronous replication.
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 2 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+#
+# Enqueue authorized project work and expose filtered execution diagnostics.
+
+class MirrorSynchronizationsController < ApplicationController
+  helper MirrorHelper
+  before_action :find_project_by_project_id
+  before_action :authorize
+  before_action :load_setting
+
+  def update
+    input = params.require(:schedule).permit(:enabled, :interval_minutes)
+    interval = Integer(input.fetch(:interval_minutes))
+    raise RedmineMirror::Error, "Invalid synchronization interval" unless MirrorProjectSetting::SYNC_INTERVALS.include?(interval)
+    @setting.update!(auto_sync_enabled: input[:enabled] == "1", sync_interval_minutes: interval,
+      next_sync_at: input[:enabled] == "1" ? Time.current + interval.minutes : nil)
+    flash[:notice] = l(:notice_successful_update)
+    redirect_to project_mirror_settings_path(@project, tab: "synchronization")
+  rescue RedmineMirror::Error, ActiveRecord::RecordInvalid, ArgumentError, KeyError
+    flash[:error] = l(:text_mirror_invalid_schedule)
+    redirect_to project_mirror_settings_path(@project, tab: "synchronization")
+  end
+
+  def create
+    raise RedmineMirror::Error, "Invalid synchronization mode" unless %w[preview apply].include?(params[:mode])
+    run = RedmineMirror::Synchronization.enqueue(@setting, apply: params[:mode] == "apply", trigger: "manual", user: User.current)
+    flash[:notice] = l(:text_mirror_sync_queued)
+    redirect_to project_mirror_run_path(@project, run)
+  rescue RedmineMirror::Error => error
+    flash[:error] = error.message
+    redirect_to project_mirror_settings_path(@project, tab: "synchronization")
+  end
+
+  def show
+    @run = @project.mirror_sync_runs.find_by(id: params[:id])
+    return render_404 unless @run
+    @source_url = @run.source_url.presence || @setting.source_url
+    key = @run.connection_key.presence || mirror_connection_key
+    @object_mappings = key ? MirrorMapping.where(connection_key: key).to_a.to_h { |row| [[row.module_key, row.source_id], row.destination_id] } : {}
+    @events = @run.log_events
+    @events = @events.select { |event| event["module"] == params[:module_key] } if params[:module_key].present?
+    @events = @events.select { |event| event["action"] == params[:action_filter] } if params[:action_filter].present?
+    @events = @events.select { |event| event["source_id"].to_s == params[:source_id] } if params[:source_id].present?
+    @event_count = @events.size
+    @event_pages = Paginator.new(@event_count, 50, params[:page])
+    @events = @events.slice(@event_pages.offset, 50) || []
+  end
+
+  private
+
+  def mirror_connection_key
+    destination = ENV["MIRROR_DESTINATION_URL"]
+    return nil if destination.blank?
+    Digest::SHA256.hexdigest(JSON.generate([@setting.source_url.sub(%r{/+\z}, ""), @setting.source_project_id, destination.sub(%r{/+\z}, ""), @project.id]))
+  end
+
+  def load_setting
+    @setting = @project.mirror_project_setting
+    render_404 unless @setting
+  end
+end

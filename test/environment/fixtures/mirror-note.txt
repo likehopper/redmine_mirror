@@ -1,0 +1,3 @@
+Mirror attachment fixture
+Accents: pièce jointe, état résolu.
+This file belongs to the disposable source project.
