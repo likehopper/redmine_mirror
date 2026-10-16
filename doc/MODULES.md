@@ -23,13 +23,14 @@ follow the [configuration guide](CONFIGURATION.md).
 
 ## Connection and references
 
-An administrator sets the source URL, the numeric source project ID, the source API
+An administrator sets the source URL, the source project (identifier or ID), the source API
 key and the modules (**Mirror → Synchronization configuration → Connection**).
 Selecting a module also selects the modules it depends on: *Time tracking* selects
 *Issues*, and both select *Users*. Saving checks the connection and loads the source
 references.
 
-- Trackers, statuses, priorities and activities come from their source APIs.
+- Trackers, statuses, priorities and activities come from their source APIs. The forms
+  list those the project's issues and history use, plus those already mapped.
 - Users are discovered in the issues, time entries and watchers the API key can read.
 - **Refresh source references** reloads them without changing any mapping.
 - The source URL and project ID are locked once saved: changing the source will

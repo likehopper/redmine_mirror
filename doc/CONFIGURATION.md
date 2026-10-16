@@ -75,7 +75,7 @@ Open **Mirror**. In **Synchronization configuration → Connection**, an adminis
 enters:
 
 - **Source Redmine URL**;
-- **Source project ID**: the numeric ID, shown in `<source>/projects/<identifier>.json`;
+- **Source project**: its identifier, as in `<source>/projects/<identifier>`, or its numeric ID;
 - **Source API key**: stored encrypted and never displayed again;
 - **Modules** to import. Dependencies are added on save: *Time tracking* adds *Issues*,
   and both add *Users*.
@@ -101,7 +101,10 @@ table is shared by every module.
 ## 7. Map the references
 
 Each module tab lists the source references it needs. **Issues** maps trackers,
-statuses and priorities.
+statuses and priorities. Only the references used by the source project's issues and
+their history are listed, plus those already mapped; a link shows the others. Local
+statuses are limited to those of the project's tracker workflows. Long lists, such as
+users, can be filtered by typing.
 
 ![Issue mappings](screenshots/configuration/08-issues.png)
 

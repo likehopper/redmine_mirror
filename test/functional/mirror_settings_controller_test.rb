@@ -196,6 +196,54 @@ class MirrorSettingsControllerTest < ActionController::TestCase
     assert_equal "private-api-key", @setting.api_key
   end
 
+  # Source REST client double answering the project lookup.
+  def source_project_client(id, identifier)
+    client = Object.new
+    client.define_singleton_method(:get) do |path, _params = {}|
+      raise RedmineMirror::Error, "Redmine API returned HTTP 404" unless ["projects/#{id}.json", "projects/#{identifier}.json"].include?(path)
+      { "project" => { "id" => id, "identifier" => identifier } }
+    end
+    client
+  end
+
+  def test_new_connection_accepts_the_source_project_identifier
+    @setting.destroy
+    catalog = Object.new
+    def catalog.fetch; {}; end
+    RedmineMirror::Client.stub(:new, source_project_client(34, "legacy-app")) do
+      RedmineMirror::SourceCatalog.stub(:new, catalog) do
+        patch :update_connection, params: { project_id: @project.identifier,
+          connection: { source_url: "https://source.example/redmine", source_project_id: "legacy-app", api_key: "source-key", modules: ["issue_tracking"] } }
+      end
+    end
+    assert_response :redirect
+    setting = @project.reload.mirror_project_setting
+    assert_equal [34, "legacy-app"], [setting.source_project_id, setting.source_project_identifier]
+    get :show, params: { project_id: @project.identifier }
+    assert_select "input[name='connection[source_project_id]'][value='legacy-app']"
+  end
+
+  def test_unknown_or_invalid_source_project_is_refused
+    @setting.destroy
+    RedmineMirror::Client.stub(:new, source_project_client(34, "legacy-app")) do
+      ["other-app", "../admin", "Legacy"].each do |reference|
+        patch :update_connection, params: { project_id: @project.identifier,
+          connection: { source_url: "https://source.example/redmine", source_project_id: reference, api_key: "source-key", modules: ["issue_tracking"] } }
+        assert_response :unprocessable_entity
+      end
+    end
+    assert_nil @project.reload.mirror_project_setting
+  end
+
+  def test_connection_identifier_must_designate_the_same_source_project
+    RedmineMirror::Client.stub(:new, source_project_client(99, "another-app")) do
+      patch :update_connection, params: { project_id: @project.identifier,
+        connection: { source_url: @setting.source_url, source_project_id: "another-app", modules: ["issue_tracking"] } }
+    end
+    assert_response :unprocessable_entity
+    assert_equal 12, @setting.reload.source_project_id
+  end
+
   def test_connection_cannot_be_rebound_to_another_source
     patch :update_connection, params: { project_id: @project.identifier,
       connection: { source_url: "https://other.example", source_project_id: 12, modules: ["issue_tracking"] } }

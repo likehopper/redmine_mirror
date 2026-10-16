@@ -49,3 +49,6 @@
 #content #mirror-settings-tabs .tabs-buttons {
   display: none;
 }
+
+/* Filterable mapping choices (assets/javascripts/mirror.js). */
+.mirror-autocomplete-input { min-width: 18em; }

@@ -26,6 +26,7 @@ module RedmineMirror
     def fetch
       @client.get("projects/#{Integer(@project_id)}.json")
       tables = {}
+      used = Hash.new { |hash, key| hash[key] = [] }
       @adapters.each do |adapter|
         adapter.mapping_tables.each { |table| tables[table.key] ||= {} }
         adapter.catalog_references(@client, @project_id).each do |kind, references|
@@ -53,10 +54,16 @@ module RedmineMirror
             table.references(record).each do |reference|
               id = Integer(reference.fetch("id"))
               tables[table.key][id.to_s] = reference.fetch("name", "##{id}")
+              used[table.key] << id.to_s
             end
+          end
+          adapter.used_references(record).each do |kind, ids|
+            used[kind].concat(ids.map { |id| Integer(id).to_s }) if tables.key?(kind)
           end
         end
       end
+      # "<table>_used" lists the source IDs that the project's records reference.
+      used.each { |kind, ids| tables["#{kind}_used"] = ids.uniq.sort_by(&:to_i) }
       tables
     end
   end

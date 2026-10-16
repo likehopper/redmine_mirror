@@ -38,6 +38,7 @@ begin
     setting.source_catalog = RedmineMirror::SourceCatalog.new(client: setting.source_client, project_id: source_id, adapters: setting.adapters).fetch
     setting.save!
     setting.source_catalog.each do |kind, values|
+      next unless %w[tracker status priority user].include?(kind)
       values.each do |id, name|
         target = if kind == "user"
           name.include?("Alice") ? User.find_by!(login: "alice").id : User.find_by!(login: "admin").id

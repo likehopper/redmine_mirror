@@ -231,6 +231,16 @@ class MirrorCoreTest < Minitest::Test
     assert_nil registry["missing"]
   end
 
+  def test_history_reports_the_statuses_trackers_and_priorities_it_uses
+    journal = { "details" => [
+      { "property" => "attr", "name" => "status_id", "old_value" => "1", "new_value" => "5" },
+      { "property" => "attr", "name" => "priority_id", "old_value" => nil, "new_value" => "4" },
+      { "property" => "attr", "name" => "subject", "old_value" => "a", "new_value" => "b" },
+      { "property" => "cf", "name" => "status_id", "old_value" => "9", "new_value" => "9" }] }
+    used = RedmineMirror::Adapters::Journals.new.used_references(journal)
+    assert_equal({ "status" => %w[1 5], "priority" => %w[4] }, used)
+  end
+
   def test_client_rejects_insecure_or_embedded_credentials
     %w[http://redmine.example https://user:secret@redmine.example https://redmine.example?secret=x].each do |url|
       assert_raises(RedmineMirror::Error) { RedmineMirror::Client.new(url: url, api_key: "key") }

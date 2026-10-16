@@ -38,7 +38,8 @@ module RedmineMirror
     def local_records(project)
       case key
       when "tracker" then project.trackers.sorted
-      when "status" then IssueStatus.sorted
+      # Statuses reachable through the project's tracker workflows, when there are any.
+      when "status" then project.rolled_up_statuses.presence || IssueStatus.sorted
       when "priority" then IssuePriority.active.sorted
       when "activity" then project.activities
       when "user" then project.users.active.sorted

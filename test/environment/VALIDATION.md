@@ -166,3 +166,8 @@ puis `smoke.rb`, `synchronization_smoke.rb`, `history_smoke.rb`, `relations_smok
 Sur la destination 5.1 (Rails 6.1), SQLite renvoyait « database is locked » entre le
 worker et le serveur web, y compris pour les mails de Redmine : l'environnement déclare
 désormais `timeout: 5000`, comme le `database.yml` d'exemple de Redmine.
+
+Saisie du projet source par identifiant, références limitées à celles utilisées et
+listes filtrables (17 octobre 2026) : runner CI 80 tests Redmine / 339 assertions,
+`zeitwerk:check`, moteur 26 / 89. `versions.sh` réussi pour source 5.0.12 →
+destination 5.1.13 et source 4.2.10 → destination 6.1.4 (sept smokes d'écriture).

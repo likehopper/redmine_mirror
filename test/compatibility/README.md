@@ -23,7 +23,7 @@ Destination (Redmine running Mirror):
 
 | Redmine | Database | Evidence |
 | --- | --- | --- |
-| 6.1.4 | SQLite 3 | Official-image CI runner, locally and on GitHub: Ruby 3.4.11 / Rails 7.2.3.2, 74 Redmine tests / 315 assertions, `zeitwerk:check`, fresh install and uninstall/reinstall. All two-instance smokes in production mode. |
+| 6.1.4 | SQLite 3 | Official-image CI runner, locally and on GitHub: Ruby 3.4.11 / Rails 7.2.3.2, 80 Redmine tests / 339 assertions, `zeitwerk:check`, fresh install and uninstall/reinstall. All two-instance smokes in production mode. |
 | 5.1.13 | SQLite 3 | Two-instance write smokes in production mode (`versions.sh`). The Redmine test suite is not run on 5.1. |
 | 5.0 / 6.0 / 7.x | Not validated | No compatibility claim |
 | Any version | PostgreSQL / MariaDB / MySQL | Not validated |
@@ -33,7 +33,7 @@ Source (read through its REST API only, Mirror not installed):
 | Redmine | Evidence |
 | --- | --- |
 | 6.1.4 | All two-instance smokes |
-| 5.0.12 | Write smokes into a 6.1.4 destination (`versions.sh`) |
+| 5.0.12 | Write smokes into 6.1.4 and 5.1.13 destinations (`versions.sh`) |
 | 4.2.10 | Write smokes into 6.1.4 and 5.1.13 destinations (`versions.sh`) |
 
 The write smokes cover issues, time entries, categories and versions, history and

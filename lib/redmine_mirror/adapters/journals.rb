@@ -22,6 +22,15 @@ module RedmineMirror
       def phase; :history; end
       def association; "journals"; end
 
+      # Historical status, tracker and priority changes need mappings too.
+      def used_references(record)
+        record.fetch("details", []).each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |detail, used|
+          name = detail["name"].to_s
+          next unless detail["property"] == "attr" && %w[status_id tracker_id priority_id].include?(name)
+          used[name.delete_suffix("_id")].concat(detail.values_at("old_value", "new_value").compact.reject(&:empty?))
+        end
+      end
+
       def imported_attributes(record, mappings, lookup: nil, project: nil)
         details = record.fetch("details", []).filter_map do |detail|
           property, name = detail.values_at("property", "name")

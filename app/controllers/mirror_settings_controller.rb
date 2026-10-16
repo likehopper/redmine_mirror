@@ -29,18 +29,27 @@ class MirrorSettingsController < ApplicationController
   def update_connection
     input = params.require(:connection).permit(:source_url, :source_project_id, :api_key, modules: [])
     url = input.fetch(:source_url).strip.sub(%r{/+\z}, "")
-    source_id = Integer(input.fetch(:source_project_id))
-    if @setting.persisted? && [@setting.source_url, @setting.source_project_id] != [url, source_id]
+    # The source project is entered by identifier or numeric ID.
+    reference = input.fetch(:source_project_id).to_s.strip
+    raise RedmineMirror::Error, l(:text_mirror_invalid_source_project) unless reference.match?(SOURCE_PROJECT)
+    if @setting.persisted? && @setting.source_url != url
       # Keep existing correspondence identities stable; rebinding needs an explicit future reset flow.
       raise RedmineMirror::Error, "This project's source cannot be changed after configuration"
     end
     @setting.source_url = url
-    @setting.source_project_id = source_id
-    @setting.selected_modules = input[:modules] || []
     @setting.api_key = input[:api_key] if input[:api_key].present?
+    unless @setting.persisted? && [@setting.source_project_id.to_s, @setting.source_project_identifier].include?(reference)
+      source = resolve_source_project(reference)
+      if @setting.persisted? && @setting.source_project_id != source.fetch("id")
+        raise RedmineMirror::Error, "This project's source cannot be changed after configuration"
+      end
+      @setting.source_project_id = source.fetch("id")
+      @setting.source_project_identifier = source["identifier"]
+    end
+    @setting.selected_modules = input[:modules] || []
     if @setting.valid?
       @setting.source_catalog = RedmineMirror::SourceCatalog.new(client: @setting.source_client,
-        project_id: source_id, adapters: @setting.adapters).fetch
+        project_id: @setting.source_project_id, adapters: @setting.adapters).fetch
       @setting.save!
       flash[:notice] = l(:notice_successful_update)
       redirect_to project_mirror_settings_path(@project)
@@ -58,7 +67,9 @@ class MirrorSettingsController < ApplicationController
     return render_404 unless @setting.persisted?
     catalog = RedmineMirror::SourceCatalog.new(client: @setting.source_client,
       project_id: @setting.source_project_id, adapters: @setting.adapters).fetch
-    @setting.update!(source_catalog: catalog)
+    # Connections configured by numeric ID gain their identifier here.
+    identifier = resolve_source_project(@setting.source_project_id.to_s)["identifier"]
+    @setting.update!(source_catalog: catalog, source_project_identifier: identifier)
     flash[:notice] = l(:notice_successful_update)
     redirect_to project_mirror_settings_path(@project)
   rescue RedmineMirror::Error => error
@@ -104,6 +115,16 @@ class MirrorSettingsController < ApplicationController
   end
 
   private
+
+  SOURCE_PROJECT = /\A(?:[1-9]\d*|[a-z][a-z0-9_-]{0,99})\z/
+
+  # Read the source project once to store its numeric ID and identifier.
+  def resolve_source_project(reference)
+    project = @setting.source_client.get("projects/#{reference}.json").fetch("project")
+    { "id" => Integer(project.fetch("id")), "identifier" => project["identifier"] }
+  rescue RedmineMirror::Error, KeyError, TypeError, ArgumentError
+    raise RedmineMirror::Error, l(:text_mirror_source_project_not_found)
+  end
 
   def load_setting
     @setting = @project.mirror_project_setting || @project.build_mirror_project_setting

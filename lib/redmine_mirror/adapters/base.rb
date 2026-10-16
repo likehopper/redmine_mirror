@@ -56,6 +56,12 @@ module RedmineMirror
         []
       end
 
+      # {table key => [source IDs]} referenced by a record beyond its mapping tables,
+      # so the mapping forms can show only the references a project really uses.
+      def used_references(_record)
+        {}
+      end
+
       def label
         "label_mirror_module_#{key}".to_sym
       end

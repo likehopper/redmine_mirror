@@ -16,6 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 Render project-scoped Mirror controls and diagnostics using native Redmine helpers.
 %><% content_for :header_tags do %>
   <%= stylesheet_link_tag "mirror", plugin: "redmine_mirror" %>
+  <%= javascript_include_tag "mirror", plugin: "redmine_mirror" %>
 <% end %>
 <h2><%= l(:label_mirror_settings) %></h2>
 <%= error_messages_for @setting %>
@@ -48,7 +49,8 @@ Render project-scoped Mirror controls and diagnostics using native Redmine helpe
   <%= form_tag project_mirror_connection_path(@project), method: :patch do %>
     <div class="box tabular">
       <p><%= label_tag "connection_source_url", l(:label_mirror_source_url) %><%= text_field_tag "connection[source_url]", @setting.source_url, size: 60, disabled: !User.current.admin? %></p>
-      <p><%= label_tag "connection_source_project_id", l(:label_mirror_source_project) %><%= number_field_tag "connection[source_project_id]", @setting.source_project_id, min: 1, disabled: !User.current.admin? %></p>
+      <p><%= label_tag "connection_source_project_id", l(:label_mirror_source_project) %><%= text_field_tag "connection[source_project_id]", @setting.source_project_identifier.presence || @setting.source_project_id, size: 30, disabled: !User.current.admin? %>
+        <% if @setting.source_project_id %><em class="info"><%= l(:text_mirror_source_project_number, id: @setting.source_project_id) %></em><% end %></p>
       <% if User.current.admin? %>
         <p><%= label_tag "connection_api_key", l(:label_mirror_api_key) %><%= password_field_tag "connection[api_key]", nil, autocomplete: "new-password" %><em class="info"><%= l(:text_mirror_keep_api_key) %></em></p>
       <% end %>
@@ -98,19 +100,25 @@ Render project-scoped Mirror controls and diagnostics using native Redmine helpe
         <% local_choices = [[l(:label_mirror_unmapped), ""]] + table.local_records(@project).map { |record| ["#{record.name} (##{record.id})", record.id.to_s] } %>
         <% local_choices << [l(:label_mirror_ignore_field), "ignore"] if table.ignore_allowed? %>
         <% local_choices << [l(:label_mirror_anonymous), "anonymous"] if table.anonymous_allowed? %>
-        <% @setting.source_catalog.fetch(table.key, {}).sort_by { |id, name| [name.downcase, id.to_i] }.each do |id, name| %>
+        <%# Only references used by the source project (and those already mapped), unless all are requested. %>
+        <% used = @setting.source_catalog["#{table.key}_used"] %>
+        <% rows = @setting.source_catalog.fetch(table.key, {}).sort_by { |id, name| [name.downcase, id.to_i] } %>
+        <% hidden = used && params[:all_references] != "1" ? rows.reject { |id, _| used.include?(id) || @mapping_values[[table.key, id]].present? } : [] %>
+        <% (rows - hidden).each do |id, name| %>
           <% selected = @mapping_values[[table.key, id]] %>
           <% choices = local_choices.dup %>
           <% choices << [l(:label_mirror_invalid_destination), selected] if selected.present? && choices.none? { |choice| choice.last == selected } %>
           <tr><td><%= name %> (#<%= mirror_object_link(table.key, id, source_url: @setting.source_url) %>)</td><td>
             <%= label_tag "mirror-#{table.key}-#{id}", l(:label_mirror_destination), class: "hidden-for-sighted" %>
-            <%= select_tag "mappings[#{table.key}][#{id}]", options_for_select(choices, selected), id: "mirror-#{table.key}-#{id}" %>
+            <%= select_tag "mappings[#{table.key}][#{id}]", options_for_select(choices, selected), id: "mirror-#{table.key}-#{id}",
+              class: "mirror-autocomplete", data: { placeholder: l(:label_mirror_type_to_search) } %>
             <%= mirror_object_link(table.key, selected) if selected.present? && !%w[anonymous ignore].include?(selected) %>
           </td></tr>
         <% end %>
         </tbody>
       </table>
       <% if @setting.source_catalog.fetch(table.key, {}).empty? %><p class="nodata"><%= l(:label_no_data) %></p><% end %>
+      <% if hidden.any? %><p class="mirror-unused-references"><%= link_to l(:label_mirror_show_unused_references, count: hidden.size), project_mirror_settings_path(@project, tab: adapter.key, all_references: 1) %></p><% end %>
     <% end %>
     <%= render "custom_field_values", adapter: adapter if adapter.key == "issue_custom_fields" %>
     <% if adapter.key == "issue_relations" %>

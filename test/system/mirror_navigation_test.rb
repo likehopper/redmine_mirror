@@ -219,3 +219,52 @@ class MirrorWrappingTabsSystemTest < ApplicationSystemTestCase
     page.driver.browser.manage.window.resize_to(1280, 900)
   end
 end
+
+class MirrorReferenceChoicesSystemTest < ApplicationSystemTestCase
+  fixtures :projects, :users, :roles, :members, :member_roles, :enabled_modules, :trackers, :issue_statuses
+
+  def setup
+    @project = Project.find(1)
+    @project.enable_module!(:mirror)
+    @setting = MirrorProjectSetting.new(project: @project, source_url: "https://source.example", source_project_id: 12,
+      source_project_identifier: "legacy-app")
+    @setting.selected_modules = ["issue_tracking"]
+    @setting.api_key = "system-test-api-key"
+    @setting.source_catalog = { "status" => { "1" => "Remote New", "2" => "Remote Assigned", "3" => "Remote Resolved" },
+      "status_used" => ["1"], "user" => { "7" => "Remote Alice" }, "user_used" => ["7"] }
+    @setting.save!
+    log_user("admin", "admin")
+  end
+
+  def test_connection_shows_the_source_project_identifier
+    visit "/projects/ecookbook/mirror/settings"
+    assert_equal "legacy-app", find_field("connection[source_project_id]").value
+    assert_text "Source project #12"
+  end
+
+  def test_only_references_used_by_the_source_project_are_listed
+    visit "/projects/ecookbook/mirror/settings?tab=issue_tracking"
+    assert_selector "#mirror-status-1"
+    assert_no_selector "#mirror-status-2"
+    click_link "Show the 2 references not used by the source project"
+    assert_selector "#mirror-status-2"
+    assert_selector "#mirror-status-3"
+  end
+
+  def test_long_choice_lists_are_filtered_as_the_user_types
+    role = Role.givable.first
+    members = (1..12).map do |number|
+      user = User.create!(login: "mirror-member-#{number}", firstname: "Mirror", lastname: "Member #{number}",
+        mail: "mirror-member-#{number}@example.test")
+      Member.create!(project: @project, principal: user, roles: [role])
+      user
+    end
+    visit "/projects/ecookbook/mirror/settings?tab=users"
+    assert_no_selector "#mirror-user-7", visible: true
+    find("#mirror-user-7-search").fill_in(with: "Member 11")
+    find(".ui-menu-item", text: "Mirror Member 11").click
+    click_button "Save"
+    assert_selector "#flash_notice"
+    assert_equal members[10].id, @project.mirror_reference_mappings.find_by!(reference_type: "user", source_id: 7).destination_id
+  end
+end

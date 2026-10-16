@@ -16,6 +16,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+- The source project can be entered by identifier as well as by numeric ID (migration 009).
+- Mapping forms list only the source trackers, statuses and priorities used by the
+  project's issues and history, plus those already mapped; local statuses are limited
+  to the project's tracker workflows.
+- Long choice lists, such as users, can be filtered by typing.
+
 ## 1.0.0-beta.1 — 2026-10-16
 
 First public pre-release, for testing before 1.0.0. No stable release has been published yet.
