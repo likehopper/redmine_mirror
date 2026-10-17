@@ -73,6 +73,17 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     assert_select "#mirror-log .mirror-flag", text: "Issue numbers (#123)"
   end
 
+  def test_warnings_and_conflicts_link_to_where_they_are_fixed
+    field = IssueCustomField.create!(name: "Impact level", field_format: "string", trackers: [Tracker.first])
+    run = @project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "succeeded", events: JSON.generate([
+      { "module" => "issue_tracking", "source_id" => 3, "action" => "create",
+        "warnings" => ["Custom field \"Impact level\" is not enabled for destination tracker \"Bug\": enable it, or ignore source field #7; the value was not imported"] },
+      { "module" => "issue_watchers", "source_id" => 4, "action" => "error", "reason" => "Local modification detected for issue_watchers" }]))
+    get :show, params: { project_id: @project.identifier, id: run.id }
+    assert_select "#mirror-warning-causes a.mirror-fix[href=?]", "/custom_fields/#{field.id}/edit", text: "enable the field for this tracker"
+    assert_select "#mirror-error-causes a.mirror-fix[href*='tab=conflicts']", text: "resolve the conflict"
+  end
+
   def test_unauthorized_member_cannot_cancel
     run = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual")
     @request.session[:user_id] = 2

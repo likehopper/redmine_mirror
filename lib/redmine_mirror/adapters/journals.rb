@@ -110,6 +110,8 @@ module RedmineMirror
       def import(_record, attributes, issue, _source)
         journal = issue.journals.new(attributes.except("details"))
         journal.notify = false
+        # redmine_ckeditor's mention notifications would add journals to the issues cited.
+        journal.do_not_notify = true if journal.respond_to?(:do_not_notify=)
         attributes.fetch("details").each do |property, name, old_value, value|
           journal.details.build(property: property, prop_key: name, old_value: old_value, value: value)
         end

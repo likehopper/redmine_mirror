@@ -16,6 +16,18 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+- Issue references in descriptions, notes and history (`#123`, `##123`, `###123` and
+  links to `<source>/issues/123`) point to the corresponding destination issue. A
+  reference to an issue not imported becomes a link to the source server; one to an
+  issue imported later in the same run is rewritten by a second pass at the end of it.
+  Code blocks are left untouched. The execution log flags both cases.
+- More errors and warnings in the execution log link to where they are fixed: custom
+  field enabled for the tracker or the project, value mappings, maximum attachment size,
+  conflicts.
+- Journals written by Mirror no longer send notifications.
+
 ## 1.0.0-beta.10 — 2026-10-18
 
 - Watchers added locally, including those Redmine subscribes automatically (issue authors

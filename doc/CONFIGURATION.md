@@ -94,8 +94,9 @@ enters:
 - **Source project**: its identifier, as in `<source>/projects/<identifier>`, or its numeric ID;
 - **Source API key**: stored encrypted and never displayed again;
 - **Source text format**: *Auto* detects Textile, Markdown or HTML (CKEditor) for each
-  text; choose a format to force it. Texts are converted to this Redmine's text format;
-  the detected formats are shown after saving;
+  text; choose a format to force it. Texts are converted to this Redmine's text format,
+  and issue references point to the imported issues; the detected formats are shown
+  after saving;
 - **Modules** to import. Dependencies are added on save: *Time tracking* adds *Issues*,
   and both add *Users*.
 

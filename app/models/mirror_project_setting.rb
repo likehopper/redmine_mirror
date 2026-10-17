@@ -120,6 +120,7 @@ class MirrorProjectSetting < ActiveRecord::Base
       "allow_http" => ENV["MIRROR_TEST_ENVIRONMENT"] == "disposable",
       "modules" => selected_modules, "mappings" => tables, "module_options" => module_options,
       "text_format" => { "source" => source_text_format, "target" => RedmineMirror::TextFormat.destination_format(project), "source_url" => source_url,
+        "destination_url" => destination_url,
         "fallback" => RedmineMirror::TextFormat.dominant(source_catalog["text_formats"]) } }
   end
 
