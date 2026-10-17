@@ -44,6 +44,17 @@ class MirrorSynchronizationsController < ApplicationController
     redirect_to project_mirror_settings_path(@project, tab: "synchronization")
   end
 
+  def cancel
+    run = @project.mirror_sync_runs.find_by(id: params[:id])
+    return render_404 unless run
+    RedmineMirror::Synchronization.cancel(run)
+    flash[:notice] = l(:text_mirror_run_cancelled)
+    redirect_to project_mirror_settings_path(@project, tab: "synchronization")
+  rescue RedmineMirror::Error => error
+    flash[:error] = error.message
+    redirect_to project_mirror_settings_path(@project, tab: "synchronization")
+  end
+
   def show
     @run = @project.mirror_sync_runs.find_by(id: params[:id])
     return render_404 unless @run

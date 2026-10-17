@@ -17,6 +17,7 @@ Render project-scoped Mirror controls and diagnostics using native Redmine helpe
 %><h2><%= l(:label_mirror_sync_history) %> #<%= @run.id %></h2>
 <p><%= link_to l(:button_back), project_mirror_settings_path(@project, tab: "history") %></p>
 <p><%= l(:field_status) %>: <strong><%= l("label_mirror_run_#{@run.status}".to_sym) %></strong></p>
+<%= render "mirror_settings/queued_run", run: @run if @run.status == "queued" && User.current.allowed_to?(:manage_mirror, @project) %>
 <p><%= l(:label_mirror_sync_started) %>: <%= @run.started_at ? format_time(@run.started_at) : "—" %></p>
 <p><%= l(:label_mirror_sync_finished) %>: <%= @run.finished_at ? format_time(@run.finished_at) : "—" %></p>
 <% if @run.error_message.present? %><p><%= link_to l(:label_mirror_conflicts), project_mirror_settings_path(@project, tab: "conflicts") %></p><div class="flash error"><%= @run.error_message %></div><% end %>

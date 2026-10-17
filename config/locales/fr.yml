@@ -72,6 +72,9 @@ fr:
   text_mirror_worker_required: "Un worker doit traiter les exécutions en attente. La synchronisation manuelle applique les correspondances du projet ; la synchronisation automatique utilise la même configuration."
   text_mirror_invalid_schedule: "Planification de synchronisation invalide"
   text_mirror_sync_queued: "Exécution mise en attente. Actualiser cette page pour voir son résultat."
+  text_mirror_queue_stalled: "Aucun worker n’a pris en charge cette exécution depuis plus de %{minutes} minutes. Vérifiez que la tâche rake redmine_mirror:tick s’exécute régulièrement sur le serveur (voir le README), ou annulez l’exécution."
+  button_mirror_cancel_run: "Annuler cette exécution"
+  text_mirror_run_cancelled: "Exécution annulée."
   label_mirror_run_cancelled: Annulée
   label_mirror_idle: "À l’arrêt"
   label_mirror_log: "Journal de l’exécution"

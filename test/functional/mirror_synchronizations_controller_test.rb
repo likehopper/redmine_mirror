@@ -44,6 +44,30 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     assert flash[:error].present?
   end
 
+  def test_queued_run_can_be_cancelled_but_not_a_running_one
+    run = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual")
+    patch :cancel, params: { project_id: @project.identifier, id: run.id }
+    assert_redirected_to project_mirror_settings_path(@project, tab: "synchronization")
+    assert_equal "cancelled", run.reload.status
+    assert run.finished_at
+    # The project is no longer blocked, and a cancelled run is never executed.
+    RedmineMirror::Synchronization.execute(run)
+    assert_equal "cancelled", run.reload.status
+    running = RedmineMirror::Synchronization.enqueue(@setting, apply: false, trigger: "manual")
+    running.update!(status: "running")
+    patch :cancel, params: { project_id: @project.identifier, id: running.id }
+    assert flash[:error].present?
+    assert_equal "running", running.reload.status
+  end
+
+  def test_unauthorized_member_cannot_cancel
+    run = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual")
+    @request.session[:user_id] = 2
+    patch :cancel, params: { project_id: @project.identifier, id: run.id }
+    assert_response :forbidden
+    assert_equal "queued", run.reload.status
+  end
+
   def test_preview_and_schedule
     post :create, params: { project_id: @project.identifier, mode: "preview" }
     assert_not @project.mirror_sync_runs.first!.apply?
@@ -142,4 +166,33 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     assert_select 'a[href="/issues/34"]', text: "34"
   end
 
+end
+
+class MirrorQueuedRunDisplayTest < ActionController::TestCase
+  tests MirrorSettingsController
+  fixtures :projects, :users, :roles, :members, :member_roles, :enabled_modules
+
+  def setup
+    @project = Project.find(1)
+    @project.enable_module!(:mirror)
+    @setting = MirrorProjectSetting.new(project: @project, source_url: "https://remote.example", source_project_id: 12)
+    @setting.selected_modules = ["issue_tracking"]
+    @setting.api_key = "private-source-key"
+    @setting.save!
+    @request.session[:user_id] = 1
+  end
+
+  # A queued run shows its own (empty) dates, a cancel button, and a worker warning once stale.
+  def test_queued_run_shows_its_own_dates_and_a_worker_warning_when_stale
+    @project.mirror_sync_runs.create!(apply: false, trigger: "manual", status: "failed",
+      started_at: 2.days.ago, finished_at: 2.days.ago)
+    queued = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual")
+    get :show, params: { project_id: @project.identifier, tab: "synchronization" }
+    assert_select "#mirror-queued-run form[action=?]", "/projects/#{@project.identifier}/mirror/synchronizations/#{queued.id}/cancel"
+    assert_select "#mirror-queued-run .warning", count: 0
+    assert_select "#mirror-sync-summary", text: /Started\s*—/
+    queued.update_columns(created_at: 10.minutes.ago)
+    get :show, params: { project_id: @project.identifier, tab: "synchronization" }
+    assert_select "#mirror-queued-run .warning", text: /redmine_mirror:tick/
+  end
 end

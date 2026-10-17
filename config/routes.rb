@@ -25,5 +25,6 @@ patch "projects/:project_id/mirror/settings/modules/:module_key", to: "mirror_se
 patch "projects/:project_id/mirror/schedule", to: "mirror_synchronizations#update", as: "project_mirror_schedule"
 post "projects/:project_id/mirror/synchronizations", to: "mirror_synchronizations#create", as: "project_mirror_enqueue"
 get "projects/:project_id/mirror/synchronizations/:id", to: "mirror_synchronizations#show", as: "project_mirror_run"
+patch "projects/:project_id/mirror/synchronizations/:id/cancel", to: "mirror_synchronizations#cancel", as: "project_mirror_run_cancel"
 
 patch "projects/:project_id/mirror/conflicts/:id", to: "mirror_conflicts#update", as: "project_mirror_conflict"

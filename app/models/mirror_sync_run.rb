@@ -22,6 +22,12 @@ class MirrorSyncRun < ActiveRecord::Base
   validates :trigger, inclusion: { in: %w[manual automatic operator] }
 
   STATUSES = %w[queued running succeeded failed cancelled].freeze
+  # A worker normally picks a run up within a minute; longer usually means none runs.
+  QUEUE_WARNING_DELAY = 5.minutes
+
+  def stalled_in_queue?(now = Time.current)
+    status == "queued" && created_at && created_at < now - QUEUE_WARNING_DELAY
+  end
   TRIGGERS = %w[manual automatic operator].freeze
 
   def progress_percentage

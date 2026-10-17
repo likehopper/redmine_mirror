@@ -16,6 +16,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.3 — 2026-10-17
+
+- A queued execution can be cancelled from the Synchronization tab or its log, and a
+  warning appears when no worker has picked it up after 5 minutes.
+- The Synchronization tab shows the start and end dates of the execution it displays.
+
 ## 1.0.0-beta.2 — 2026-10-17
 
 - The source project can be entered by identifier as well as by numeric ID (migration 009).

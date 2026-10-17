@@ -72,6 +72,9 @@ en:
   text_mirror_worker_required: "A worker must process the queued executions. Manual synchronization applies the current project mappings; automatic synchronization uses the same configuration."
   text_mirror_invalid_schedule: "Invalid synchronization schedule"
   text_mirror_sync_queued: "Execution queued. Refresh this page to see its result."
+  text_mirror_queue_stalled: "No worker has picked up this execution for more than %{minutes} minutes. Check that the rake redmine_mirror:tick task runs regularly on the server (see the README), or cancel the execution."
+  button_mirror_cancel_run: "Cancel this execution"
+  text_mirror_run_cancelled: "Execution cancelled."
   label_mirror_run_cancelled: Cancelled
   label_mirror_idle: "Idle"
   label_mirror_log: "Execution log"

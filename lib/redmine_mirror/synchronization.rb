@@ -30,6 +30,16 @@ module RedmineMirror
       end
     end
 
+    # Only a queued run can be withdrawn; the lock matches the worker's claim, so a run
+    # is either cancelled here or started by a worker, never both.
+    def self.cancel(run)
+      run.project.mirror_project_setting.with_lock do
+        run.reload
+        raise Error, "Only a queued execution can be cancelled" unless run.status == "queued"
+        run.update!(status: "cancelled", finished_at: Time.current)
+      end
+    end
+
     # Schedule only one due run per project; missed intervals do not accumulate
     # catch-up jobs. Each completed run calculates its next deadline.
     def self.tick

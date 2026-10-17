@@ -27,7 +27,7 @@ Redmine::Plugin.register :redmine_mirror do
   version RedmineMirror::VERSION
   requires_redmine version_or_higher: "5.0"
   project_module :mirror do
-    permission :manage_mirror, { mirror_conflicts: [:update], mirror_synchronizations: [:update, :create, :show], mirror_settings: [:show, :update_connection, :update_mappings, :refresh] }, require: :member
+    permission :manage_mirror, { mirror_conflicts: [:update], mirror_synchronizations: [:update, :create, :show, :cancel], mirror_settings: [:show, :update_connection, :update_mappings, :refresh] }, require: :member
     permission :view_mirror, { mirror: [:index] }, require: :member
   end
   menu :project_menu, :mirror, { controller: "mirror", action: "index" },

@@ -213,7 +213,8 @@ MIRROR_DESTINATION_URL=https://redmine.example MIRROR_DESTINATION_API_KEY=... \
 
 `MIRROR_DESTINATION_API_KEY` belongs to a destination account allowed to create issues,
 log time for the mapped users and perform the workflow transitions. Without the worker,
-runs stay **Queued**.
+runs stay **Queued** and block new ones: after 5 minutes the **Synchronization** tab warns
+about it, and **Cancel this execution** withdraws a queued run.
 
 ## Troubleshooting
 
@@ -225,7 +226,8 @@ runs stay **Queued**.
 | "Configure database_cipher_key…" | Set `database_cipher_key` in `config/configuration.yml`, then restart. |
 | A reference is missing in a table | **Refresh source references**; check what the source API key can see. |
 | A local user is missing from the choices | Add them to the project as an active member. |
-| Run stays **Queued** | The worker is not running. |
+| Run stays **Queued**, "already queued or running" | The worker is not running: schedule `redmine_mirror:tick`, or cancel the run in **Synchronization**. |
+| "HTTP 403 for GET …" | The source account lacks the permission for that request (step 2). |
 | "MIRROR_DESTINATION_URL is not configured" | Set both variables in the worker's environment. |
 | Preview fails on a mapping | Complete the module tabs (steps 6 and 7). |
 | Run fails on a conflict | Step 11. |
