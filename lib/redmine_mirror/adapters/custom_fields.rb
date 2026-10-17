@@ -210,9 +210,14 @@ module RedmineMirror
         desired = references.to_h do |reference|
           id = reference.fetch("id")
           field = target_field(id, mappings, project)
-          raise Error, "Custom field is unavailable for destination tracker" if issue && !issue.available_custom_fields.include?(field)
-          if !issue && record["tracker"] && !field.trackers.exists?(id: map(mappings, "tracker", record.fetch("tracker").fetch("id")))
-            raise Error, "Custom field is unavailable for destination tracker"
+          unavailable = if issue
+            !issue.available_custom_fields.include?(field)
+          elsif record["tracker"]
+            !field.trackers.exists?(id: map(mappings, "tracker", record.fetch("tracker").fetch("id")))
+          end
+          if unavailable
+            tracker = issue&.tracker || Tracker.find_by(id: map(mappings, "tracker", record.fetch("tracker").fetch("id")))
+            raise Error, "Custom field \"#{field.name}\" is not enabled for destination tracker \"#{tracker&.name}\": enable it, or ignore source field ##{id}"
           end
           definition = definitions.fetch(id.to_s) { raise Error, "Refresh custom field references" }
           [field.id.to_s, translate_value((reference["value"] || (field.multiple? ? [] : "")), source_id: id, field: field, definition: definition, options: options, mappings: mappings, lookup: lookup)]

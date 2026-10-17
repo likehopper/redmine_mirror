@@ -197,3 +197,9 @@ threads Puma occupés). Le worker actualise désormais les références (migrati
 l'étape, le module et le nombre d'éléments lus, et chaque demande source n'est lue qu'une
 fois pour tous les modules. Runner CI : 99 tests Redmine / 426 assertions. `versions.sh`
 source 4.2 → destination 6.1.4 : `ui_smoke.rb` (attente du worker) et sept smokes réussis.
+
+1.0.0-beta.8 (17 octobre 2026), d'après les erreurs de la préproduction : filtre du journal
+par cause, nom et lien de correction des correspondances manquantes, détails d'historique
+non traduisibles ignorés sans perdre le journal, limite des pièces jointes alignée sur la
+destination, worker explicite sur les migrations en attente. Runner CI : 100 tests
+Redmine / 435 assertions. `versions.sh` source 4.2 → destination 6.1.4 : sept smokes réussis.

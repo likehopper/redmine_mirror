@@ -89,10 +89,14 @@ name, description, status, due date and sharing.
 
 *Issue history* imports notes, private notes and field changes with their authors
 and dates. Supported changes: simple fields, status, tracker, priority, user,
-category, version and mapped custom fields. Other change types fail explicitly.
-Imported journals send no notification.
+category, version and mapped custom fields. Other details (attachment and relation
+changes, parent and project changes, categories or versions deleted since) are skipped:
+the journal and its notes are still imported, and the execution log flags it. A journal
+left empty is not imported. Unmapped statuses, trackers, priorities or users still fail
+the journal. Imported journals send no notification.
 
-*Issue attachments* copies the current files (32 MiB maximum each) with their
+*Issue attachments* copies the current files (up to the destination's maximum attachment
+size, Administration → Files) with their
 description, author and date. Downloads use a path built from the source URL: Mirror
 never follows redirects or sends the key to a URL supplied by the source.
 

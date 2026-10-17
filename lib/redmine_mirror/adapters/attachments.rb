@@ -41,8 +41,12 @@ module RedmineMirror
       end
 
       def import(record, attributes, issue, source)
-        raise Error, "Attachment exceeds 32 MiB import limit" if attributes.fetch("filesize") > 32 * 1024 * 1024
-        bytes = source.download_attachment(record.fetch("id"))
+        # The destination's own limit (Administration > Files) is the one that matters.
+        limit = Setting.attachment_max_size.to_i * 1024
+        if attributes.fetch("filesize") > limit
+          raise Error, "Attachment #{attributes['filename']} (#{attributes.fetch('filesize') / 1024} KB) exceeds the destination's maximum attachment size (#{limit / 1024} KB)"
+        end
+        bytes = source.download_attachment(record.fetch("id"), max_bytes: limit)
         raise Error, "Attachment size mismatch" unless bytes.bytesize == attributes.fetch("filesize")
         Tempfile.create("mirror-attachment") do |file|
           file.binmode

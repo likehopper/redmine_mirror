@@ -19,6 +19,10 @@ require "fileutils"
 namespace :redmine_mirror do
   desc "Enqueue due projects and process queued Mirror synchronizations"
   task tick: :environment do
+    # After an upgrade, explain the missing step instead of failing on a missing column.
+    unless MirrorProjectSetting.schema_current?
+      abort "Redmine Mirror migrations are pending: run `bundle exec rake redmine:plugins:migrate RAILS_ENV=production`, then restart Redmine and the worker."
+    end
     RedmineMirror::Synchronization.tick
   end
 

@@ -20,6 +20,23 @@ module MirrorHelper
     RedmineMirror::REGISTRY.keys.include?(key) ? l("label_mirror_module_#{key}".to_sym) : key
   end
 
+  MAPPING_TABS = { "status" => "issue_tracking", "tracker" => "issue_tracking", "priority" => "issue_tracking",
+    "user" => "users", "activity" => "time_tracking", "custom_field" => "issue_custom_fields" }.freeze
+
+  # An error reason with the source reference name and a link to the tab that fixes it.
+  def mirror_reason(reason)
+    text = reason.to_s
+    match = text.match(/\AMissing (\w+) mapping for source ID (\d+)\z/)
+    return text unless match && @setting
+    kind, id = match.captures
+    name = @setting.source_catalog.dig(kind, id)
+    tab = MAPPING_TABS[kind]
+    parts = [text]
+    parts << " (#{name})" if name
+    parts << " — " << link_to(l(:label_mirror_fix_mapping), project_mirror_settings_path(@project, tab: tab)) if tab
+    safe_join(parts)
+  end
+
   # "converted:textile>html" reads "Converted: Textile → HTML (CKEditor)".
   def mirror_flag_label(flag)
     name, detail = flag.to_s.split(":", 2)

@@ -182,7 +182,14 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     run = @project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "partial", events: JSON.generate(
       [1, 2, 3].map { |id| { "module" => "time_tracking", "source_id" => id, "action" => "error", "reason" => "Missing user mapping for source ID 7" } }))
     get :show, params: { project_id: @project.identifier, id: run.id }
-    assert_select "#mirror-error-causes li", text: /Missing user mapping for source ID 7 — 3 object\(s\)/
+    assert_select "#mirror-error-causes li", text: /Missing user mapping for source ID 7 — fix the mapping — 3 object\(s\)/
+    assert_select "#mirror-error-causes a[href*='tab=users']", text: "fix the mapping"
+    # A cause link lists only its own objects.
+    events = JSON.parse(run.events) + [{ "module" => "issue_tracking", "source_id" => 9, "action" => "error", "reason" => "Other cause" }]
+    run.update!(events: JSON.generate(events))
+    get :show, params: { project_id: @project.identifier, id: run.id, action_filter: "error", reason: "Other cause" }
+    assert_select "#mirror-log tbody tr", 1
+    assert_select "#mirror-reason-filter", text: /Other cause/
   end
 
   def test_failure_is_logged_and_lock_is_released
