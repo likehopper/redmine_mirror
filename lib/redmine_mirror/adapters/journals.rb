@@ -49,7 +49,12 @@ module RedmineMirror
             end
             next [property, field.id.to_s, *values]
           end
-          raise Error, "Unsupported historical property #{property}" unless property == "attr"
+          # Attachment and relation changes are imported by their own modules: skip the
+          # detail, keep the journal (its notes and other changes).
+          unless property == "attr"
+            TextFormat.note("history_details_skipped")
+            next
+          end
           values = %w[old_value new_value].map do |field|
             value = detail[field]
             if value.present? && %w[status_id tracker_id priority_id assigned_to_id author_id].include?(name)
@@ -58,19 +63,30 @@ module RedmineMirror
             elsif value.present? && %w[category_id fixed_version_id].include?(name)
               key = name == "category_id" ? "issue_categories" : "project_versions"
               value = lookup && lookup.call(key, value.to_i)
-              raise Error, "Missing historical #{name} correspondence" unless value
+              # A category or version deleted since, or owned by another project.
+              next :skip unless value
               value = value.to_s
             elsif value.present? && name.end_with?("_id")
-              raise Error, "Unsupported historical reference #{name}"
+              # Parent and project changes (moved issues) have no local equivalent here.
+              next :skip
             elsif value.present? && name == "description"
               value = TextFormat.convert(value)
             end
             value
           end
+          if values.include?(:skip)
+            TextFormat.note("history_details_skipped")
+            next
+          end
           [property, name, *values]
         end
         { "user_id" => author_id(record, mappings), "created_on" => Time.iso8601(record.fetch("created_on")).utc.iso8601,
           "notes" => TextFormat.convert(record["notes"].to_s), "private_notes" => !!record["private_notes"], "details" => details }
+      end
+
+      # A journal left with neither notes nor details would be an empty "Updated by" entry.
+      def skip_reason(attributes)
+        "Only history details that cannot be imported" if attributes.fetch("notes").strip.empty? && attributes.fetch("details").empty?
       end
 
       def find_target(id, issue)

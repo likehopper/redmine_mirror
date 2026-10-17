@@ -72,6 +72,7 @@ class MirrorSynchronizationsController < ApplicationController
       @events = @events.select { |event| params[:flag] == "any" ? Array(event["flags"]).any? : Array(event["flags"]).include?(params[:flag]) }
     end
     @events = @events.select { |event| event["action"] == params[:action_filter] } if params[:action_filter].present?
+    @events = @events.select { |event| event["reason"].to_s == params[:reason] } if params[:reason].present?
     @events = @events.select { |event| event["source_id"].to_s == params[:source_id] } if params[:source_id].present?
     @event_count = @events.size
     @event_pages = Paginator.new(@event_count, 50, params[:page])

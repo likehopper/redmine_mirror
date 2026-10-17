@@ -61,8 +61,8 @@ module RedmineMirror
 
     # Construct a source-relative download path instead of trusting API-supplied
     # content URLs that could send the key to another host.
-    def download_attachment(id)
-      request(:get, "attachments/download/#{Integer(id)}", binary: true)
+    def download_attachment(id, max_bytes: 32 * 1024 * 1024)
+      request(:get, "attachments/download/#{Integer(id)}", binary: true, max_bytes: max_bytes)
     end
 
     # Redmine paginates collections. Reject empty intermediate pages rather than
@@ -83,7 +83,7 @@ module RedmineMirror
 
     private
 
-    def request(method, path, params: {}, payload: nil, binary: false)
+    def request(method, path, params: {}, payload: nil, binary: false, max_bytes: 32 * 1024 * 1024)
       raise Error, "Invalid API path" unless path.match?(/\A[a-z0-9_\/.-]+\z/) && !path.include?("..") && !path.start_with?("/")
       uri = URI.join(@base_uri.to_s, path)
       uri.query = URI.encode_www_form(params) unless params.empty?
@@ -104,7 +104,7 @@ module RedmineMirror
           connection.request(request) do |response|
             raise Error, "Redmine API returned HTTP #{response.code} for GET #{path}" unless response.is_a?(Net::HTTPSuccess)
             response.read_body do |chunk|
-              raise Error, "Attachment exceeds 32 MiB import limit" if attachment_bytes.bytesize + chunk.bytesize > 32 * 1024 * 1024
+              raise Error, "Attachment exceeds the import limit of #{max_bytes / 1024} KB" if attachment_bytes.bytesize + chunk.bytesize > max_bytes
               attachment_bytes << chunk
             end
           end

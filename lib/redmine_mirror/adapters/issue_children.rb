@@ -42,6 +42,9 @@ module RedmineMirror
         issue = Issue.where(project_id: project_id).find_by(id: issue_id) unless issue_id.to_s.start_with?("planned:")
         raise Error, "Missing destination issue correspondence" if apply && !issue
         attributes = imported_attributes(record, mappings, **(is_a?(Journals) ? { lookup: lookup, project: Project.find(project_id) } : {}))
+        if respond_to?(:skip_reason) && (reason = skip_reason(attributes))
+          return { module: key, source_id: record.fetch("id"), action: "ignored", reason: reason }
+        end
         fingerprint = digest(attributes)
         mapping = store.find(key, record.fetch("id"))
         action = "create"

@@ -16,6 +16,17 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.8 — 2026-10-17
+
+- In the execution log, a cause in **Errors by cause** lists only its objects, and a
+  missing mapping shows the source reference name with a link to the tab that fixes it.
+- History no longer fails a whole journal on a detail it cannot translate: attachment and
+  relation changes, parent and project changes, deleted categories or versions are
+  skipped, the journal and its notes are imported, and the log flags it.
+- Attachments follow the destination's maximum attachment size instead of a fixed 32 MiB.
+- A custom field not enabled for a destination tracker is named, with the tracker.
+- The worker explains pending migrations instead of failing on a missing column.
+
 ## 1.0.0-beta.7 — 2026-10-17
 
 - Saving the connection or refreshing the source references no longer reads the source
