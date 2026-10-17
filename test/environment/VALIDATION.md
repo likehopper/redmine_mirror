@@ -217,3 +217,11 @@ detected for issue_watchers » apparaissaient sans intervention : Redmine abonne
 le compte API qui écrit les demandes. Seuls les observateurs ajoutés par Mirror sont
 désormais surveillés. Runner CI : 102 tests Redmine / 449 assertions. `versions.sh` source
 4.2 → destination 6.1.4 : sept smokes réussis.
+
+1.0.0-beta.11 (18 octobre 2026) : sur une instance de validation, une référence `#123456` dans une
+description restait le numéro de la source. Les références de demandes (`#N`, `##N`,
+`###N`, liens `<source>/issues/N`) pointent vers la demande importée ; une demande non
+importée devient un lien vers la source, et une demande importée plus loin dans la même
+exécution est corrigée par une seconde passe. Runner CI : 103 tests Redmine / 451
+assertions. `versions.sh` source 4.2 → destination 6.1.4 : sept smokes réussis.
+`formats.sh` source 4.2 CKEditor → destination 5.1.13 CKEditor : réussi, relance inchangée.

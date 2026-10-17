@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.11 — 2026-10-18
 
 - Issue references in descriptions, notes and history (`#123`, `##123`, `###123` and
   links to `<source>/issues/123`) point to the corresponding destination issue. A
