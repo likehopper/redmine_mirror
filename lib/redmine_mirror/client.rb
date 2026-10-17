@@ -38,6 +38,19 @@ module RedmineMirror
       request(:get, path, params: params)
     end
 
+    # Every issue association modules read, fetched once per issue for a whole run or
+    # catalog refresh. The cache is bounded to keep very large projects in memory limits.
+    ISSUE_DETAIL_INCLUDES = "journals,attachments,relations,watchers,children"
+
+    def issue_detail(id)
+      @issue_details ||= {}
+      id = Integer(id)
+      return @issue_details[id] if @issue_details.key?(id)
+      detail = get("issues/#{id}.json", "include" => ISSUE_DETAIL_INCLUDES).fetch("issue")
+      @issue_details.shift if @issue_details.size >= Integer(ENV.fetch("MIRROR_ISSUE_CACHE", "5000"))
+      @issue_details[id] = detail
+    end
+
     def create(path, payload)
       request(:post, path, payload: payload)
     end

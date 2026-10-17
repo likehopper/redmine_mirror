@@ -40,9 +40,42 @@ module RedmineMirror
       end
     end
 
+    # Source references requested from the web UI, refreshed before any run so that a
+    # preview queued right after a configuration change uses them.
+    def self.refresh_catalogs
+      MirrorProjectSetting.where(catalog_status: "pending").find_each do |setting|
+        claimed = false
+        setting.with_lock do
+          next unless setting.catalog_status == "pending"
+          setting.update_columns(catalog_status: "refreshing", catalog_progress: nil)
+          claimed = true
+        end
+        next unless claimed
+        begin
+          client = setting.source_client
+          # Progress is saved at most every 2 seconds, for the configuration page.
+          saved_at = nil
+          progress = lambda do |step, steps, key, records|
+            next if saved_at && Time.current - saved_at < 2 && records.positive?
+            saved_at = Time.current
+            setting.update_columns(catalog_progress: JSON.generate("step" => step, "steps" => steps, "module" => key, "records" => records, "at" => saved_at.iso8601))
+          end
+          catalog = SourceCatalog.new(client: client, project_id: setting.source_project_id, adapters: setting.adapters).fetch(progress: progress)
+          identifier = client.get("projects/#{Integer(setting.source_project_id)}.json").fetch("project")["identifier"]
+          setting.update_columns(source_catalog: JSON.generate(catalog), source_project_identifier: identifier,
+            catalog_status: "ready", catalog_error: nil, catalog_progress: nil, updated_at: Time.current)
+        rescue StandardError => error
+          # Unexpected exception text can contain URLs, credentials or private records.
+          message = error.is_a?(Error) ? error.message : "Internal error (#{error.class.name})"
+          setting.update_columns(catalog_status: "failed", catalog_error: message)
+        end
+      end
+    end
+
     # Schedule only one due run per project; missed intervals do not accumulate
     # catch-up jobs. Each completed run calculates its next deadline.
     def self.tick
+      refresh_catalogs
       now = Time.current
       MirrorProjectSetting.where(auto_sync_enabled: true).where("next_sync_at IS NULL OR next_sync_at <= ?", now).find_each do |setting|
         setting.with_lock do
@@ -94,10 +127,15 @@ module RedmineMirror
           # Complete prevalidation before the first import write. An apply request
           # also records blocked secondary links so managers can diagnose the failure.
           # The preview reports every object error at once instead of the first one.
-          preview = runner.run(config.merge("on_error" => "collect"), track_relation_blocks: run.apply?)
+          checked = 0
+          preview = runner.run(config.merge("on_error" => "collect"), track_relation_blocks: run.apply?) do
+            # Without a total yet, processed_records counts the objects checked so far.
+            checked += 1
+            run.update_columns(processed_records: checked) if (checked % 25).zero?
+          end
           totals = setting.selected_modules.to_h { |key| [key, 0] }
           preview.each { |event| totals[event.fetch(:module)] += 1 }
-          run.update!(total_records: preview.size, module_totals: JSON.generate(totals))
+          run.update!(total_records: preview.size, processed_records: 0, module_totals: JSON.generate(totals))
           preview_errors = preview.count { |event| event[:action] == "error" }
           # "skip" writes everything else; "stop" writes nothing while an object fails.
           if run.apply? && (preview_errors.zero? || setting.on_error == "skip")

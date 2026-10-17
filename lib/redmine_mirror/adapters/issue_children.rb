@@ -26,7 +26,7 @@ module RedmineMirror
         Enumerator.new do |output|
           Issues.new.records(client, project_id).each do |issue|
             next unless issue.fetch("project").fetch("id").to_i == project_id.to_i
-            detailed = client.get("issues/#{Integer(issue.fetch('id'))}.json", "include" => association).fetch("issue")
+            detailed = issue_detail(client, issue.fetch("id"), association)
             detailed.fetch(association, []).each do |child|
               output << child.merge("project" => issue.fetch("project"), "issue_id" => issue.fetch("id"))
             end

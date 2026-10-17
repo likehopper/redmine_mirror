@@ -190,3 +190,10 @@ par lien symbolique. Runner CI (installation par lien symbolique) : 98 tests Red
 vérifiés. Mise en évidence sur la préproduction : source Redmine (projet
 `vygon-tma-sites-internet`) → Redmine 5.1.13, 395 demandes et 744 saisies importées après
 la correction des catégories d'un autre projet (beta.5).
+
+1.0.0-beta.7 (17 octobre 2026) : sur la préproduction, enregistrer la connexion avec tous
+les modules lisait la source dans la requête web pendant plusieurs minutes (502 du proxy,
+threads Puma occupés). Le worker actualise désormais les références (migration 012), avec
+l'étape, le module et le nombre d'éléments lus, et chaque demande source n'est lue qu'une
+fois pour tous les modules. Runner CI : 99 tests Redmine / 426 assertions. `versions.sh`
+source 4.2 → destination 6.1.4 : `ui_smoke.rb` (attente du worker) et sept smokes réussis.

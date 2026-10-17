@@ -61,7 +61,7 @@ module RedmineMirror
             observed[field.fetch("id")].concat(Array(field["value"]))
             seen[field.fetch("id")] ||= { "id" => field.fetch("id"), "name" => field["name"], "multiple" => !!field["multiple"] }
           end
-          detailed = client.get("issues/#{Integer(issue.fetch('id'))}.json", "include" => "journals").fetch("issue")
+          detailed = issue_detail(client, issue.fetch("id"), "journals")
           detailed.fetch("journals", []).each do |journal|
             journal.fetch("details", []).select { |detail| detail["property"] == "cf" }.each do |detail|
               observed[Integer(detail.fetch("name"))].concat([detail["old_value"], detail["new_value"]].compact)

@@ -101,9 +101,10 @@ enters:
 
 ![Connection](screenshots/configuration/06-connection.png)
 
-Saving checks the connection and loads the source references. The URL and project ID
-cannot be changed afterwards. **Refresh source references** reloads them after new
-users, statuses or activities appear on the source.
+Saving checks the connection; the worker then loads the source references, which can
+take a few minutes on large projects, and the page shows when it is still busy. The URL
+and project cannot be changed afterwards. **Refresh source references** asks the worker
+to reload them after new users, statuses or activities appear on the source.
 
 ## 6. Map users
 

@@ -23,12 +23,14 @@ module RedmineMirror
 
     # Adapters declare their mapping tables before contributing references.
     # Preserve field metadata separately from labels for compatibility checks.
-    def fetch
+    # progress, when given, receives (step, steps, module key, records read so far).
+    def fetch(progress: nil)
       @client.get("projects/#{Integer(@project_id)}.json")
       tables = {}
       used = Hash.new { |hash, key| hash[key] = [] }
       formats = Hash.new(0)
-      @adapters.each do |adapter|
+      @adapters.each_with_index do |adapter, index|
+        progress&.call(index + 1, @adapters.size, adapter.key, 0)
         adapter.mapping_tables.each { |table| tables[table.key] ||= {} }
         adapter.catalog_references(@client, @project_id).each do |kind, references|
           raise Error, "Undeclared module mapping table" unless tables.key?(kind)
@@ -41,7 +43,8 @@ module RedmineMirror
             end
           end
         end
-        adapter.records(@client, @project_id).each do |record|
+        adapter.records(@client, @project_id).each_with_index do |record, count|
+          progress&.call(index + 1, @adapters.size, adapter.key, count + 1)
           next unless record.fetch("project").fetch("id").to_i == @project_id.to_i
           # Historical authors and observers may not be project members. Discover
           # their remote identities without creating any destination accounts.

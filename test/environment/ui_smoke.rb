@@ -26,6 +26,15 @@ options.binary = "/usr/bin/chromium"
 service = Selenium::WebDriver::Chrome::Service.new(path: "/usr/bin/chromedriver")
 driver = Selenium::WebDriver.for(:chrome, options: options, service: service)
 wait = Selenium::WebDriver::Wait.new(timeout: 20)
+# The worker refreshes the source references after a save or a refresh request.
+ActiveRecord::Base.connection.disable_query_cache!
+wait_catalog = lambda do
+  Selenium::WebDriver::Wait.new(timeout: 300, interval: 3).until do
+    setting = Project.find_by!(identifier: "mirror-demo").mirror_project_setting&.reload
+    abort "Catalog refresh failed: #{setting.catalog_error}" if setting&.catalog_status == "failed"
+    setting&.catalog_status == "ready"
+  end
+end
 # Same-version instances are seeded with identical IDs. Across Redmine versions the IDs
 # differ, so fall back to the local object named like the source one.
 choose = lambda do |select, value|
@@ -53,6 +62,7 @@ begin
     driver.find_element(css: 'input[value="time_tracking"]').click
     driver.find_element(name: "commit").click
     wait.until { driver.find_elements(css: "#mirror-settings-sections a[href*='tab=users']").any? }
+    wait_catalog.call
     %w[users issue_tracking time_tracking].each do |key|
       driver.navigate.to("#{base}/projects/mirror-demo/mirror/settings?tab=#{key}")
       driver.find_elements(css: 'select[name^="mappings["]').each do |select|
@@ -71,6 +81,7 @@ begin
     end
     driver.find_element(name: "commit").click
     wait.until { driver.find_elements(id: "flash_notice").any? }
+    wait_catalog.call
     driver.navigate.to("#{base}/projects/mirror-demo/mirror/settings?tab=users")
     # The source administrator is intentionally anonymized in this demo project.
     Selenium::WebDriver::Support::Select.new(driver.find_element(id: "mirror-user-1")).select_by(:value, "anonymous")
@@ -81,6 +92,7 @@ begin
     driver.navigate.to("#{base}/projects/mirror-demo/mirror/settings")
     driver.find_element(css: "form[action$='/refresh'] [type='submit']").click
     wait.until { driver.find_elements(id: "flash_notice").any? }
+    wait_catalog.call
   end
   driver.navigate.to("#{base}/projects/mirror-demo/mirror/settings")
   abort "Expected two navigation groups" unless driver.find_elements(css: "#mirror-settings-sections li").size == 2

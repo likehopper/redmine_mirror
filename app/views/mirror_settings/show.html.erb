@@ -20,6 +20,14 @@ Render project-scoped Mirror controls and diagnostics using native Redmine helpe
 <% end %>
 <h2><%= l(:label_mirror_settings) %></h2>
 <%= error_messages_for @setting %>
+<% if @setting.persisted? && @setting.catalog_refreshing? %>
+  <p class="warning" id="mirror-catalog-status"><%= l(:text_mirror_catalog_refreshing, time: format_time(@setting.catalog_requested_at)) %>
+    <% if (progress = @setting.catalog_progress).any? %>
+      <br><%= l(:text_mirror_catalog_progress, step: progress["step"], steps: progress["steps"], module: mirror_module_label(progress["module"]), records: progress["records"], time: format_time(Time.iso8601(progress["at"]))) %>
+    <% end %></p>
+<% elsif @setting.persisted? && @setting.catalog_status == "failed" %>
+  <div class="flash error" id="mirror-catalog-status"><%= l(:text_mirror_catalog_failed, error: @setting.catalog_error) %></div>
+<% end %>
 <% module_section = @tab == "objects" || @adapters.any? { |adapter| adapter.key == @tab } %>
 <div id="mirror-settings-tabs">
 <div class="tabs" id="mirror-settings-sections"><ul>

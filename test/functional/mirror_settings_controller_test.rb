@@ -252,6 +252,32 @@ class MirrorSettingsControllerTest < ActionController::TestCase
     assert_includes response.body, "redmine:plugins:migrate"
   end
 
+  # Reading the source can take minutes: saving only requests it, the worker refreshes.
+  def test_saving_requests_a_catalog_refresh_done_by_the_worker
+    catalog = Object.new
+    setting = @setting
+    catalog.define_singleton_method(:fetch) do |progress: nil|
+      progress.call(1, 2, "issue_tracking", 0)
+      setting.reload
+      raise "progress not saved" unless setting.catalog_status == "refreshing" && setting.catalog_progress["module"] == "issue_tracking"
+      { "user" => { "7" => "Alice" } }
+    end
+    RedmineMirror::SourceCatalog.stub(:new, ->(*) { raise "the web request must not read the source" }) do
+      patch :update_connection, params: { project_id: @project.identifier,
+        connection: { source_url: @setting.source_url, source_project_id: 12, modules: ["issue_tracking"] } }
+    end
+    assert_response :redirect
+    assert_equal "pending", @setting.reload.catalog_status
+    get :show, params: { project_id: @project.identifier }
+    assert_select "#mirror-catalog-status"
+    RedmineMirror::Client.stub(:new, source_project_client(12, "legacy-app")) do
+      RedmineMirror::SourceCatalog.stub(:new, catalog) { RedmineMirror::Synchronization.refresh_catalogs }
+    end
+    @setting.reload
+    assert_equal ["ready", { "7" => "Alice" }, "legacy-app"], [@setting.catalog_status, @setting.source_catalog["user"], @setting.source_project_identifier]
+    assert_empty @setting.catalog_progress
+  end
+
   def test_connection_cannot_be_rebound_to_another_source
     patch :update_connection, params: { project_id: @project.identifier,
       connection: { source_url: "https://other.example", source_project_id: 12, modules: ["issue_tracking"] } }
