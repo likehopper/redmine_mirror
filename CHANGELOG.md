@@ -16,6 +16,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.9 — 2026-10-18
+
+- A custom field value Mirror cannot write (field not enabled for the tracker or project,
+  missing field or value mapping, incompatible format, invalid value) no longer blocks
+  the issue, its time entries and its history: the value is skipped and the execution
+  log lists **Warnings by cause**, with a filter per warning.
+
 ## 1.0.0-beta.8 — 2026-10-17
 
 - In the execution log, a cause in **Errors by cause** lists only its objects, and a

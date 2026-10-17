@@ -100,9 +100,20 @@ module RedmineMirror
       cases
     end
 
-    # Special cases noted since the runner started the current record.
+    # Special cases and warnings noted since the runner started the current record.
     def reset_flags
       Thread.current[:redmine_mirror_text_flags] = []
+      Thread.current[:redmine_mirror_warnings] = []
+    end
+
+    # A problem that did not prevent the object from being synchronized, such as a
+    # custom field value that could not be written. Grouped by message in the log.
+    def warning(message)
+      (Thread.current[:redmine_mirror_warnings] ||= []) << message.to_s
+    end
+
+    def warnings
+      (Thread.current[:redmine_mirror_warnings] || []).uniq
     end
 
     def flags

@@ -66,6 +66,7 @@ class MirrorSynchronizationsController < ApplicationController
     # Review summary: actions per module, and objects per special case to check.
     @action_counts = @events.group_by { |event| event["module"] }.transform_values { |rows| rows.group_by { |event| event["action"] }.transform_values(&:size) }
     @flag_counts = @events.flat_map { |event| Array(event["flags"]) }.tally
+    @warning_counts = @events.flat_map { |event| Array(event["warnings"]) }.tally.sort_by { |_, count| -count }
     @error_counts = @events.select { |event| event["action"] == "error" }.group_by { |event| event["reason"].to_s }.transform_values(&:size).sort_by { |_, count| -count }
     @events = @events.select { |event| event["module"] == params[:module_key] } if params[:module_key].present?
     if params[:flag].present?
@@ -73,6 +74,7 @@ class MirrorSynchronizationsController < ApplicationController
     end
     @events = @events.select { |event| event["action"] == params[:action_filter] } if params[:action_filter].present?
     @events = @events.select { |event| event["reason"].to_s == params[:reason] } if params[:reason].present?
+    @events = @events.select { |event| Array(event["warnings"]).include?(params[:warning]) } if params[:warning].present?
     @events = @events.select { |event| event["source_id"].to_s == params[:source_id] } if params[:source_id].present?
     @event_count = @events.size
     @event_pages = Paginator.new(@event_count, 50, params[:page])

@@ -56,3 +56,4 @@
 /* Special cases to check in the execution log. */
 .mirror-flag { display: inline-block; margin: 0 .3em .2em 0; padding: 0 .4em; border-radius: 3px; background: #fff3cd; color: #664d03; white-space: nowrap; }
 #mirror-run-summary .list { width: auto; }
+.mirror-warning { color: #8a6d3b; }

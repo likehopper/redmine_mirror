@@ -151,6 +151,8 @@ module RedmineMirror
     def flag(event)
       flags = TextFormat.flags
       event[:flags] = flags unless flags.empty?
+      warnings = TextFormat.warnings
+      event[:warnings] = warnings unless warnings.empty?
       event
     end
 

@@ -123,7 +123,7 @@ module RedmineMirror
       def target_field(source_id, mappings, project)
         id = map(mappings, "custom_field", source_id)
         field = project.all_issue_custom_fields.find { |candidate| candidate.id == id }
-        raise Error, "Destination custom field is unavailable in this project" unless field
+        raise Error, "The destination custom field mapped to source field ##{source_id} is not enabled in this project" unless field
         field
       end
 
@@ -131,7 +131,9 @@ module RedmineMirror
       # values require explicit choices; user and version values reuse object mappings.
       def translate_value(value, source_id:, field:, definition:, options:, mappings:, lookup:)
         format = effective_format(definition, field)
-        raise Error, "Incompatible custom field formats" unless field.field_format == format && field.multiple? == !!definition["multiple"]
+        unless field.field_format == format && field.multiple? == !!definition["multiple"]
+          raise Error, "Source custom field ##{source_id} and destination field \"#{field.name}\" have incompatible formats or multiplicity"
+        end
         raise Error, "Unsupported custom field format #{format}" unless (SCALAR_FORMATS + %w[list enumeration user version]).include?(format)
         return value if value.nil? || value == "" || value == []
         translate = lambda do |entry|
@@ -207,7 +209,10 @@ module RedmineMirror
         definitions = setting.source_catalog.fetch("custom_field_definitions", {})
         options = setting.module_options.fetch(key, {})
         references = record.fetch("custom_fields", []).reject { |reference| ignored?(reference.fetch("id"), mappings) }
-        desired = references.to_h do |reference|
+        # A value Mirror cannot write must not block the issue, its time entries and its
+        # history: it is skipped with a warning, grouped by cause in the execution log.
+        # Redmine still rejects an issue whose required field is left without a value.
+        pairs = references.filter_map do |reference|
           id = reference.fetch("id")
           field = target_field(id, mappings, project)
           unavailable = if issue
@@ -221,8 +226,12 @@ module RedmineMirror
           end
           definition = definitions.fetch(id.to_s) { raise Error, "Refresh custom field references" }
           [field.id.to_s, translate_value((reference["value"] || (field.multiple? ? [] : "")), source_id: id, field: field, definition: definition, options: options, mappings: mappings, lookup: lookup)]
+        rescue Error => error
+          TextFormat.warning("#{error.message}; the value was not imported")
+          nil
         end
-        raise Error, "Multiple source fields map to the same destination field" if desired.size != references.size
+        desired = pairs.to_h
+        raise Error, "Multiple source fields map to the same destination field" if desired.size != pairs.size
         desired
       end
 
