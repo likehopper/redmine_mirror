@@ -18,7 +18,7 @@
 class MirrorProjectSetting < ActiveRecord::Base
   SYNC_INTERVALS = [5, 15, 30, 60, 360, 1440].freeze
   # Columns of the latest migrations; extend this list with each new migration.
-  LATEST_COLUMNS = %w[source_project_identifier source_text_format on_error].freeze
+  LATEST_COLUMNS = %w[source_project_identifier source_text_format on_error catalog_status].freeze
   ON_ERROR = %w[skip stop].freeze
 
   def self.schema_current?
@@ -53,6 +53,19 @@ class MirrorProjectSetting < ActiveRecord::Base
 
   def source_catalog
     JSON.parse(self[:source_catalog].presence || "{}")
+  end
+
+  # Reading every source issue can take minutes: the worker does it (Synchronization).
+  def request_catalog_refresh!
+    update_columns(catalog_status: "pending", catalog_requested_at: Time.current, catalog_error: nil)
+  end
+
+  def catalog_progress
+    JSON.parse(self[:catalog_progress].presence || "{}")
+  end
+
+  def catalog_refreshing?
+    %w[pending refreshing].include?(catalog_status)
   end
 
   def source_catalog=(value)

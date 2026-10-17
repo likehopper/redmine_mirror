@@ -16,6 +16,19 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.7 — 2026-10-17
+
+- Saving the connection or refreshing the source references no longer reads the source
+  in the web request, which took minutes on large projects and timed out behind a
+  proxy: the worker refreshes the references (migration 012) and the configuration page
+  shows the refresh state.
+- The configuration page shows the refresh step, module and records read, and a running
+  preview shows how many objects it has checked.
+- Each source issue is read once, with all its associations, for every module of a run
+  or a refresh, instead of once per module.
+- Markdown detection ignores constructs Textile and plain text share ("- item" lists,
+  "> " quotes, `**bold**`), which classified Textile sources as Markdown.
+
 ## 1.0.0-beta.6 — 2026-10-17
 
 - The preview lists every failing object instead of stopping at the first one. When an

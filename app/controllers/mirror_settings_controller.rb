@@ -50,10 +50,10 @@ class MirrorSettingsController < ApplicationController
     @setting.selected_modules = input[:modules] || []
     @setting.source_text_format = input[:source_text_format] if input[:source_text_format].present?
     if @setting.valid?
-      @setting.source_catalog = RedmineMirror::SourceCatalog.new(client: @setting.source_client,
-        project_id: @setting.source_project_id, adapters: @setting.adapters).fetch
       @setting.save!
-      flash[:notice] = l(:notice_successful_update)
+      # The worker reads the source references; saving stays immediate.
+      @setting.request_catalog_refresh!
+      flash[:notice] = l(:text_mirror_catalog_requested)
       redirect_to project_mirror_settings_path(@project)
     else
       prepare_tabs
@@ -67,12 +67,8 @@ class MirrorSettingsController < ApplicationController
 
   def refresh
     return render_404 unless @setting.persisted?
-    catalog = RedmineMirror::SourceCatalog.new(client: @setting.source_client,
-      project_id: @setting.source_project_id, adapters: @setting.adapters).fetch
-    # Connections configured by numeric ID gain their identifier here.
-    identifier = resolve_source_project(@setting.source_project_id.to_s)["identifier"]
-    @setting.update!(source_catalog: catalog, source_project_identifier: identifier)
-    flash[:notice] = l(:notice_successful_update)
+    @setting.request_catalog_refresh!
+    flash[:notice] = l(:text_mirror_catalog_requested)
     redirect_to project_mirror_settings_path(@project)
   rescue RedmineMirror::Error => error
     flash[:error] = error.message

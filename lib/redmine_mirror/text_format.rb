@@ -28,9 +28,11 @@ module RedmineMirror
       /^h[1-6][<>=()]*\.\s/, /^(?:bq|bc|pre|p|fn\d+)[<>=()]*\.\s/, /"[^"\n]+":(?:https?:|\/|#)/,
       /(?:^|\s)![^!\s][^!\n]*![:\s.,]?/, /^\|_\./, /(?:^|\s)@[^@\s][^@\n]*@(?=\s|$|[.,;:])/, /^\*{1,3}\s\S/, /^#+\s.*$\n^#+\s/
     ].freeze
+    # Only constructs Textile lacks: "- item" lists, "> " quotes and **bold** are common
+    # in Textile and plain text too, and must not tip a text towards Markdown.
     MARKDOWN = [
-      /^\#{2,6}\s\S/, /\*\*[^*\n]+\*\*/, /`[^`\n]+`/, /^```/, /\[[^\]\n]+\]\([^)\s]+\)/, /!\[[^\]\n]*\]\([^)\s]+\)/,
-      /^\|?\s*:?-{3,}:?\s*\|/, /~~[^~\n]+~~/, /^>\s/, /^\s*[-+]\s\S/
+      /^\#{2,6}\s\S/, /`[^`\n]+`/, /^```/, /\[[^\]\n]+\]\([^)\s]+\)/, /!\[[^\]\n]*\]\([^)\s]+\)/,
+      /^\|?\s*:?-{3,}:?\s*\|/, /~~[^~\n]+~~/
     ].freeze
 
     module_function

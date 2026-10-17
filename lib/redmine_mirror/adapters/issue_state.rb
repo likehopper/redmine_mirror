@@ -21,7 +21,7 @@ module RedmineMirror
     class IssueState < IssueChildren
       def records(client, project_id)
         Issues.new.records(client, project_id).lazy.map do |issue|
-          client.get("issues/#{Integer(issue.fetch('id'))}.json", "include" => "watchers").fetch("issue")
+          issue_detail(client, issue.fetch("id"), "watchers")
         end
       end
 

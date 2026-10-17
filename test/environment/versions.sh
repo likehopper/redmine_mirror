@@ -39,8 +39,10 @@ run() {
 }
 # Fixtures the boot seed does not load, used by issue_state_smoke and custom_fields_smoke.
 for seed in issue_state_seed custom_fields_seed; do
-  # A seed normally takes seconds; never let one stall the whole run.
-  "${compose[@]}" exec -T source timeout 300 bundle exec rails runner "/mirror-environment/$seed.rb" > /dev/null
+  # A seed normally takes seconds, but the Redmine 4.2 source occasionally stalls: bound
+  # each attempt and retry once (the seeds are idempotent).
+  "${compose[@]}" exec -T source timeout 300 bundle exec rails runner "/mirror-environment/$seed.rb" > /dev/null ||
+    "${compose[@]}" exec -T source timeout 300 bundle exec rails runner "/mirror-environment/$seed.rb" > /dev/null
 done
 # MIRROR_SOURCE_ACCOUNT=reader configures the connection with a non-administrator key.
 key_args=()

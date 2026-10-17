@@ -38,7 +38,8 @@ Render project-scoped Mirror controls and diagnostics using native Redmine helpe
     <% current = active || @project.mirror_sync_runs.order(id: :desc).first %>
     <% if current %> — <%= link_to l(:label_mirror_log), project_mirror_run_path(@project, current) %><% end %></p>
   <p><label><%= l(:label_mirror_progress) %></label>
-    <% if current && !current.progress_percentage.nil? %><progress value="<%= current.progress_percentage %>" max="100"></progress> <%= current.progress_percentage %>%
+    <% if current && current.progress_percentage.nil? && current.status == "running" %><%= l(:text_mirror_objects_checked, count: current.processed_records) %>
+    <% elsif current && !current.progress_percentage.nil? %><progress value="<%= current.progress_percentage %>" max="100"></progress> <%= current.progress_percentage %>%
     <% else %>—<% end %></p>
   <%# Dates of the execution shown above, not of another one. %>
   <p><label><%= l(:label_mirror_sync_started) %></label><%= current&.started_at ? format_time(current.started_at) : "—" %></p>

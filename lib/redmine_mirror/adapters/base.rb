@@ -100,6 +100,12 @@ module RedmineMirror
         { "project_id" => project_id }
       end
 
+      # An issue with its associations; test doubles may only answer the plain request.
+      def issue_detail(client, id, association)
+        return client.issue_detail(id) if client.respond_to?(:issue_detail)
+        client.get("issues/#{Integer(id)}.json", "include" => association).fetch("issue")
+      end
+
       def read(client, id)
         client.get("#{collection}/#{Integer(id)}.json").fetch(entity)
       end

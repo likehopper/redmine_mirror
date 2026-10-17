@@ -32,7 +32,9 @@ references.
 - Trackers, statuses, priorities and activities come from their source APIs. The forms
   list those the project's issues and history use, plus those already mapped.
 - Users are discovered in the issues, time entries and watchers the API key can read.
-- **Refresh source references** reloads them without changing any mapping.
+- **Refresh source references** asks the worker to reload them, without changing any
+  mapping; the worker handles it before any queued run. Each source issue is read once,
+  with all its associations, for all modules.
 - The source URL and project ID are locked once saved: changing the source will
   need an explicit reset, not available yet.
 
