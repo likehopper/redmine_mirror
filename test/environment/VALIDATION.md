@@ -211,3 +211,9 @@ la demande, son temps passé et son historique sont importés. Runner CI : 101 t
 / 447 assertions. `versions.sh` source 4.2 → destination 6.1.4 : sept smokes réussis.
 L'environnement de test désactive les notifications, cause des verrous SQLite au démarrage
 de la source Redmine 4.2.
+
+1.0.0-beta.10 (18 octobre 2026) : sur une instance de validation, des conflits « Local modification
+detected for issue_watchers » apparaissaient sans intervention : Redmine abonne l'auteur et
+le compte API qui écrit les demandes. Seuls les observateurs ajoutés par Mirror sont
+désormais surveillés. Runner CI : 102 tests Redmine / 449 assertions. `versions.sh` source
+4.2 → destination 6.1.4 : sept smokes réussis.

@@ -16,6 +16,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.10 — 2026-10-18
+
+- Watchers added locally, including those Redmine subscribes automatically (issue authors
+  and the API account that writes issues), are no longer reported as local modifications:
+  only a mirrored watcher removed locally is a conflict. Existing false conflicts clear at
+  the next run.
+- Error causes that differ only by the source object ID are grouped in the execution log.
+
 ## 1.0.0-beta.9 — 2026-10-18
 
 - A custom field value Mirror cannot write (field not enabled for the tracker or project,
