@@ -15,20 +15,20 @@
 #
 # Load shared adapter contracts before concrete REST and native-model adapters.
 
-require_relative "adapters/base"
-require_relative "adapters/users"
-require_relative "adapters/issues"
-require_relative "adapters/time_entries"
+require File.join(File.dirname(__FILE__), "adapters/base")
+require File.join(File.dirname(__FILE__), "adapters/users")
+require File.join(File.dirname(__FILE__), "adapters/issues")
+require File.join(File.dirname(__FILE__), "adapters/time_entries")
 
-require_relative "adapters/issue_children"
-require_relative "adapters/journals"
-require_relative "adapters/attachments"
+require File.join(File.dirname(__FILE__), "adapters/issue_children")
+require File.join(File.dirname(__FILE__), "adapters/journals")
+require File.join(File.dirname(__FILE__), "adapters/attachments")
 
-require_relative "adapters/relations"
+require File.join(File.dirname(__FILE__), "adapters/relations")
 
-require_relative "adapters/project_references"
+require File.join(File.dirname(__FILE__), "adapters/project_references")
 
-require_relative "adapters/issue_state"
-require_relative "adapters/hierarchy"
-require_relative "adapters/watchers"
-require_relative "adapters/custom_fields"
+require File.join(File.dirname(__FILE__), "adapters/issue_state")
+require File.join(File.dirname(__FILE__), "adapters/hierarchy")
+require File.join(File.dirname(__FILE__), "adapters/watchers")
+require File.join(File.dirname(__FILE__), "adapters/custom_fields")

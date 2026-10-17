@@ -52,3 +52,7 @@
 
 /* Filterable mapping choices (assets/javascripts/mirror.js). */
 .mirror-autocomplete-input { min-width: 18em; }
+
+/* Special cases to check in the execution log. */
+.mirror-flag { display: inline-block; margin: 0 .3em .2em 0; padding: 0 .4em; border-radius: 3px; background: #fff3cd; color: #664d03; white-space: nowrap; }
+#mirror-run-summary .list { width: auto; }

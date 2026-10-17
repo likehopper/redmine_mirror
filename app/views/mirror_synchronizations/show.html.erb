@@ -28,14 +28,37 @@ Render project-scoped Mirror controls and diagnostics using native Redmine helpe
 <%= label_tag :module_key, l(:label_mirror_modules) %>
 <%= select_tag :module_key, options_for_select([[l(:label_all), ""]] + @run.log_events.map { |event| event["module"] }.uniq.map { |key| [mirror_module_label(key), key] }, params[:module_key]) %>
 <%= label_tag :action_filter, l(:label_mirror_action) %>
-<%= select_tag :action_filter, options_for_select([[l(:label_all), ""]] + %w[create update unchanged ignored note].map { |key| [mirror_module_label(key), key] }, params[:action_filter]) %>
+<%= select_tag :action_filter, options_for_select([[l(:label_all), ""]] + %w[create update unchanged ignored note error].map { |key| [mirror_module_label(key), key] }, params[:action_filter]) %>
 <%= label_tag :source_id, l(:label_mirror_source) %><%= number_field_tag :source_id, params[:source_id], min: 1 %>
+<%= label_tag :flag, l(:label_mirror_special_cases) %>
+<%= select_tag :flag, options_for_select([[l(:label_all), ""], [l(:label_mirror_flag_any), "any"]] + @flag_counts.keys.sort.map { |flag| [mirror_flag_label(flag), flag] }, params[:flag]) %>
 <%= submit_tag l(:button_apply) %><%= link_to l(:button_clear), project_mirror_run_path(@project, @run) %>
 </fieldset>
 <% end %>
-<table class="list" id="mirror-log"><thead><tr><th><%= l(:label_mirror_modules) %></th><th><%= l(:label_mirror_remote_id) %></th><th><%= l(:label_mirror_local_id) %></th><th><%= l(:label_mirror_action) %></th><th><%= l(:label_mirror_reason) %></th></tr></thead><tbody>
+<% if @action_counts.any? %>
+<div class="box" id="mirror-run-summary">
+  <h3><%= l(:label_mirror_run_summary) %></h3>
+  <table class="list"><thead><tr><th><%= l(:label_mirror_modules) %></th><% %w[create update unchanged ignored note error].each do |action| %><th><%= action %></th><% end %></tr></thead><tbody>
+  <% @action_counts.each do |module_key, counts| %>
+    <tr><td><%= link_to mirror_module_label(module_key), project_mirror_run_path(@project, @run, module_key: module_key) %></td>
+    <% %w[create update unchanged ignored note error].each do |action| %><td><%= counts[action] || "" %></td><% end %></tr>
+  <% end %>
+  </tbody></table>
+  <% if @error_counts.any? %>
+    <p><strong><%= l(:label_mirror_errors_by_cause) %></strong></p>
+    <ul id="mirror-error-causes"><% @error_counts.first(20).each do |reason, count| %><li><%= reason %> — <%= link_to l(:label_mirror_objects_count, count: count), project_mirror_run_path(@project, @run, action_filter: "error") %></li><% end %></ul>
+  <% end %>
+  <% if @flag_counts.any? %>
+    <p><strong><%= l(:label_mirror_special_cases) %></strong>
+    <% @flag_counts.sort.each do |flag, count| %>
+      <%= link_to "#{mirror_flag_label(flag)} (#{count})", project_mirror_run_path(@project, @run, flag: flag), class: "mirror-flag" %>
+    <% end %></p>
+  <% end %>
+</div>
+<% end %>
+<table class="list" id="mirror-log"><thead><tr><th><%= l(:label_mirror_modules) %></th><th><%= l(:label_mirror_remote_id) %></th><th><%= l(:label_mirror_local_id) %></th><th><%= l(:label_mirror_action) %></th><th><%= l(:label_mirror_to_check) %></th><th><%= l(:label_mirror_reason) %></th></tr></thead><tbody>
 <% @events.each do |event| %>
-<tr><td><%= mirror_module_label(event["module"]) %></td><td><%= mirror_object_link(event["module"], event["source_id"], source_url: @source_url) %></td><td><%= mirror_object_link(event["module"], event.key?("destination_id") ? event["destination_id"] : @object_mappings[[event["module"], event["source_id"].to_i]]) %></td><td><%= event["action"] %></td><td><%= event["reason"] %><% if event["remote_issue_id"] %> — #<%= mirror_object_link("issue_tracking", event["remote_issue_id"], source_url: @source_url) %><% end %></td></tr>
+<tr><td><%= mirror_module_label(event["module"]) %></td><td><%= mirror_object_link(event["module"], event["source_id"], source_url: @source_url) %></td><td><%= mirror_object_link(event["module"], event.key?("destination_id") ? event["destination_id"] : @object_mappings[[event["module"], event["source_id"].to_i]]) %></td><td><%= event["action"] %></td><td><%= safe_join(Array(event["flags"]).map { |flag| content_tag(:span, mirror_flag_label(flag), class: "mirror-flag") }, " ") %></td><td><%= event["reason"] %><% if event["remote_issue_id"] %> — #<%= mirror_object_link("issue_tracking", event["remote_issue_id"], source_url: @source_url) %><% end %></td></tr>
 <% end %>
 </tbody></table>
 

@@ -180,3 +180,13 @@ Compte source non administrateur (17 octobre 2026), `MIRROR_SOURCE_ACCOUNT=reade
 administrateurs. L'environnement exécute désormais les tâches de mail en ligne pour
 éviter les verrous SQLite pendant l'initialisation, et attend jusqu'à 5 minutes une
 source neuve.
+
+1.0.0-beta.6 (17 octobre 2026) : aperçu qui liste toutes les erreurs, réglage « Quand un
+objet échoue » (ignorer par défaut, statut « Terminée avec erreurs »), journal avec bilan,
+erreurs par cause et cas particuliers à vérifier, chargement unique d'un plugin installé
+par lien symbolique. Runner CI (installation par lien symbolique) : 98 tests Redmine /
+420 assertions. `versions.sh` source 4.2 → destination 6.1.4 : sept smokes réussis.
+`formats.sh` source 4.2 → destination 5.1.13 CKEditor : conversion et marqueurs du journal
+vérifiés. Mise en évidence sur une instance de validation : source Redmine (projet
+`client-project`) → Redmine 5.1.13, 395 demandes et 744 saisies importées après
+la correction des catégories d'un autre projet (beta.5).

@@ -17,7 +17,7 @@
 # Run it alone, against a seeded source Redmine and an empty destination database:
 # test/documentation/run.sh prepares both in a container.
 
-require File.expand_path("../../../../test/application_system_test_case", __dir__)
+require File.expand_path("test/application_system_test_case", Dir.pwd)
 
 class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
   # Steps follow the document: each one starts where the previous one left the database.

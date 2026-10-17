@@ -24,7 +24,9 @@ def execute_relations(setting, apply: true, expected: "succeeded")
   run = RedmineMirror::Synchronization.enqueue(setting, apply: apply, trigger: "operator", user: User.find_by!(login: "admin"))
   RedmineMirror::Synchronization.execute(run)
   run.reload
-  raise "Unexpected run: #{run.status}: #{run.error_message}" unless run.status == expected
+  # An object error leaves the others written by default: "partial" counts as a failure here.
+  actual = run.status == "partial" ? "failed" : run.status
+  raise "Unexpected run: #{run.status}: #{run.error_message}" unless actual == expected
   run
 end
 begin

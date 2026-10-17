@@ -16,7 +16,10 @@
 set -euo pipefail
 [ "${MIRROR_TEST_ENVIRONMENT:-}" = disposable ] || exit 1
 cd /usr/src/redmine
-cp -a /mirror-plugin plugins/redmine_mirror
+# Installed through a symbolic link, as in Capistrano-style deployments (shared/plugins).
+mkdir -p /tmp/shared-plugins
+cp -a /mirror-plugin /tmp/shared-plugins/redmine_mirror
+ln -s /tmp/shared-plugins/redmine_mirror plugins/redmine_mirror
 mkdir -p /mirror-results/screenshots
 cat > config/database.yml <<'YAML'
 test:
@@ -42,6 +45,11 @@ bundle install
 bundle exec rails runner 'abort "Wrong Redmine version" unless Redmine::VERSION.to_a.first(3).join(".") == "6.1.4"; puts "Redmine #{Redmine::VERSION} / Ruby #{RUBY_VERSION} / Rails #{Rails.version}"'
 # Production eager-loads plugin lib/ directories: every file must match its constant.
 bundle exec rails zeitwerk:check
+# Loading everything must not load Mirror a second time through the resolved path.
+if bundle exec rails runner 'Rails.application.eager_load!' 2>&1 | grep "redmine_mirror" | grep "already initialized"; then
+  echo "Redmine Mirror files were loaded twice" >&2
+  exit 1
+fi
 for test_file in core_test client_test adapter_example_test; do
   bundle exec ruby "plugins/redmine_mirror/test/$test_file.rb"
 done

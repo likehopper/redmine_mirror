@@ -57,6 +57,7 @@ module RedmineMirror
       adapters.each do |adapter|
         seen_source_ids = []
         adapter.records(@source_client, source_project_id).each do |record|
+          TextFormat.reset_flags
           # APIs may include descendants; never import another project's records.
           next unless record.fetch("project").fetch("id").to_i == source_project_id
           seen_source_ids << record.fetch("id")
@@ -75,6 +76,7 @@ module RedmineMirror
                 store: @mapping_store, source: @source_client, apply: apply, **(adapter.is_a?(Adapters::Relations) ? { options: config.fetch("module_options", {}).fetch(adapter.key, {}), track_blocks: track_relation_blocks } : (adapter.is_a?(Adapters::Hierarchy) ? { track_blocks: track_relation_blocks } : {})))
               planned_correspondences[[adapter.key, record.fetch("id")]] = "planned:#{record.fetch('id')}" if !apply && !event[:destination_id] && adapter.is_a?(Adapters::ProjectReferences)
               @mapping_store.resolve_conflict(adapter.key, record.fetch("id")) if apply && @mapping_store.respond_to?(:resolve_conflict)
+              flag(event)
               results << event
               yield event if block_given?
               next
@@ -120,7 +122,7 @@ module RedmineMirror
                 "destination_fingerprint" => digest(adapter.destination_attributes(current)) })
             end
             planned_correspondences[[adapter.key, id]] = "planned:#{id}" unless mapping || apply
-            event = { module: adapter.key, source_id: id, destination_id: (apply && action != "unchanged" ? destination_record_id : mapping && mapping["destination_id"]), action: action }
+            event = flag({ module: adapter.key, source_id: id, destination_id: (apply && action != "unchanged" ? destination_record_id : mapping && mapping["destination_id"]), action: action })
             results << event
             yield event if block_given?
             @mapping_store.resolve_conflict(adapter.key, record.fetch("id")) if apply && @mapping_store.respond_to?(:resolve_conflict)
@@ -128,7 +130,13 @@ module RedmineMirror
           # deliberately left unprocessed rather than reported as successful.
           rescue Error => error
             @mapping_store.record_conflict(adapter.key, record.fetch("id"), error) if @mapping_store.respond_to?(:record_conflict)
-            raise
+            # on_error "stop" (default) ends the run at the first object error; "collect"
+            # and "skip" record it and go on. Objects that depend on this one then fail
+            # on their missing correspondence and are reported as well.
+            raise unless %w[collect skip].include?(config["on_error"])
+            event = { module: adapter.key, source_id: record.fetch("id"), action: "error", reason: error.message }
+            results << event
+            yield event if block_given?
           end
         end
         @mapping_store.prune_pending_parents(seen_source_ids) if apply && adapter.is_a?(Adapters::Hierarchy) && @mapping_store.respond_to?(:prune_pending_parents)
@@ -138,6 +146,13 @@ module RedmineMirror
     end
 
     private
+
+    # Attach the special cases met while processing the record (execution log review).
+    def flag(event)
+      flags = TextFormat.flags
+      event[:flags] = flags unless flags.empty?
+      event
+    end
 
     # Stable top-level field ordering makes fingerprints independent of hash insertion order.
     def digest(value)

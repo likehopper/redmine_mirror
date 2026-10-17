@@ -15,4 +15,5 @@
 #
 # Verify Mirror behavior, project boundaries and repeatable synchronization.
 
-require File.expand_path("../../../test/test_helper", __dir__)
+# Tests run from the Redmine root; __dir__ would resolve a symlinked plugin directory.
+require File.expand_path("test/test_helper", Dir.pwd)

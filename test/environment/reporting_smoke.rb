@@ -36,7 +36,7 @@ end
 def wait_for_run(project, after_id)
   Selenium::WebDriver::Wait.new(timeout: 120, interval: 2).until do
     run = project.mirror_sync_runs.where("id > ?", after_id).order(:id).last
-    run if run && %w[succeeded failed].include?(run.reload.status)
+    run if run && %w[succeeded partial failed].include?(run.reload.status)
   end
 end
 
@@ -141,7 +141,7 @@ when "update"
   feature = project.reporting_credit_policies.find_by!(tracker_id: trackers["Feature"].id)
   feature.update!(initial_credit_days: 99)
   conflicted = queued_run(project, admin)
-  check conflicted.status == "failed" && conflicted.error_message.include?("Local modification"), "local change #{conflicted.error_message}"
+  check %w[failed partial].include?(conflicted.status) && conflicted.error_message.include?("Local modification"), "local change #{conflicted.error_message}"
   conflict = project.mirror_conflicts.find_by!(module_key: "reporting_credit_policies", status: "open")
   browser do |driver|
     driver.navigate.to("http://gateway:3102/projects/#{project.identifier}/mirror/settings?tab=conflicts")

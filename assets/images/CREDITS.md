@@ -32,3 +32,5 @@ for Mirror source code. They were downloaded with a free Flaticon account, whose
 license requires crediting the author ([pricing](https://www.flaticon.com/pricing),
 [attribution rules](https://support.flaticon.com/s/article/Attribution-How-when-and-where-FI?language=en_US)).
 Keep this attribution, and the README credit, wherever the images are distributed.
+If an icon is shown in the Redmine interface, display the credit on that page too,
+as Redmine SLA and Redmine Reporting do.

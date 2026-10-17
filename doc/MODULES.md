@@ -190,8 +190,20 @@ excludes its values and history details but keeps the rest of each journal.
 ## Synchronization and worker
 
 **Run preview** and **Synchronize now** queue a run; the worker processes it. Every run
-first validates all records (preflight), then writes. Progress counts processed objects,
-unchanged ones included, and reaches 100% only after a successful run.
+first validates all records (preflight), then writes. The preflight lists every failing
+object, not only the first one. Progress counts processed objects, unchanged ones
+included, and reaches 100% when the run ends.
+
+**When an object fails** (Synchronization tab):
+
+- *Skip it and synchronize the rest* (default): the failing object, and the objects that
+  depend on it (its time entries, history…), are not written; everything else is. The run
+  ends **Completed with errors**, and the next synchronization retries the skipped objects.
+- *Stop: write nothing*: one failing object in the preflight leaves the destination
+  unchanged; the run fails with the full list of errors.
+
+Connection or configuration errors (unreachable source, invalid settings) always stop the
+run.
 
 Automatic synchronization is off by default. Intervals: 5, 15, 30, 60, 360 or 1440
 minutes. The first deadline is set on save, and each finished run schedules the next:
@@ -203,7 +215,7 @@ plugins, attachment storage and `database_cipher_key` as the web process, plus
 `MIRROR_DESTINATION_URL` and `MIRROR_DESTINATION_API_KEY` in its environment. A database
 lease prevents two runs of the same project, even across hosts.
 
-On error, the run stops, successful writes remain and the lease is released. A worker
+On an unexpected error, the run stops, successful writes remain and the lease is released. A worker
 crash can leave a run marked as running: it is not restarted, to avoid duplicate writes.
 Check that the process has stopped and inspect the destination before recovering.
 

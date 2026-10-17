@@ -18,7 +18,8 @@
 class MirrorProjectSetting < ActiveRecord::Base
   SYNC_INTERVALS = [5, 15, 30, 60, 360, 1440].freeze
   # Columns of the latest migrations; extend this list with each new migration.
-  LATEST_COLUMNS = %w[source_project_identifier source_text_format].freeze
+  LATEST_COLUMNS = %w[source_project_identifier source_text_format on_error].freeze
+  ON_ERROR = %w[skip stop].freeze
 
   def self.schema_current?
     (LATEST_COLUMNS - column_names).empty?
@@ -28,6 +29,7 @@ class MirrorProjectSetting < ActiveRecord::Base
   validates :project_id, uniqueness: true
   validates :source_project_id, numericality: { only_integer: true, greater_than: 0 }
   validates :source_text_format, inclusion: { in: RedmineMirror::TextFormat::SOURCE_FORMATS }
+  validates :on_error, inclusion: { in: ON_ERROR }
   validate :validate_connection
 
   # Persist the resolved dependency closure so forms, worker totals and execution
@@ -104,7 +106,7 @@ class MirrorProjectSetting < ActiveRecord::Base
       "destination_url" => destination_url, "destination_project_id" => project_id,
       "allow_http" => ENV["MIRROR_TEST_ENVIRONMENT"] == "disposable",
       "modules" => selected_modules, "mappings" => tables, "module_options" => module_options,
-      "text_format" => { "source" => source_text_format, "target" => RedmineMirror::TextFormat.destination_format(project),
+      "text_format" => { "source" => source_text_format, "target" => RedmineMirror::TextFormat.destination_format(project), "source_url" => source_url,
         "fallback" => RedmineMirror::TextFormat.dominant(source_catalog["text_formats"]) } }
   end
 

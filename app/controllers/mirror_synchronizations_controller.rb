@@ -22,11 +22,12 @@ class MirrorSynchronizationsController < ApplicationController
   before_action :load_setting
 
   def update
-    input = params.require(:schedule).permit(:enabled, :interval_minutes)
+    input = params.require(:schedule).permit(:enabled, :interval_minutes, :on_error)
     interval = Integer(input.fetch(:interval_minutes))
     raise RedmineMirror::Error, "Invalid synchronization interval" unless MirrorProjectSetting::SYNC_INTERVALS.include?(interval)
     @setting.update!(auto_sync_enabled: input[:enabled] == "1", sync_interval_minutes: interval,
-      next_sync_at: input[:enabled] == "1" ? Time.current + interval.minutes : nil)
+      next_sync_at: input[:enabled] == "1" ? Time.current + interval.minutes : nil,
+      on_error: input[:on_error].presence || @setting.on_error)
     flash[:notice] = l(:notice_successful_update)
     redirect_to project_mirror_settings_path(@project, tab: "synchronization")
   rescue RedmineMirror::Error, ActiveRecord::RecordInvalid, ArgumentError, KeyError
@@ -62,7 +63,14 @@ class MirrorSynchronizationsController < ApplicationController
     key = @run.connection_key.presence || mirror_connection_key
     @object_mappings = key ? MirrorMapping.where(connection_key: key).to_a.to_h { |row| [[row.module_key, row.source_id], row.destination_id] } : {}
     @events = @run.log_events
+    # Review summary: actions per module, and objects per special case to check.
+    @action_counts = @events.group_by { |event| event["module"] }.transform_values { |rows| rows.group_by { |event| event["action"] }.transform_values(&:size) }
+    @flag_counts = @events.flat_map { |event| Array(event["flags"]) }.tally
+    @error_counts = @events.select { |event| event["action"] == "error" }.group_by { |event| event["reason"].to_s }.transform_values(&:size).sort_by { |_, count| -count }
     @events = @events.select { |event| event["module"] == params[:module_key] } if params[:module_key].present?
+    if params[:flag].present?
+      @events = @events.select { |event| params[:flag] == "any" ? Array(event["flags"]).any? : Array(event["flags"]).include?(params[:flag]) }
+    end
     @events = @events.select { |event| event["action"] == params[:action_filter] } if params[:action_filter].present?
     @events = @events.select { |event| event["source_id"].to_s == params[:source_id] } if params[:source_id].present?
     @event_count = @events.size

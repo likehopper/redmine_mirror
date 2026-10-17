@@ -18,10 +18,11 @@
 class MirrorSyncRun < ActiveRecord::Base
   belongs_to :project
   belongs_to :requested_by, class_name: "User", optional: true
-  validates :status, inclusion: { in: %w[queued running succeeded failed cancelled] }
+  validates :status, inclusion: { in: %w[queued running succeeded partial failed cancelled] }
   validates :trigger, inclusion: { in: %w[manual automatic operator] }
 
-  STATUSES = %w[queued running succeeded failed cancelled].freeze
+  # partial: finished, but some objects failed and were skipped (on_error "skip").
+  STATUSES = %w[queued running succeeded partial failed cancelled].freeze
   # A worker normally picks a run up within a minute; longer usually means none runs.
   QUEUE_WARNING_DELAY = 5.minutes
 
@@ -31,7 +32,7 @@ class MirrorSyncRun < ActiveRecord::Base
   TRIGGERS = %w[manual automatic operator].freeze
 
   def progress_percentage
-    return 100 if status == "succeeded"
+    return 100 if %w[succeeded partial].include?(status)
     return nil if total_records.nil?
     return 0 if total_records.zero?
     [processed_records * 100 / total_records, status == "running" ? 99 : 100].min
