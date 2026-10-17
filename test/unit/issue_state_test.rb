@@ -85,6 +85,17 @@ class MirrorIssueStateTest < ActiveSupport::TestCase
     assert_raises(RedmineMirror::Error) { run_adapter(adapter) }
   end
 
+  # Redmine subscribes authors and the API account that writes issues: local watchers
+  # added after an import are kept and are not conflicts.
+  def test_locally_added_watchers_are_not_conflicts
+    adapter = RedmineMirror::Adapters::Watchers.new
+    run_adapter(adapter)
+    local = User.active.where.not(id: 1).detect { |user| @issue.visible?(user) }
+    @issue.add_watcher(local)
+    assert_equal "unchanged", run_adapter(adapter)[:action]
+    assert_equal [1, local.id].sort, @issue.reload.watcher_users.pluck(:id).sort
+  end
+
   def test_missing_source_permission_and_mapping_are_errors
     adapter = RedmineMirror::Adapters::Watchers.new
     assert_raises(RedmineMirror::Error) { run_adapter(adapter, mappings: {}) }
