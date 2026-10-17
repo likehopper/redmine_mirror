@@ -23,18 +23,42 @@ module MirrorHelper
   MAPPING_TABS = { "status" => "issue_tracking", "tracker" => "issue_tracking", "priority" => "issue_tracking",
     "user" => "users", "activity" => "time_tracking", "custom_field" => "issue_custom_fields" }.freeze
 
-  # An error reason with the source reference name and a link to the tab that fixes it.
+  # An error or warning with, when known, the source reference name and a link to the
+  # page that fixes it.
   def mirror_reason(reason)
     text = reason.to_s
-    match = text.match(/\AMissing (\w+) mapping for source ID (\d+)\z/)
-    return text unless match && @setting
-    kind, id = match.captures
-    name = @setting.source_catalog.dig(kind, id)
-    tab = MAPPING_TABS[kind]
+    name, label, path = mirror_fix(text)
     parts = [text]
     parts << " (#{name})" if name
-    parts << " — " << link_to(l(:label_mirror_fix_mapping), project_mirror_settings_path(@project, tab: tab)) if tab
+    parts << " — " << link_to(l(label), path, class: "mirror-fix") if path
     safe_join(parts)
+  end
+
+  # [source reference name, link label, path] for the causes Mirror knows how to fix.
+  def mirror_fix(text)
+    return [] unless @setting
+    if (match = text.match(/\AMissing (\w+) mapping for source ID (\d+)/))
+      kind, id = match.captures
+      tab = MAPPING_TABS[kind]
+      [@setting.source_catalog.dig(kind, id), :label_mirror_fix_mapping, tab && project_mirror_settings_path(@project, tab: tab)]
+    elsif (match = text.match(/\ACustom field "(.+?)" is not enabled for destination tracker/))
+      field = IssueCustomField.find_by(name: match[1])
+      if User.current.admin? && field
+        [nil, :label_mirror_fix_field_trackers, edit_custom_field_path(field)]
+      else
+        [nil, :label_mirror_fix_ignore_field, project_mirror_settings_path(@project, tab: "issue_custom_fields")]
+      end
+    elsif text.include?("is not enabled in this project")
+      [nil, :label_mirror_fix_project_fields, settings_project_path(@project, tab: "issues")]
+    elsif text.match?(/value mapping for custom field|incompatible formats|Invalid value for custom field|custom_field mapping/)
+      [nil, :label_mirror_fix_mapping, project_mirror_settings_path(@project, tab: "issue_custom_fields")]
+    elsif text.start_with?("Local modification detected")
+      [nil, :label_mirror_fix_conflict, project_mirror_settings_path(@project, tab: "conflicts")]
+    elsif text.include?("maximum attachment size") && User.current.admin?
+      [nil, :label_mirror_fix_attachment_size, settings_path(tab: "attachments")]
+    else
+      []
+    end
   end
 
   # "converted:textile>html" reads "Converted: Textile → HTML (CKEditor)".

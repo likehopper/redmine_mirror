@@ -65,10 +65,17 @@ module RedmineMirror
     # Run a block with the conversion settings of one synchronization.
     def with(settings)
       previous = Thread.current[:redmine_mirror_text_format]
+      previous_lookup = Thread.current[:redmine_mirror_lookup]
       Thread.current[:redmine_mirror_text_format] = settings
       yield
     ensure
       Thread.current[:redmine_mirror_text_format] = previous
+      Thread.current[:redmine_mirror_lookup] = previous_lookup
+    end
+
+    # The runner's correspondence lookup, used to rewrite issue references.
+    def lookup=(lookup)
+      Thread.current[:redmine_mirror_lookup] = lookup
     end
 
     # Convert with the current settings; without settings, texts are copied unchanged.
@@ -78,9 +85,59 @@ module RedmineMirror
       return text unless settings && text.is_a?(String) && !text.strip.empty?
       note(*special_cases(text, settings["source_url"]))
       from = source_family(text, settings.fetch("source"), settings["fallback"])
-      result = transform(text, source: settings.fetch("source"), target: settings.fetch("target"), fallback: settings["fallback"])
-      note("converted:#{from}>#{family(settings.fetch('target'))}") unless result == text
+      rewritten = rewrite_references(text, from, settings)
+      result = transform(rewritten, source: from, target: settings.fetch("target"))
+      note("converted:#{from}>#{family(settings.fetch('target'))}") unless result == rewritten
       result
+    end
+
+    REFERENCE = /(?<![\w&\/#])(\#{1,3})(\d+)\b/
+    # Code is copied as written: HTML pre/code, Textile <pre>/@code@/bc., Markdown fences/`code`.
+    CODE = {
+      "html" => %r{(<pre\b.*?</pre>|<code\b.*?</code>)}mi,
+      "textile" => %r{(<pre\b.*?</pre>|^bc\.[^\n]*(?:\n(?!\n)[^\n]*)*|@[^@\n]+@)}mi,
+      "markdown" => /(^```.*?^```|`[^`\n]+`)/m
+    }.freeze
+
+    # Issue numbers and source issue URLs point to the destination issues. A reference
+    # whose issue is not imported (yet) becomes a link to the source issue; the next
+    # synchronization after its import rewrites it to the local number.
+    def rewrite_references(text, from, settings)
+      lookup = Thread.current[:redmine_mirror_lookup]
+      base = settings["source_url"].to_s.sub(%r{/+\z}, "")
+      return text unless lookup && !base.empty?
+      destination = settings["destination_url"].to_s.sub(%r{/+\z}, "")
+      local = lambda do |id|
+        target = lookup.call("issue_tracking", id)
+        target && !target.to_s.start_with?("planned:") ? target : nil
+      end
+      text.split(CODE.fetch(from, CODE["textile"])).each_with_index.map do |segment, index|
+        next segment if index.odd? # captured code
+        segment = segment.gsub(%r{#{Regexp.escape(base)}/issues/(\d+)}) do
+          target = local.call(Regexp.last_match(1).to_i)
+          next Regexp.last_match(0) unless target
+          note("issue_references_rewritten")
+          destination.empty? ? "/issues/#{target}" : "#{destination}/issues/#{target}"
+        end
+        segment.gsub(REFERENCE) do
+          hashes, id = Regexp.last_match(1), Regexp.last_match(2).to_i
+          target = lookup.call("issue_tracking", id)
+          if target.to_s.start_with?("planned:")
+            Regexp.last_match(0)
+          elsif target
+            note("issue_references_rewritten")
+            "#{hashes}#{target}"
+          else
+            note("issue_references_unresolved")
+            url = "#{base}/issues/#{id}"
+            case from
+            when "html" then %(<a href="#{url}">##{id}</a>)
+            when "markdown" then "[##{id}](#{url})"
+            else %("##{id}":#{url})
+            end
+          end
+        end
+      end.join
     end
 
     ISSUE_REFERENCE = /(?<![\w&\/])#\d+\b/

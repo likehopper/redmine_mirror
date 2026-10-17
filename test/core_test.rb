@@ -267,8 +267,35 @@ class MirrorCoreTest < Minitest::Test
     @config["text_format"] = { "source" => "textile", "target" => "textile", "source_url" => "https://source.example" }
     events = @runner.run(@config)
     issue = events.find { |event| event[:module] == "issue_tracking" }
-    assert_equal %w[issue_references source_links images], issue[:flags]
+    assert_equal %w[issue_references source_links images issue_references_unresolved], issue[:flags]
     refute events.find { |event| event[:module] == "time_tracking" }.key?(:flags)
+  end
+
+  def test_issue_references_point_to_destination_issues
+    settings = { "source" => "textile", "target" => "textile", "source_url" => "https://old.example",
+      "destination_url" => "https://new.example" }
+    RedmineMirror::TextFormat.with(settings) do
+      RedmineMirror::TextFormat.lookup = ->(key, id) { key == "issue_tracking" && { 10 => 501, 11 => "planned:11" }[id] }
+      RedmineMirror::TextFormat.reset_flags
+      text = "See #10, ##10, #11 and #99; https://old.example/issues/10 and @#10@.\n\n<pre>#10</pre>"
+      result = RedmineMirror::TextFormat.convert(text)
+      assert_equal "See #501, ##501, #11 and \"#99\":https://old.example/issues/99; https://new.example/issues/501 and @#10@.\n\n<pre>#10</pre>", result
+      assert_includes RedmineMirror::TextFormat.flags, "issue_references_unresolved"
+      assert_includes RedmineMirror::TextFormat.flags, "issue_references_rewritten"
+    end
+  end
+
+  # Issue 3 cites issue 4, imported after it: one applying run rewrites the reference.
+  def test_references_to_issues_imported_later_converge_in_one_run
+    @issue["description"] = "Depends on #4"
+    @source.records["issues"] << { "id" => 4, "project" => { "id" => 1 }, "subject" => "Later", "tracker" => { "id" => 1 },
+      "status" => { "id" => 1 }, "priority" => { "id" => 1 } }
+    @config["text_format"] = { "source" => "textile", "target" => "textile", "source_url" => "https://old.example" }
+    @runner.run(@config, apply: true)
+    later = @store.find("issue_tracking", 4).fetch("destination_id")
+    first = @destination.records["issues"].find { |record| record["subject"] == "Example" }
+    assert_equal "Depends on ##{later}", first["description"]
+    assert(@runner.run(@config, apply: true).all? { |event| event[:action] == "unchanged" })
   end
 
   def test_text_format_detection

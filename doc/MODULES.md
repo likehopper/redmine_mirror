@@ -158,7 +158,12 @@ Markdown otherwise, and a text already in the right format is unchanged.
 - **Auto** reads each text separately, so a source that changed format over time is
   handled. A text without recognizable markup is read in the project's dominant format
   (Textile or Markdown), else as Textile.
-- Redmine links and macros (`#123`, `[[Wiki]]`, `{{toc}}`, `attachment:`) are kept as
+- Issue references (`#123`, `##123`, `###123`, `<source>/issues/123`) are rewritten to
+  the destination issue. A reference to an issue not imported becomes a link to the
+  source server; when that issue is imported later, a rerun points it to the destination.
+  Issues imported later in the same run are handled by a second pass at its end.
+  References in code (`@...@`, `<pre>`, backticks) are left as written.
+- Other Redmine links and macros (`[[Wiki]]`, `{{toc}}`, `attachment:`) are kept as
   written; the destination interprets them when it displays the text. Inline images
   that name an attachment (`!image.png!`) still resolve to the imported attachment.
 - Converted texts are what Mirror wrote: a rerun is unchanged, and a later local edit is
