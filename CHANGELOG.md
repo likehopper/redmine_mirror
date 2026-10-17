@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.4 — 2026-10-17
 
 - Texts are converted to the destination's text format (migration 010): descriptions,
   notes, description history and formatted long text custom fields. The source format is
@@ -26,6 +26,9 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 - Issue custom fields no longer need an administrator source key: without one, fields
   and values come from the source issues and history, each value takes the format of
   the mapped destination field and is validated in the preview.
+- Not converted yet: links to the old server's attachments and issues, `#123` issue
+  numbers (they keep the source numbers) and CKEditor (Rich) images stored outside
+  Redmine attachments.
 
 ## 1.0.0-beta.3 — 2026-10-17
 
