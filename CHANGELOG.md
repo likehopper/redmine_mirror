@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.2 — 2026-10-17
 
 - The source project can be entered by identifier as well as by numeric ID (migration 009).
 - Mapping forms list only the source trackers, statuses and priorities used by the

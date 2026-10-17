@@ -17,7 +17,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 # Compatibility and publication checks
 
 Minimum declared Redmine version: **5.0**. This is not a compatibility certification.
-Current plugin version: **1.0.0-beta.1**.
+Current plugin version: **1.0.0-beta.2**.
 
 Destination (Redmine running Mirror):
 
