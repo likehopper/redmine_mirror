@@ -203,3 +203,11 @@ par cause, nom et lien de correction des correspondances manquantes, détails d'
 non traduisibles ignorés sans perdre le journal, limite des pièces jointes alignée sur la
 destination, worker explicite sur les migrations en attente. Runner CI : 100 tests
 Redmine / 435 assertions. `versions.sh` source 4.2 → destination 6.1.4 : sept smokes réussis.
+
+1.0.0-beta.9 (18 octobre 2026) : sur une instance de validation, un champ personnalisé activé
+pour tous les projets mais pour un seul tracker bloquait 1139 objets. Une valeur
+de champ impossible à écrire est désormais ignorée avec un avertissement groupé par cause ;
+la demande, son temps passé et son historique sont importés. Runner CI : 101 tests Redmine
+/ 447 assertions. `versions.sh` source 4.2 → destination 6.1.4 : sept smokes réussis.
+L'environnement de test désactive les notifications, cause des verrous SQLite au démarrage
+de la source Redmine 4.2.

@@ -55,6 +55,9 @@ default:
 YAML
 bundle check
 bundle exec rake db:migrate redmine:plugins:migrate
+# No notification emails: their background jobs read SQLite while the seeds write it,
+# which made the Redmine 4.2 source fail with "database is locked".
+bundle exec rails runner 'Setting.notified_events = []'
 if [ ! -f /mirror-data/seeded ]; then
   REDMINE_LANG=en bundle exec rake redmine:load_default_data
   bundle exec rails runner /mirror-environment/seed.rb

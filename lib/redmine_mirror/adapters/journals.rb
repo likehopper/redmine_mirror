@@ -36,18 +36,25 @@ module RedmineMirror
         details = record.fetch("details", []).filter_map do |detail|
           property, name = detail.values_at("property", "name")
           if property == "cf"
-            raise Error, "Custom field history requires its adapter and project mappings" unless project && mappings.key?("custom_field")
-            adapter = CustomFields.new
-            next if adapter.ignored?(name, mappings)
-            field = adapter.target_field(Integer(name), mappings, project)
-            setting = project.mirror_project_setting
-            raise Error, "Select the custom fields adapter to import its history" unless setting.selected_modules.include?(adapter.key)
-            definition = setting.source_catalog.fetch("custom_field_definitions", {}).fetch(name.to_s) { raise Error, "Refresh custom field references" }
-            values = %w[old_value new_value].map do |key|
-              adapter.translate_value(detail[key], source_id: name, field: field, definition: definition,
-                options: setting.module_options.fetch(adapter.key, {}), mappings: mappings, lookup: lookup)
+            # As for current values, a custom field change Mirror cannot translate is
+            # skipped with a warning; the journal and its notes are still imported.
+            begin
+              raise Error, "Select the custom fields module to import custom field history" unless project && mappings.key?("custom_field")
+              adapter = CustomFields.new
+              next if adapter.ignored?(name, mappings)
+              field = adapter.target_field(Integer(name), mappings, project)
+              setting = project.mirror_project_setting
+              raise Error, "Select the custom fields module to import custom field history" unless setting.selected_modules.include?(adapter.key)
+              definition = setting.source_catalog.fetch("custom_field_definitions", {}).fetch(name.to_s) { raise Error, "Refresh custom field references" }
+              values = %w[old_value new_value].map do |key|
+                adapter.translate_value(detail[key], source_id: name, field: field, definition: definition,
+                  options: setting.module_options.fetch(adapter.key, {}), mappings: mappings, lookup: lookup)
+              end
+              next [property, field.id.to_s, *values]
+            rescue Error => error
+              TextFormat.warning("#{error.message}; the history change was not imported")
+              next
             end
-            next [property, field.id.to_s, *values]
           end
           # Attachment and relation changes are imported by their own modules: skip the
           # detail, keep the journal (its notes and other changes).

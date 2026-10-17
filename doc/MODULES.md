@@ -189,8 +189,11 @@ are refused.
 
 Required fields are sent when the issue is created; later changes go through local
 models with conflict checks. On the first run, an existing non-default local value is
-not overwritten. A field unavailable for the tracker, a missing mapping or an invalid
-value blocks the preview. An empty selection is a missing mapping; **Ignore this field**
+not overwritten. A value Mirror cannot write (field not enabled for the project or the
+issue's tracker, missing field or value mapping, incompatible format, invalid value) is
+skipped with a warning, grouped by cause in the execution log: the issue, its time
+entries and its history are still synchronized. A required destination field left
+without a value makes Redmine reject the issue. An empty selection is a missing mapping; **Ignore this field**
 excludes its values and history details but keeps the rest of each journal.
 
 ## Synchronization and worker
