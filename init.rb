@@ -16,8 +16,10 @@
 # Register project permissions, navigation and native Redmine integration.
 
 require "redmine"
-require_relative "lib/redmine_mirror"
-require_relative "lib/redmine_mirror/hooks"
+# Require through the plugin path Redmine uses, not the symlink-resolved path of
+# require_relative: a plugin directory linked from elsewhere would be loaded twice.
+require File.join(File.dirname(__FILE__), "lib/redmine_mirror")
+require File.join(File.dirname(__FILE__), "lib/redmine_mirror/hooks")
 Redmine::Plugin.register :redmine_mirror do
   name "Redmine Mirror"
   author "LikeHopper and Redmine Mirror contributors"

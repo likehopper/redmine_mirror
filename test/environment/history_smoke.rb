@@ -71,7 +71,8 @@ begin
   journal.update_columns(notes: "Local edit")
   conflict = RedmineMirror::Synchronization.enqueue(setting, apply: true, trigger: "operator", user: User.find_by!(login: "admin"))
   RedmineMirror::Synchronization.execute(conflict)
-  raise "Local conflict not detected" unless conflict.reload.status == "failed" && conflict.error_message.include?("Local modification")
+  # Other objects are still written by default ("partial"); "stop" would give "failed".
+  raise "Local conflict not detected" unless %w[failed partial].include?(conflict.reload.status) && conflict.error_message.include?("Local modification")
   journal.update_columns(notes: previous_notes)
   puts "History smoke passed: 36 dated journals, 12 private notes, 12 files, preview and idempotence"
 ensure

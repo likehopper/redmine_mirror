@@ -16,7 +16,7 @@
 # Verify Mirror behavior, project boundaries and repeatable synchronization.
 
 require_relative "../test_helper"
-require File.expand_path("../../../../test/application_system_test_case", __dir__)
+require File.expand_path("test/application_system_test_case", Dir.pwd)
 class MirrorNavigationTest < ApplicationSystemTestCase
   fixtures :projects, :users, :roles, :members, :member_roles, :enabled_modules
 

@@ -76,8 +76,15 @@ begin
     check config.dig("text_format", "target") == "CKEditor", "destination format #{config['text_format']}"
     key = Digest::SHA256.hexdigest(JSON.generate([source_url, remote.fetch("id"), destination_url, project.id]))
     runner = RedmineMirror::Runner.new(source: source, destination: destination, store: RedmineMirror::DatabaseStore.new(key, project_id: project.id))
-    runner.run(config, apply: true)
+    events = runner.run(config, apply: true)
     check runner.run(config).all? { |event| event[:action] == "unchanged" }, "#{format} rerun is not unchanged"
+    flags = events.flat_map { |event| Array(event[:flags]) }
+    # Special cases flagged in the execution log for review.
+    if format == "textile"
+      %w[converted:textile>html issue_references images attachment_links].each { |flag| check flags.include?(flag), "missing flag #{flag}: #{flags.uniq}" }
+    elsif format == "html"
+      %w[rich_images source_links].each { |flag| check flags.include?(flag), "missing flag #{flag}: #{flags.uniq}" }
+    end
     puts "#{format}: detected #{counts.sort.to_h}, imported #{project.issues.count} issues"
   end
 

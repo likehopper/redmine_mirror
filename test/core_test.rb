@@ -252,6 +252,25 @@ class MirrorCoreTest < Minitest::Test
     assert_raises(RedmineMirror::Error) { RedmineMirror::Adapters::Categories.new.records(client, 7) }
   end
 
+  def test_collect_mode_reports_every_failing_object_and_continues
+    @issue["status"] = { "id" => 999 }
+    assert_raises(RedmineMirror::Error) { @runner.run(@config) }
+    events = @runner.run(@config.merge("on_error" => "collect"))
+    failed = events.select { |event| event[:action] == "error" }
+    assert_equal %w[issue_tracking time_tracking], failed.map { |event| event[:module] }.uniq.sort
+    assert(failed.all? { |event| !event[:reason].to_s.empty? })
+    assert_empty @destination.writes
+  end
+
+  def test_events_carry_the_special_cases_of_their_texts
+    @issue["description"] = "h2. Notes\n\nSee #12, https://source.example/issues/3 and !shot.png!"
+    @config["text_format"] = { "source" => "textile", "target" => "textile", "source_url" => "https://source.example" }
+    events = @runner.run(@config)
+    issue = events.find { |event| event[:module] == "issue_tracking" }
+    assert_equal %w[issue_references source_links images], issue[:flags]
+    refute events.find { |event| event[:module] == "time_tracking" }.key?(:flags)
+  end
+
   def test_text_format_detection
     detect = ->(text) { RedmineMirror::TextFormat.detect(text) }
     assert_equal "textile", detect.call("h2. Notes\n\n\"A link\":https://www.redmine.org and !shot.png!")

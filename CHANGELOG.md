@@ -16,6 +16,18 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.6 — 2026-10-17
+
+- The preview lists every failing object instead of stopping at the first one. When an
+  object fails, a new setting (migration 011) either skips it and its dependants and
+  synchronizes the rest (default, run **Completed with errors**), or writes nothing.
+- The execution log summarizes actions per module, groups errors by cause and flags the
+  special cases to check: converted texts, issue numbers, links to the source Redmine,
+  images and links to attachments, with a filter to list them.
+- Plugins installed through a symbolic link (Capistrano-style `shared/plugins`) are no
+  longer loaded twice, which caused "already initialized constant" warnings and could
+  lose adapters registered by other plugins. The CI installs Mirror that way.
+
 ## 1.0.0-beta.5 — 2026-10-17
 
 - Issue categories used by the project's issues but owned by another source project

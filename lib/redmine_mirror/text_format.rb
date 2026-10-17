@@ -70,15 +70,54 @@ module RedmineMirror
     end
 
     # Convert with the current settings; without settings, texts are copied unchanged.
+    # Special cases of the text are noted for the execution log (see flags).
     def convert(text)
       settings = Thread.current[:redmine_mirror_text_format]
       return text unless settings && text.is_a?(String) && !text.strip.empty?
-      transform(text, source: settings.fetch("source"), target: settings.fetch("target"), fallback: settings["fallback"])
+      note(*special_cases(text, settings["source_url"]))
+      from = source_family(text, settings.fetch("source"), settings["fallback"])
+      result = transform(text, source: settings.fetch("source"), target: settings.fetch("target"), fallback: settings["fallback"])
+      note("converted:#{from}>#{family(settings.fetch('target'))}") unless result == text
+      result
+    end
+
+    ISSUE_REFERENCE = /(?<![\w&\/])#\d+\b/
+    IMAGE = /(?:^|\s)![^!\s][^!\n]*\.(?:png|jpe?g|gif|bmp|webp|svg)[^!\n]*!|!\[[^\]\n]*\]\(|<img\b/i
+    ATTACHMENT_LINK = %r{/attachments/(?:download/|thumbnail/)?\d+|\battachment:}
+
+    # What a reviewer should check in a converted text: references that keep source IDs,
+    # links to the source server and images that live outside Redmine attachments.
+    def special_cases(text, source_url)
+      host = source_url.to_s.sub(%r{\Ahttps?://}, "").sub(%r{/+\z}, "")
+      cases = []
+      cases << "issue_references" if text.match?(ISSUE_REFERENCE)
+      cases << "source_links" if (!host.empty? && text.include?(host)) || text.match?(%r{href="/(?:issues|projects|attachments|versions)/})
+      cases << "images" if text.match?(IMAGE)
+      cases << "rich_images" if text.include?("/system/rich/")
+      cases << "attachment_links" if text.match?(ATTACHMENT_LINK)
+      cases
+    end
+
+    # Special cases noted since the runner started the current record.
+    def reset_flags
+      Thread.current[:redmine_mirror_text_flags] = []
+    end
+
+    def flags
+      (Thread.current[:redmine_mirror_text_flags] || []).uniq
+    end
+
+    def note(*flags)
+      (Thread.current[:redmine_mirror_text_flags] ||= []).concat(flags)
+    end
+
+    def source_family(text, source, fallback)
+      source == "auto" ? (detect(text) || fallback || FALLBACK) : source
     end
 
     def transform(text, source:, target:, fallback: nil)
       raise Error, "Unknown source text format #{source}" unless SOURCE_FORMATS.include?(source)
-      from = source == "auto" ? (detect(text) || fallback || FALLBACK) : source
+      from = source_family(text, source, fallback)
       to = family(target)
       return text if from == to
       html = from == "html" ? text : Redmine::WikiFormatting.formatter_for(markup_formatter(from)).new(text).to_html

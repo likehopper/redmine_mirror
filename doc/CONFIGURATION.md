@@ -155,7 +155,11 @@ A missing mapping or a local change stops the preview with an explicit error.
 ## 9. Synchronize
 
 Click **Synchronize now**. The log gives, for each object, its remote and local IDs with
-links, and the action taken.
+links, and the action taken. Its **Summary** counts the actions per module, groups the
+errors by cause, and lists the **special cases to check**: converted texts, issue numbers,
+links to the source Redmine, images and links to attachments. Click one to list the
+objects concerned, each with its local and source links. The preview shows them too,
+before anything is written.
 
 ![Import log](screenshots/configuration/13-import-log.png)
 

@@ -22,6 +22,9 @@ Render project-scoped Mirror controls and diagnostics using native Redmine helpe
       <%= check_box_tag "schedule[enabled]", "1", @setting.auto_sync_enabled?, id: "schedule-enabled" %></p>
     <p><%= label_tag "schedule-interval", l(:label_mirror_frequency) %>
       <%= select_tag "schedule[interval_minutes]", options_for_select(MirrorProjectSetting::SYNC_INTERVALS.map { |minutes| [l(:label_mirror_interval, minutes: minutes), minutes] }, @setting.sync_interval_minutes), id: "schedule-interval" %></p>
+    <p><%= label_tag "schedule-on-error", l(:label_mirror_on_error) %>
+      <%= select_tag "schedule[on_error]", options_for_select(MirrorProjectSetting::ON_ERROR.map { |mode| [l("label_mirror_on_error_#{mode}"), mode] }, @setting.on_error), id: "schedule-on-error" %>
+      <em class="info"><%= l(:text_mirror_on_error) %></em></p>
     <p><label><%= l(:label_mirror_next_sync) %></label><%= @setting.next_sync_at ? format_time(@setting.next_sync_at) : "—" %></p>
   </div>
   <%= submit_tag l(:button_save) %>

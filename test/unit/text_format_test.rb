@@ -70,6 +70,17 @@ class MirrorTextFormatTest < ActiveSupport::TestCase
     assert_equal "*Bold*", RedmineMirror::TextFormat.convert("*Bold*")
   end
 
+  def test_conversion_notes_special_cases_for_the_execution_log
+    RedmineMirror::TextFormat.with("source" => "auto", "target" => "CKEditor", "source_url" => "https://old.example") do
+      RedmineMirror::TextFormat.reset_flags
+      RedmineMirror::TextFormat.convert("*Bold*, see #4 and <img src=\"/system/rich/rich_files/1/a.png\">")
+      assert_equal ["issue_references", "images", "rich_images", "converted:textile>html"], RedmineMirror::TextFormat.flags
+      RedmineMirror::TextFormat.reset_flags
+      RedmineMirror::TextFormat.convert("<p>Kept</p>")
+      assert_empty RedmineMirror::TextFormat.flags
+    end
+  end
+
   def test_destination_format_follows_the_setting
     with_settings text_formatting: "common_mark" do
       assert_equal "common_mark", RedmineMirror::TextFormat.destination_format(Project.find(1))

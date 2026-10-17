@@ -93,17 +93,28 @@ module RedmineMirror
           raise Error, "Synchronization already running" unless lock.flock(File::LOCK_EX | File::LOCK_NB)
           # Complete prevalidation before the first import write. An apply request
           # also records blocked secondary links so managers can diagnose the failure.
-          preview = runner.run(config, track_relation_blocks: run.apply?)
+          # The preview reports every object error at once instead of the first one.
+          preview = runner.run(config.merge("on_error" => "collect"), track_relation_blocks: run.apply?)
           totals = setting.selected_modules.to_h { |key| [key, 0] }
           preview.each { |event| totals[event.fetch(:module)] += 1 }
           run.update!(total_records: preview.size, module_totals: JSON.generate(totals))
-          if run.apply?
-            runner.run(config, apply: true) { |event| run.append_event(event) }
+          preview_errors = preview.count { |event| event[:action] == "error" }
+          # "skip" writes everything else; "stop" writes nothing while an object fails.
+          if run.apply? && (preview_errors.zero? || setting.on_error == "skip")
+            runner.run(config.merge("on_error" => setting.on_error), apply: true) { |event| run.append_event(event) }
           else
             preview.each { |event| run.append_event(event) }
           end
         end
-        run.update!(status: "succeeded", finished_at: Time.current)
+        errors = run.log_events.select { |event| event["action"] == "error" }
+        if errors.empty?
+          run.update!(status: "succeeded", finished_at: Time.current)
+        else
+          # Partial: other objects were written; failed: nothing was (preview or "stop").
+          partial = run.apply? && setting.on_error == "skip"
+          run.update!(status: partial ? "partial" : "failed", finished_at: Time.current,
+            error_message: "#{errors.size} object(s) not synchronized; first: #{errors.first['reason']}")
+        end
       rescue StandardError => error
         # Unexpected exception text can contain URLs, credentials or private records.
         message = error.is_a?(Error) ? error.message : "Internal synchronization error (#{error.class.name})"

@@ -60,6 +60,19 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     assert_equal "running", running.reload.status
   end
 
+  def test_run_log_summarizes_actions_and_filters_special_cases
+    run = @project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "succeeded", events: JSON.generate([
+      { "module" => "issue_tracking", "source_id" => 3, "destination_id" => 1, "action" => "create", "flags" => ["converted:textile>html", "issue_references"] },
+      { "module" => "issue_tracking", "source_id" => 4, "destination_id" => 2, "action" => "create" },
+      { "module" => "time_tracking", "source_id" => 9, "destination_id" => 5, "action" => "unchanged" }]))
+    get :show, params: { project_id: @project.identifier, id: run.id }
+    assert_select "#mirror-run-summary", text: /Converted: Textile → HTML \(CKEditor\) \(1\)/
+    assert_select "#mirror-log tbody tr", 3
+    get :show, params: { project_id: @project.identifier, id: run.id, flag: "any" }
+    assert_select "#mirror-log tbody tr", 1
+    assert_select "#mirror-log .mirror-flag", text: "Issue numbers (#123)"
+  end
+
   def test_unauthorized_member_cannot_cancel
     run = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual")
     @request.session[:user_id] = 2
@@ -116,6 +129,60 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     assert @setting.reload.next_sync_at > Time.current
     RedmineMirror::Synchronization.stub(:execute, nil) { RedmineMirror::Synchronization.tick }
     assert_equal 1, @project.mirror_sync_runs.count
+  end
+
+  # Runner double: one object fails in the preview; the apply run reports it again.
+  class PartialRunner
+    attr_reader :calls
+    def initialize; @calls = []; end
+    def run(config, apply: false, track_relation_blocks: false)
+      @calls << [apply, config["on_error"]]
+      events = [{ module: "issue_tracking", source_id: 1, action: "create" },
+                { module: "issue_tracking", source_id: 2, action: "error", reason: "Missing user mapping for source ID 7" }]
+      events.each { |event| yield event } if block_given?
+      events
+    end
+  end
+
+  def execute_with(runner, on_error:)
+    @setting.update!(on_error: on_error)
+    run = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual")
+    with_destination_env do
+      RedmineMirror::Runner.stub(:new, runner) { RedmineMirror::Synchronization.execute(run) }
+    end
+    run.reload
+  end
+
+  def with_destination_env
+    previous = ENV.values_at("MIRROR_DESTINATION_URL", "MIRROR_DESTINATION_API_KEY")
+    ENV["MIRROR_DESTINATION_URL"], ENV["MIRROR_DESTINATION_API_KEY"] = "https://destination.example", "destination-key"
+    yield
+  ensure
+    ENV["MIRROR_DESTINATION_URL"], ENV["MIRROR_DESTINATION_API_KEY"] = previous
+  end
+
+  def test_skip_mode_writes_the_rest_and_reports_partial_success
+    runner = PartialRunner.new
+    run = execute_with(runner, on_error: "skip")
+    assert_equal [[false, "collect"], [true, "skip"]], runner.calls
+    assert_equal "partial", run.status
+    assert_includes run.error_message, "Missing user mapping for source ID 7"
+    assert_equal 100, run.progress_percentage
+  end
+
+  def test_stop_mode_writes_nothing_and_lists_every_error
+    runner = PartialRunner.new
+    run = execute_with(runner, on_error: "stop")
+    assert_equal [[false, "collect"]], runner.calls
+    assert_equal "failed", run.status
+    assert_equal %w[create error], run.log_events.map { |event| event["action"] }
+  end
+
+  def test_run_log_groups_errors_by_cause
+    run = @project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "partial", events: JSON.generate(
+      [1, 2, 3].map { |id| { "module" => "time_tracking", "source_id" => id, "action" => "error", "reason" => "Missing user mapping for source ID 7" } }))
+    get :show, params: { project_id: @project.identifier, id: run.id }
+    assert_select "#mirror-error-causes li", text: /Missing user mapping for source ID 7 — 3 object\(s\)/
   end
 
   def test_failure_is_logged_and_lock_is_released

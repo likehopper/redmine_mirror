@@ -98,7 +98,7 @@ begin
   issue.save!
   run = RedmineMirror::Synchronization.enqueue(setting, apply: true, trigger: "operator", user: User.current)
   RedmineMirror::Synchronization.execute(run)
-  raise "CF conflict not detected" unless run.reload.status == "failed" && run.error_message.include?("Local modification")
+  raise "CF conflict not detected" unless %w[failed partial].include?(run.reload.status) && run.error_message.include?("Local modification")
   puts "Custom fields smoke passed: required field creation, seven formats, values, history, privacy, preview, idempotence and conflict"
 ensure
   MirrorMapping.where(project_id: project.id).delete_all

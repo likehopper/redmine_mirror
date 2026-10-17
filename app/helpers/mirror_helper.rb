@@ -20,6 +20,14 @@ module MirrorHelper
     RedmineMirror::REGISTRY.keys.include?(key) ? l("label_mirror_module_#{key}".to_sym) : key
   end
 
+  # "converted:textile>html" reads "Converted: Textile → HTML (CKEditor)".
+  def mirror_flag_label(flag)
+    name, detail = flag.to_s.split(":", 2)
+    return l("label_mirror_flag_#{name}", default: name) unless detail
+    from, to = detail.split(">", 2)
+    l("label_mirror_flag_#{name}", detail: [from, to].map { |format| l("label_mirror_text_format_#{format}", default: format.to_s) }.join(" → "), default: flag)
+  end
+
   def mirror_extension(key)
     RedmineMirror::REGISTRY[key] || RedmineMirror::REGISTRY.mapping_table(key)
   end
