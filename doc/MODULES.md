@@ -141,15 +141,38 @@ Mapped users must be able to see the issue, private ones included. Local subscri
 are kept and new mapped watchers added; removals are not propagated. A local change to
 an imported watcher list blocks the run.
 
+## Text formats
+
+Issue descriptions, notes, description changes in the history and long text custom
+fields with full formatting are converted to the destination's text format (global, or
+per project with redmine_per_project_formatting), using the destination Redmine's own
+formatters: Textile and Markdown become HTML for CKEditor, HTML becomes Textile or
+Markdown otherwise, and a text already in the right format is unchanged.
+
+- **Auto** reads each text separately, so a source that changed format over time is
+  handled. A text without recognizable markup is read in the project's dominant format
+  (Textile or Markdown), else as Textile.
+- Redmine links and macros (`#123`, `[[Wiki]]`, `{{toc}}`, `attachment:`) are kept as
+  written; the destination interprets them when it displays the text. Inline images
+  that name an attachment (`!image.png!`) still resolve to the imported attachment.
+- Converted texts are what Mirror wrote: a rerun is unchanged, and a later local edit is
+  a conflict as for any other field.
+
 ## Issue custom fields
 
-Discovery reads `/custom_fields.json` and needs a **source administrator** API key.
-It lists the fields used by the project's issues and their history.
+Discovery lists the fields used by the project's issues and their history.
+
+- With a **source administrator** key, Mirror also reads `/custom_fields.json`: formats,
+  multiplicity and the complete lists of possible values are known and checked.
+- Without one, Redmine hides the definitions. The fields and their values come from the
+  issues and their history; each value takes the format of the mapped local field and is
+  validated in the preview; list choices are the values actually found. The module tab
+  says which mode applies.
 
 1. Create the local fields in Redmine administration and enable them on the project and
    trackers. Mirror never creates field definitions.
 2. In the module tab, map each source field to a local field, or **Ignore this field**,
-   and save. Formats and multiplicity must match.
+   and save. Formats (when known) and multiplicity must match.
 3. For list and key/value fields, map the values shown below the table and save again.
    Historical values still visible in the API are listed too.
 

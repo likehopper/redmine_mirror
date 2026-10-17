@@ -21,6 +21,7 @@ class MirrorProjectSetting < ActiveRecord::Base
   belongs_to :project
   validates :project_id, uniqueness: true
   validates :source_project_id, numericality: { only_integer: true, greater_than: 0 }
+  validates :source_text_format, inclusion: { in: RedmineMirror::TextFormat::SOURCE_FORMATS }
   validate :validate_connection
 
   # Persist the resolved dependency closure so forms, worker totals and execution
@@ -96,7 +97,9 @@ class MirrorProjectSetting < ActiveRecord::Base
     { "source_url" => source_url, "source_project_id" => source_project_id,
       "destination_url" => destination_url, "destination_project_id" => project_id,
       "allow_http" => ENV["MIRROR_TEST_ENVIRONMENT"] == "disposable",
-      "modules" => selected_modules, "mappings" => tables, "module_options" => module_options }
+      "modules" => selected_modules, "mappings" => tables, "module_options" => module_options,
+      "text_format" => { "source" => source_text_format, "target" => RedmineMirror::TextFormat.destination_format(project),
+        "fallback" => RedmineMirror::TextFormat.dominant(source_catalog["text_formats"]) } }
   end
 
   private

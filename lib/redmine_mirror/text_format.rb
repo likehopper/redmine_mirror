@@ -1,0 +1,102 @@
+# frozen_string_literal: true
+# File: redmine_mirror/lib/redmine_mirror/text_format.rb
+#
+# Redmine Mirror - modular project import and asynchronous replication.
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 2 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+#
+# Detect the markup of source texts and convert them to the destination's text format
+# with Redmine's own formatters, so the result matches what the source displayed.
+
+module RedmineMirror
+  module TextFormat
+    SOURCE_FORMATS = %w[auto textile markdown html].freeze
+    # Texts without recognizable markup are read in the project's dominant format, else
+    # as Textile, Redmine's historical default.
+    FALLBACK = "textile"
+
+    HTML = %r{\A\s*<(?:p|div|h[1-6]|ul|ol|table|blockquote|pre|span|strong|em|b|i|br|img|a)\b|</(?:p|div|li|td|th|h[1-6])>}i
+    TEXTILE = [
+      /^h[1-6][<>=()]*\.\s/, /^(?:bq|bc|pre|p|fn\d+)[<>=()]*\.\s/, /"[^"\n]+":(?:https?:|\/|#)/,
+      /(?:^|\s)![^!\s][^!\n]*![:\s.,]?/, /^\|_\./, /(?:^|\s)@[^@\s][^@\n]*@(?=\s|$|[.,;:])/, /^\*{1,3}\s\S/, /^#+\s.*$\n^#+\s/
+    ].freeze
+    MARKDOWN = [
+      /^\#{2,6}\s\S/, /\*\*[^*\n]+\*\*/, /`[^`\n]+`/, /^```/, /\[[^\]\n]+\]\([^)\s]+\)/, /!\[[^\]\n]*\]\([^)\s]+\)/,
+      /^\|?\s*:?-{3,}:?\s*\|/, /~~[^~\n]+~~/, /^>\s/, /^\s*[-+]\s\S/
+    ].freeze
+
+    module_function
+
+    # "textile", "markdown", "html", or nil when the text carries no recognizable markup.
+    def detect(text)
+      return nil if text.nil? || text.strip.empty?
+      return "html" if text.match?(HTML)
+      textile = TEXTILE.count { |pattern| text.match?(pattern) }
+      markdown = MARKDOWN.count { |pattern| text.match?(pattern) }
+      return nil if textile == markdown
+      textile > markdown ? "textile" : "markdown"
+    end
+
+    # Name of the destination text formatting for a project: redmine_per_project_formatting
+    # can override the global setting.
+    def destination_format(project)
+      (project.respond_to?(:text_formatting) && project.text_formatting.presence) || Setting.text_formatting.to_s
+    end
+
+    def family(name)
+      case name.to_s
+      when "textile" then "textile"
+      when "markdown", "common_mark" then "markdown"
+      when /\A(?:ckeditor|html)\z/i then "html"
+      else "plain"
+      end
+    end
+
+    # Run a block with the conversion settings of one synchronization.
+    def with(settings)
+      previous = Thread.current[:redmine_mirror_text_format]
+      Thread.current[:redmine_mirror_text_format] = settings
+      yield
+    ensure
+      Thread.current[:redmine_mirror_text_format] = previous
+    end
+
+    # Convert with the current settings; without settings, texts are copied unchanged.
+    def convert(text)
+      settings = Thread.current[:redmine_mirror_text_format]
+      return text unless settings && text.is_a?(String) && !text.strip.empty?
+      transform(text, source: settings.fetch("source"), target: settings.fetch("target"), fallback: settings["fallback"])
+    end
+
+    def transform(text, source:, target:, fallback: nil)
+      raise Error, "Unknown source text format #{source}" unless SOURCE_FORMATS.include?(source)
+      from = source == "auto" ? (detect(text) || fallback || FALLBACK) : source
+      to = family(target)
+      return text if from == to
+      html = from == "html" ? text : Redmine::WikiFormatting.formatter_for(markup_formatter(from)).new(text).to_html
+      to == "html" ? html : Redmine::WikiFormatting.html_parser_for(target).to_text(html)
+    end
+
+    # The most frequent markup detected in a source project, from its catalog counts. An
+    # undetected text has no HTML tags, so it is read as Textile or Markdown, even in a
+    # project mostly written with CKEditor.
+    def dominant(counts)
+      known = (counts || {}).slice("textile", "markdown").reject { |_, count| count.to_i.zero? }
+      known.max_by { |_, count| count.to_i }&.first
+    end
+
+    # The registered formatter rendering a markup family on this Redmine.
+    def markup_formatter(family)
+      return "textile" if family == "textile"
+      Redmine::WikiFormatting.format_names.include?("common_mark") ? "common_mark" : "markdown"
+    end
+  end
+end

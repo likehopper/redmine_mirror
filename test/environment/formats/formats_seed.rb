@@ -61,9 +61,11 @@ create_issue = lambda do |project, subject, description, attachment: nil, notes:
       author: alice, content_type: "image/png")
   end
   issue.save!
+  # init_journal keeps an already initialized journal: load the issue again for each note.
   notes.each do |text|
-    issue.reload.init_journal(alice, text)
-    issue.save!
+    note_issue = Issue.find(issue.id)
+    note_issue.init_journal(alice, text)
+    note_issue.save!
   end
   issue.reload
 end

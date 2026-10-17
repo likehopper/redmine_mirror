@@ -27,6 +27,7 @@ module RedmineMirror
       @client.get("projects/#{Integer(@project_id)}.json")
       tables = {}
       used = Hash.new { |hash, key| hash[key] = [] }
+      formats = Hash.new(0)
       @adapters.each do |adapter|
         adapter.mapping_tables.each { |table| tables[table.key] ||= {} }
         adapter.catalog_references(@client, @project_id).each do |kind, references|
@@ -57,6 +58,10 @@ module RedmineMirror
               used[table.key] << id.to_s
             end
           end
+          adapter.text_samples(record).each do |text|
+            format = TextFormat.detect(text.to_s)
+            formats[format || "plain"] += 1 unless text.to_s.strip.empty?
+          end
           adapter.used_references(record).each do |kind, ids|
             used[kind].concat(ids.map { |id| Integer(id).to_s }) if tables.key?(kind)
           end
@@ -64,6 +69,8 @@ module RedmineMirror
       end
       # "<table>_used" lists the source IDs that the project's records reference.
       used.each { |kind, ids| tables["#{kind}_used"] = ids.uniq.sort_by(&:to_i) }
+      # Detected markup of descriptions and notes, shown next to the source text format.
+      tables["text_formats"] = formats unless formats.empty?
       tables
     end
   end

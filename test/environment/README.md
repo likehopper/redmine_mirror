@@ -189,6 +189,21 @@ IDs differ across versions: the browser setup maps references by name and anonym
 the source administrator, and `smoke.rb` uses those UI mappings. The stack and its
 volumes are deleted at the end.
 
+## Text formats
+
+`formats/` provides a Redmine 4.2 source with CKEditor and per-project formatting, seeded
+with Textile, Markdown and CKEditor projects (`formats_seed.rb`), and a destination built
+on `redmine-mirror-test:<version>` (from `versions.sh`) with a CKEditor plugin supplied
+from outside this repository:
+
+```sh
+MIRROR_CKEDITOR_PATH=/path/to/redmine_ckeditor bash test/environment/formats/formats.sh 5.1.13
+```
+
+`formats_smoke.rb` imports the three projects into a CKEditor destination with the source
+format on *Auto*, checks the stored HTML, notes, formatted custom field and attachment,
+then the rendering in Chromium.
+
 ## Reporting adapters
 
 Mount a redmine_reporting checkout on both instances with the extra Compose file:

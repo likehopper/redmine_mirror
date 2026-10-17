@@ -15,11 +15,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Render project-scoped Mirror controls and diagnostics using native Redmine helpers.
 %><p><%= l(:text_mirror_custom_fields) %></p>
-<% @setting.source_catalog.fetch("custom_field_definitions", {}).each do |source_id, definition| %>
-  <% next unless %w[list enumeration].include?(definition["field_format"]) %>
+<% definitions = @setting.source_catalog.fetch("custom_field_definitions", {}) %>
+<% if definitions.values.any? { |definition| definition["observed"] } %>
+  <p class="warning" id="mirror-observed-custom-fields"><%= l(:text_mirror_observed_custom_fields) %></p>
+<% end %>
+<% definitions.each do |source_id, definition| %>
   <% local_id = @mapping_values[["custom_field", source_id]] %>
   <% field = adapter.mapping_tables.first.local_records(@project).find { |candidate| candidate.id.to_s == local_id } %>
-  <% next unless field %>
+  <% next unless field && adapter.list_values?(definition, field) %>
   <h3><%= @setting.source_catalog.fetch("custom_field").fetch(source_id) %> → <%= field.name %></h3>
   <table class="list mirror-custom-field-values"><thead><tr><th><%= l(:label_mirror_source) %></th><th><%= l(:label_mirror_destination) %></th></tr></thead><tbody>
   <% definition.fetch("possible_values", []).each do |value| %>

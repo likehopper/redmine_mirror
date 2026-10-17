@@ -54,14 +54,16 @@ Version **1.0.0-beta.3** is a pre-release for testing before 1.0.0, not a stable
 - Local changes detected as conflicts, never overwritten.
 - Pending cross-project relations and parents listed for follow-up.
 - Source API keys encrypted, never displayed or logged.
+- Text formats converted to the destination's: Textile or Markdown to HTML for CKEditor,
+  detected per text.
 
 ## Requirements
 
 - Destination: Redmine with this plugin, the REST API enabled, a `database_cipher_key`,
   and a worker sharing its database, attachment storage and cipher key.
 - Source: any Redmine with the REST API enabled; Mirror is not needed there. Use the key
-  of a dedicated, read-only account; only the custom fields module needs an administrator
-  key (see [source permissions](doc/CONFIGURATION.md#2-enable-the-rest-api)).
+  of a dedicated, read-only account member of the source projects
+  (see [source permissions](doc/CONFIGURATION.md#2-enable-the-rest-api)).
 - HTTPS URLs on both sides.
 - With SQLite, keep the `timeout: 5000` of Redmine's sample `database.yml`: the worker and
   the web process write to the same database.

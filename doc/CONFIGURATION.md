@@ -55,9 +55,12 @@ projects with a read-only role:
 | View watchers list | Watchers |
 | Manage issue categories (optional) | Category default assignees; without it, categories come from the issues that use them |
 
-Two exceptions need an administrator key: the **Issue custom fields** module (Redmine
-gives custom field definitions to administrators only) and projects the account is
-not a member of.
+Projects the account is not a member of are not visible. **Issue custom fields** also
+work without an administrator key: Redmine then hides the field definitions, so the
+fields and their values come from the source issues, each value takes the format of
+the destination field you map it to and is checked in the preview, and list choices
+are the values found in the issues and their history. An administrator key adds
+format compatibility checks and the complete lists of possible values.
 
 ## 3. Grant the permissions
 
@@ -90,6 +93,9 @@ enters:
 - **Source Redmine URL**;
 - **Source project**: its identifier, as in `<source>/projects/<identifier>`, or its numeric ID;
 - **Source API key**: stored encrypted and never displayed again;
+- **Source text format**: *Auto* detects Textile, Markdown or HTML (CKEditor) for each
+  text; choose a format to force it. Texts are converted to this Redmine's text format;
+  the detected formats are shown after saving;
 - **Modules** to import. Dependencies are added on save: *Time tracking* adds *Issues*,
   and both add *Users*.
 

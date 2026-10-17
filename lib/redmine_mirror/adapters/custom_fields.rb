@@ -19,7 +19,7 @@ module RedmineMirror
   class CustomFieldMappingTable < MappingTable
     def initialize; super("custom_field", reference_fields: []); end
     def ignore_allowed?; true; end
-    def metadata_fields; %w[field_format multiple possible_values]; end
+    def metadata_fields; %w[field_format multiple possible_values observed]; end
     def local_records(project); project.all_issue_custom_fields.select { |field| field.visible_by?(project, User.current) }; end
   end
 
@@ -29,12 +29,23 @@ module RedmineMirror
       def key; "issue_custom_fields"; end
       def mapping_tables; [CustomFieldMappingTable.new]; end
 
-      # Redmine restricts custom field definitions to administrators.
+      # Redmine restricts custom field definitions to administrators. Without them,
+      # nil selects the observed mode: fields and values come from the issues.
       def definitions(client)
         client.get("custom_fields.json").fetch("custom_fields")
       rescue Error => error
         raise unless error.message.start_with?("Redmine API returned HTTP 403")
-        raise Error, "The custom fields module needs an administrator API key on the source: Redmine restricts custom field definitions to administrators"
+        nil
+      end
+
+      # A source definition known from an administrator key, or else the destination
+      # field's format, which then decides how observed values are read.
+      def effective_format(definition, field)
+        definition["field_format"] || field.field_format
+      end
+
+      def list_values?(definition, field)
+        %w[list enumeration].include?(effective_format(definition, field))
       end
       def records(client, project_id); Issues.new.records(client, project_id); end
       def empty_state; {}; end
@@ -44,8 +55,12 @@ module RedmineMirror
       # Include them so journal translation can use explicit value correspondences.
       def catalog_references(client, project_id)
         observed = Hash.new { |hash, id| hash[id] = [] }
+        seen = {}
         records(client, project_id).each do |issue|
-          issue.fetch("custom_fields", []).each { |field| observed[field.fetch("id")].concat(Array(field["value"])) }
+          issue.fetch("custom_fields", []).each do |field|
+            observed[field.fetch("id")].concat(Array(field["value"]))
+            seen[field.fetch("id")] ||= { "id" => field.fetch("id"), "name" => field["name"], "multiple" => !!field["multiple"] }
+          end
           detailed = client.get("issues/#{Integer(issue.fetch('id'))}.json", "include" => "journals").fetch("issue")
           detailed.fetch("journals", []).each do |journal|
             journal.fetch("details", []).select { |detail| detail["property"] == "cf" }.each do |detail|
@@ -53,7 +68,17 @@ module RedmineMirror
             end
           end
         end
-        fields = definitions(client).select do |field|
+        available = definitions(client)
+        if available.nil?
+          # Observed mode: formats are unknown, list choices are the values met in the issues.
+          fields = observed.keys.map do |id|
+            values = observed.fetch(id).reject { |value| value.to_s.empty? }.map(&:to_s).uniq
+            (seen[id] || { "id" => id, "name" => "##{id}", "multiple" => false }).merge("field_format" => nil, "observed" => true,
+              "possible_values" => values.map { |value| { "value" => value, "label" => value } })
+          end
+          return { "custom_field" => fields }
+        end
+        fields = available.select do |field|
           field["customized_type"] == "issue" && observed.key?(field.fetch("id"))
         end
         users = []
@@ -80,7 +105,7 @@ module RedmineMirror
         definitions = project.mirror_project_setting.source_catalog.fetch("custom_field_definitions", {})
         values.each do |id, entries|
           definition = definitions.fetch(id) { raise Error, "Unknown source custom field" }
-          raise Error, "Invalid value mappings" unless entries.is_a?(Hash) && %w[list enumeration].include?(definition["field_format"])
+          raise Error, "Invalid value mappings" unless entries.is_a?(Hash) && (definition["observed"] || %w[list enumeration].include?(definition["field_format"]))
           allowed = definition.fetch("possible_values", []).map { |value| value_key(value.fetch("value")) }
           raise Error, "Unknown source custom field value" unless (entries.keys - allowed).empty?
         end
@@ -105,7 +130,7 @@ module RedmineMirror
       # Compatible format and multiplicity are prerequisites. List/enumeration
       # values require explicit choices; user and version values reuse object mappings.
       def translate_value(value, source_id:, field:, definition:, options:, mappings:, lookup:)
-        format = definition.fetch("field_format")
+        format = effective_format(definition, field)
         raise Error, "Incompatible custom field formats" unless field.field_format == format && field.multiple? == !!definition["multiple"]
         raise Error, "Unsupported custom field format #{format}" unless (SCALAR_FORMATS + %w[list enumeration user version]).include?(format)
         return value if value.nil? || value == "" || value == []
@@ -123,13 +148,21 @@ module RedmineMirror
             target = lookup.call("project_versions", Integer(entry))
             raise Error, "Missing custom field version correspondence" unless target
             target.to_s
+          when "text"
+            # Long text fields with "Text formatting: full" follow the destination format.
+            field.text_formatting == "full" ? TextFormat.convert(entry.to_s) : entry.to_s
           else entry.to_s
           end
         end
-        return translate.call(value) unless value.is_a?(Array)
-        translated = value.map(&translate)
-        translated.reject!(&:empty?) if format == "user"
-        translated.sort
+        translated = value.is_a?(Array) ? value.map(&translate).tap { |list| list.reject!(&:empty?) if format == "user" }.sort : translate.call(value)
+        # The destination's own validation rejects a scalar value its format cannot hold,
+        # before any write: the only format check left when source definitions are unknown.
+        # Lists, users and versions are already checked through their correspondences.
+        if SCALAR_FORMATS.include?(format)
+          errors = field.validate_custom_value(CustomFieldValue.new(custom_field: field, customized: Issue.new, value: translated))
+          raise Error, "Invalid value for custom field source ID #{source_id}: #{errors.join(', ')}" if errors.any?
+        end
+        translated
       end
 
       def synchronize(record, project_id:, mappings:, lookup:, store:, source:, apply:)

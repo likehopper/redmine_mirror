@@ -247,6 +247,16 @@ class MirrorCoreTest < Minitest::Test
     assert_raises(RedmineMirror::Error) { RedmineMirror::Adapters::Categories.new.records(client, 7) }
   end
 
+  def test_text_format_detection
+    detect = ->(text) { RedmineMirror::TextFormat.detect(text) }
+    assert_equal "textile", detect.call("h2. Notes\n\n\"A link\":https://www.redmine.org and !shot.png!")
+    assert_equal "markdown", detect.call("## Notes\n\n**Bold** and `code` with [a link](https://x.org)")
+    assert_equal "html", detect.call("<p>New <strong>HTML</strong> note</p>")
+    assert_equal "textile", detect.call("p(. Indented paragraph")
+    assert_nil detect.call("Just a sentence with *emphasis*.")
+    assert_nil detect.call("  ")
+  end
+
   def test_history_reports_the_statuses_trackers_and_priorities_it_uses
     journal = { "details" => [
       { "property" => "attr", "name" => "status_id", "old_value" => "1", "new_value" => "5" },

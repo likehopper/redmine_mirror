@@ -1,0 +1,47 @@
+#
+# Redmine Mirror - modular project import and asynchronous replication.
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 2 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+#
+#
+# Text format conversion stack for formats.sh: a Redmine 4.2 source with CKEditor and
+# per-project formatting, and a destination with the CKEditor plugin found at
+# MIRROR_CKEDITOR_PATH (not part of this repository) on redmine-mirror-test:<version>.
+
+x-health: &health
+  test: ["CMD", "ruby", "-rnet/http", "-e", "exit Net::HTTP.get_response(URI('http://127.0.0.1:3000/login')).code == '200'"]
+  interval: 5s
+  timeout: 5s
+  start_period: 300s
+  retries: 60
+x-destination-build: &destination-build
+  context: ./formats
+  dockerfile: destination.Dockerfile
+  additional_contexts:
+    ckeditor: ${MIRROR_CKEDITOR_PATH:?Set MIRROR_CKEDITOR_PATH to a redmine_ckeditor plugin directory}
+  args:
+    BASE_IMAGE: redmine-mirror-test:${MIRROR_DESTINATION_VERSION:-5.1.13}
+services:
+  source:
+    image: redmine-mirror-formats-source:4.2
+    build: !override
+      context: ./formats
+      dockerfile: Dockerfile
+    healthcheck: *health
+  destination:
+    image: redmine-mirror-formats-destination:${MIRROR_DESTINATION_VERSION:-5.1.13}
+    build: !override
+      <<: *destination-build
+    healthcheck: *health
+  worker:
+    image: redmine-mirror-formats-destination:${MIRROR_DESTINATION_VERSION:-5.1.13}
+    build: !override
+      <<: *destination-build

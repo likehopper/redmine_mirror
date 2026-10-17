@@ -30,8 +30,13 @@ begin
   setting.source_catalog = RedmineMirror::SourceCatalog.new(client: setting.source_client, project_id: source_id, adapters: setting.adapters).fetch
   setting.save!
   options = {}
+  # Without an administrator source key, formats are unknown (observed mode): choose
+  # them as an administrator would, from the seeded field names.
+  seeded_formats = { "Text" => "string", "Options" => "list", "Number" => "int", "Date" => "date",
+    "Flag" => "bool", "User" => "user", "Version" => "version" }
   setting.source_catalog.fetch("custom_field").each do |id, name|
     definition = setting.source_catalog.fetch("custom_field_definitions").fetch(id)
+    definition = definition.merge("field_format" => definition["field_format"] || seeded_formats.fetch(name.split.last))
     field = IssueCustomField.create!(name: "Local #{name} #{SecureRandom.hex(2)}", field_format: definition.fetch("field_format"),
       multiple: definition.fetch("multiple"), is_for_all: false, visible: true, editable: true, trackers: Tracker.all, projects: [project],
       possible_values: definition["field_format"] == "list" ? ["Local A", "Local B"] : [])

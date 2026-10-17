@@ -42,6 +42,7 @@ module RedmineMirror
       end
 
       def key; "issue_tracking"; end
+      def text_samples(record); [record["description"]]; end
       def collection; "issues"; end
       def entity; "issue"; end
       METADATA_FIELDS = %w[is_private author_id created_on updated_on closed_on].freeze
@@ -56,6 +57,7 @@ module RedmineMirror
 
       def payload(record, project_id, mappings, lookup, options: {})
         result = record.slice("subject", "description", "start_date", "due_date", "done_ratio", "estimated_hours")
+        result["description"] = TextFormat.convert(result["description"]) if result.key?("description")
         %w[tracker status priority].each do |kind|
           result["#{kind}_id"] = map(mappings, kind, record.fetch(kind).fetch("id"))
         end

@@ -112,6 +112,45 @@ class MirrorCustomFieldsTest < ActiveSupport::TestCase
     assert_nil @issue.reload.custom_field_value(number)
   end
 
+  # A non-administrator source key cannot read definitions: fields and their values
+  # are observed in the issues and history, formats come from the destination fields.
+  def test_observed_mode_builds_the_catalog_from_issues_and_history
+    client = Object.new
+    def client.each_record(_collection, _params)
+      [{ "id" => 7, "project" => { "id" => 99 }, "custom_fields" => [
+        { "id" => 901, "name" => "Remote list", "multiple" => true, "value" => ["Remote A"] },
+        { "id" => 902, "name" => "Remote number", "value" => "12" }] }].each
+    end
+    def client.get(path, _params = {})
+      raise RedmineMirror::Error, "Redmine API returned HTTP 403 for GET #{path}" if path == "custom_fields.json"
+      { "issue" => { "journals" => [{ "details" => [{ "property" => "cf", "name" => "901", "old_value" => "Remote old", "new_value" => "Remote A" }] }] } }
+    end
+    catalog = @adapter.catalog_references(client, 99)
+    list, number = catalog.fetch("custom_field").sort_by { |field| field.fetch("id") }
+    assert_equal ["Remote list", true, nil, true], list.values_at("name", "multiple", "field_format", "observed")
+    assert_equal ["Remote A", "Remote old"], list.fetch("possible_values").map { |value| value.fetch("value") }.sort
+    assert_equal [false, ["12"]], [number.fetch("multiple"), number.fetch("possible_values").map { |value| value.fetch("value") }]
+    refute catalog.key?("user")
+  end
+
+  def test_observed_values_follow_the_destination_format
+    observed = { "field_format" => nil, "observed" => true, "multiple" => true }
+    options = { "value_mappings" => { "901" => { @adapter.value_key("Remote A") => "Local A" } } }
+    assert_equal ["Local A"], @adapter.translate_value(["Remote A"], source_id: 901, field: @list,
+      definition: observed, options: options, mappings: @mappings, lookup: @lookup)
+    number = IssueCustomField.create!(name: "Mirror observed integer", field_format: "int", is_for_all: true, trackers: Tracker.all)
+    single = observed.merge("multiple" => false)
+    assert_equal "42", @adapter.translate_value("42", source_id: 902, field: number, definition: single, options: {}, mappings: @mappings, lookup: @lookup)
+    error = assert_raises(RedmineMirror::Error) do
+      @adapter.translate_value("not a number", source_id: 902, field: number, definition: single, options: {}, mappings: @mappings, lookup: @lookup)
+    end
+    assert_includes error.message, "Invalid value for custom field source ID 902"
+    # Multiplicity is known from the issues and must still match.
+    assert_raises(RedmineMirror::Error) do
+      @adapter.translate_value(["42"], source_id: 902, field: number, definition: observed, options: {}, mappings: @mappings, lookup: @lookup)
+    end
+  end
+
   def test_enumeration_values_use_local_ids
     field = IssueCustomField.create!(name: "Mirror enumeration", field_format: "enumeration", is_for_all: true, trackers: Tracker.all)
     entry = field.enumerations.create!(name: "Local option", position: 1)

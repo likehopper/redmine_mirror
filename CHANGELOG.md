@@ -16,6 +16,17 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+- Texts are converted to the destination's text format (migration 010): descriptions,
+  notes, description history and formatted long text custom fields. The source format is
+  detected per text (Auto) or forced (Textile, Markdown, HTML), and the formats detected
+  in the source are shown in the connection tab.
+
+- Issue custom fields no longer need an administrator source key: without one, fields
+  and values come from the source issues and history, each value takes the format of
+  the mapped destination field and is validated in the preview.
+
 ## 1.0.0-beta.3 — 2026-10-17
 
 - A queued execution can be cancelled from the Synchronization tab or its log, and a

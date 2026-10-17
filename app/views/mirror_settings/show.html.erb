@@ -51,6 +51,13 @@ Render project-scoped Mirror controls and diagnostics using native Redmine helpe
       <p><%= label_tag "connection_source_url", l(:label_mirror_source_url) %><%= text_field_tag "connection[source_url]", @setting.source_url, size: 60, disabled: !User.current.admin? %></p>
       <p><%= label_tag "connection_source_project_id", l(:label_mirror_source_project) %><%= text_field_tag "connection[source_project_id]", @setting.source_project_identifier.presence || @setting.source_project_id, size: 30, disabled: !User.current.admin? %>
         <% if @setting.source_project_id %><em class="info"><%= l(:text_mirror_source_project_number, id: @setting.source_project_id) %></em><% end %></p>
+      <p><%= label_tag "connection_source_text_format", l(:label_mirror_source_text_format) %>
+        <%= select_tag "connection[source_text_format]", options_for_select(RedmineMirror::TextFormat::SOURCE_FORMATS.map { |format| [l("label_mirror_text_format_#{format}"), format] }, @setting.source_text_format),
+              id: "connection_source_text_format", disabled: !User.current.admin? %>
+        <em class="info" id="mirror-text-formats"><%= l(:text_mirror_destination_text_format, name: RedmineMirror::TextFormat.destination_format(@project).presence || "—") %>
+          <% if (counts = @setting.source_catalog["text_formats"]).present? %>
+            <%= l(:text_mirror_detected_text_formats, formats: counts.sort_by { |_, count| -count.to_i }.map { |format, count| "#{l("label_mirror_text_format_#{format}")} #{count}" }.join(", ")) %>
+          <% end %></em></p>
       <% if User.current.admin? %>
         <p><%= label_tag "connection_api_key", l(:label_mirror_api_key) %><%= password_field_tag "connection[api_key]", nil, autocomplete: "new-password" %><em class="info"><%= l(:text_mirror_keep_api_key) %></em></p>
       <% end %>

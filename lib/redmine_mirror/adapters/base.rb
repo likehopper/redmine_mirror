@@ -56,6 +56,11 @@ module RedmineMirror
         []
       end
 
+      # Formatted texts of a record, sampled to report the source text formats.
+      def text_samples(_record)
+        []
+      end
+
       # {table key => [source IDs]} referenced by a record beyond its mapping tables,
       # so the mapping forms can show only the references a project really uses.
       def used_references(_record)

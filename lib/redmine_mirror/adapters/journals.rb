@@ -21,6 +21,7 @@ module RedmineMirror
       def key; "issue_journals"; end
       def phase; :history; end
       def association; "journals"; end
+      def text_samples(record); [record["notes"]]; end
 
       # Historical status, tracker and priority changes need mappings too.
       def used_references(record)
@@ -61,13 +62,15 @@ module RedmineMirror
               value = value.to_s
             elsif value.present? && name.end_with?("_id")
               raise Error, "Unsupported historical reference #{name}"
+            elsif value.present? && name == "description"
+              value = TextFormat.convert(value)
             end
             value
           end
           [property, name, *values]
         end
         { "user_id" => author_id(record, mappings), "created_on" => Time.iso8601(record.fetch("created_on")).utc.iso8601,
-          "notes" => record["notes"].to_s, "private_notes" => !!record["private_notes"], "details" => details }
+          "notes" => TextFormat.convert(record["notes"].to_s), "private_notes" => !!record["private_notes"], "details" => details }
       end
 
       def find_target(id, issue)

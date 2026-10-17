@@ -27,7 +27,7 @@ class MirrorSettingsController < ApplicationController
   end
 
   def update_connection
-    input = params.require(:connection).permit(:source_url, :source_project_id, :api_key, modules: [])
+    input = params.require(:connection).permit(:source_url, :source_project_id, :api_key, :source_text_format, modules: [])
     url = input.fetch(:source_url).strip.sub(%r{/+\z}, "")
     # The source project is entered by identifier or numeric ID.
     reference = input.fetch(:source_project_id).to_s.strip
@@ -47,6 +47,7 @@ class MirrorSettingsController < ApplicationController
       @setting.source_project_identifier = source["identifier"]
     end
     @setting.selected_modules = input[:modules] || []
+    @setting.source_text_format = input[:source_text_format] if input[:source_text_format].present?
     if @setting.valid?
       @setting.source_catalog = RedmineMirror::SourceCatalog.new(client: @setting.source_client,
         project_id: @setting.source_project_id, adapters: @setting.adapters).fetch

@@ -23,7 +23,12 @@ module RedmineMirror
 
     # Preview and apply use the same transformations and conflict guards. A preview
     # may persist a conflict diagnostic, but it never writes imported Redmine objects.
-    def run(config, apply: false, track_relation_blocks: false)
+    def run(config, apply: false, track_relation_blocks: false, &block)
+      # Texts are converted to the destination format for the whole run (TextFormat).
+      TextFormat.with(config["text_format"]) { run_modules(config, apply: apply, track_relation_blocks: track_relation_blocks, &block) }
+    end
+
+    def run_modules(config, apply: false, track_relation_blocks: false)
       source_project_id = Integer(config.fetch("source_project_id"))
       destination_project_id = Integer(config.fetch("destination_project_id"))
       raise Error, "Project IDs must be positive" unless source_project_id.positive? && destination_project_id.positive?
