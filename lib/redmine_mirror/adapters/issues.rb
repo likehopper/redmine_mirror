@@ -64,7 +64,10 @@ module RedmineMirror
         result["assigned_to_id"] = record["assigned_to"] ? @user_adapter.resolve(mappings, record["assigned_to"].fetch("id")) : nil
         { "category" => "issue_categories", "fixed_version" => "project_versions" }.each do |field, module_key|
           result["#{field}_id"] = record[field] && lookup.call(module_key, record[field].fetch("id"))
-          raise Error, "Missing #{field} correspondence; select its adapter" if record[field] && !result["#{field}_id"]
+          if record[field] && !result["#{field}_id"]
+            raise Error, "Missing #{field} correspondence for source issue ##{record['id']} (#{field} ##{record[field]['id']} " \
+              "#{record[field]['name'].inspect}); select its module, or synchronize the source project that owns it first"
+          end
         end
         result["is_private"] = record.fetch("is_private", false)
         result["author_id"] = @user_adapter.resolve(mappings, record["author"].fetch("id")) if record["author"]

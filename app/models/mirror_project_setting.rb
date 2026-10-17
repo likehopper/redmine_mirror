@@ -17,6 +17,12 @@
 
 class MirrorProjectSetting < ActiveRecord::Base
   SYNC_INTERVALS = [5, 15, 30, 60, 360, 1440].freeze
+  # Columns of the latest migrations; extend this list with each new migration.
+  LATEST_COLUMNS = %w[source_project_identifier source_text_format].freeze
+
+  def self.schema_current?
+    (LATEST_COLUMNS - column_names).empty?
+  end
   validates :sync_interval_minutes, inclusion: { in: SYNC_INTERVALS }
   belongs_to :project
   validates :project_id, uniqueness: true

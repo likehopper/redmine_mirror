@@ -36,6 +36,7 @@ en:
   label_mirror_text_format_plain: "No markup"
   text_mirror_destination_text_format: "Texts are converted to this Redmine's format: %{name}."
   text_mirror_detected_text_formats: "Detected in the source: %{formats}."
+  text_mirror_pending_migrations: "Redmine Mirror database migrations are pending. An administrator must run: bundle exec rake redmine:plugins:migrate RAILS_ENV=production, then restart Redmine and the worker."
   text_mirror_source_project_number: "Source project #%{id}"
   label_mirror_api_key: "Source API key"
   label_mirror_modules: "Modules"

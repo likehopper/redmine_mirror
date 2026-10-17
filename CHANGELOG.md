@@ -16,6 +16,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.5 — 2026-10-17
+
+- Issue categories used by the project's issues but owned by another source project
+  (moved issues, plugins) are created in the destination project, instead of blocking
+  the preview with "Missing category correspondence".
+- A missing category or version correspondence names the source issue and reference.
+- Pending Mirror migrations are explained on the configuration page instead of an error.
+
 ## 1.0.0-beta.4 — 2026-10-17
 
 - Texts are converted to the destination's text format (migration 010): descriptions,

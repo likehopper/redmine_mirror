@@ -243,6 +243,11 @@ class MirrorCoreTest < Minitest::Test
     end
     records = RedmineMirror::Adapters::Categories.new.records(client, 7)
     assert_equal [{ "project" => { "id" => 7 }, "id" => 4, "name" => "Backend" }], records
+    # Categories of other projects used by the issues are added to the project's own.
+    def client.get(path, _params = {})
+      { "issue_categories" => [{ "id" => 9, "name" => "Own", "project" => { "id" => 7 } }] }
+    end
+    assert_equal [9, 4], RedmineMirror::Adapters::Categories.new.records(client, 7).map { |category| category.fetch("id") }
     def client.get(path, _params = {}) = raise(RedmineMirror::Error, "Redmine API returned HTTP 500 for GET #{path}")
     assert_raises(RedmineMirror::Error) { RedmineMirror::Adapters::Categories.new.records(client, 7) }
   end

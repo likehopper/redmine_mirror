@@ -244,6 +244,14 @@ class MirrorSettingsControllerTest < ActionController::TestCase
     assert_equal 12, @setting.reload.source_project_id
   end
 
+  def test_pending_migrations_are_explained_instead_of_failing
+    MirrorProjectSetting.stub(:column_names, MirrorProjectSetting.column_names - ["source_text_format"]) do
+      get :show, params: { project_id: @project.identifier }
+    end
+    assert_response 503
+    assert_includes response.body, "redmine:plugins:migrate"
+  end
+
   def test_connection_cannot_be_rebound_to_another_source
     patch :update_connection, params: { project_id: @project.identifier,
       connection: { source_url: "https://other.example", source_project_id: 12, modules: ["issue_tracking"] } }

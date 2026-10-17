@@ -61,6 +61,9 @@ and test project isolation, preview, native validations, conflicts and repeated 
 - Never log API keys, response bodies or private issue contents. Use native project
   authorization and reject identifiers from other projects in controllers.
 - Preserve historical timestamps on purpose; send no notification during history imports.
+- A new migration adding a column to `mirror_project_settings` also adds it to
+  `MirrorProjectSetting::LATEST_COLUMNS`, so a forgotten `redmine:plugins:migrate` is
+  explained on the configuration page.
 
 ## Verification
 

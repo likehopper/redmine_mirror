@@ -19,6 +19,7 @@ class MirrorSettingsController < ApplicationController
   helper MirrorHelper
   before_action :find_project_by_project_id
   before_action :authorize
+  before_action :require_migrated_schema
   before_action :load_setting
   before_action :require_admin, only: [:update_connection, :refresh]
 
@@ -116,6 +117,11 @@ class MirrorSettingsController < ApplicationController
   end
 
   private
+
+  # After an upgrade without `rake redmine:plugins:migrate`, explain instead of failing.
+  def require_migrated_schema
+    render_error message: l(:text_mirror_pending_migrations), status: 503 unless MirrorProjectSetting.schema_current?
+  end
 
   SOURCE_PROJECT = /\A(?:[1-9]\d*|[a-z][a-z0-9_-]{0,99})\z/
 
