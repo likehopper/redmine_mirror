@@ -192,9 +192,18 @@ class MirrorConflictSystemTest < ApplicationSystemTestCase
     visit "/projects/ecookbook/mirror?tab=conflicts"
     assert_text "Local modification detected"
     accept_confirm { click_button "Keep local object" }
-    assert_text "Kept locally"
+    assert_selector "#flash_notice"
+    # The tab lists open conflicts by default: the kept one is under its own status.
+    assert_no_text "Local modification detected"
     assert_equal "ignored", conflict.reload.status
+    select "Kept locally", from: "conflict_status"
+    click_button "Apply"
+    assert_selector "#mirror-conflicts td", text: "Kept locally"
     click_button "Recheck after correction"
+    assert_current_path(/conflict_status=ignored/)
+    assert_no_text "Local modification detected"
+    select "Open", from: "conflict_status"
+    click_button "Apply"
     assert_text "Open"
     assert_equal "open", conflict.reload.status
     assert_no_text "hidden-conflict-key"

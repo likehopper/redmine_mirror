@@ -20,6 +20,10 @@ cd /usr/src/redmine
 mkdir -p /tmp/shared-plugins
 cp -a /mirror-plugin /tmp/shared-plugins/redmine_mirror
 ln -s /tmp/shared-plugins/redmine_mirror plugins/redmine_mirror
+# Test plugins patching the project settings tabs like real-world plugins do (alias_method
+# chains, prepend), loaded before and after Mirror: the suite checks every tab renders.
+cp -a /mirror-plugin/test/compatibility/plugins/. plugins/
+export MIRROR_COMPAT_PLUGINS=1
 mkdir -p /mirror-results/screenshots
 cat > config/database.yml <<'YAML'
 test:

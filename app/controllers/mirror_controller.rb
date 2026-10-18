@@ -40,9 +40,11 @@ class MirrorController < ApplicationController
     render_error message: l(:text_mirror_pending_migrations), status: 503 unless MirrorProjectSetting.schema_current?
   end
 
+  # Open conflicts are the ones to handle: the tab lists them unless another status is chosen.
   def prepare_conflicts
+    @conflict_status = %w[open ignored resolved all].include?(params[:conflict_status]) ? params[:conflict_status] : "open"
     @conflicts = @project.mirror_conflicts.order(updated_at: :desc)
-    @conflicts = @conflicts.where(status: params[:conflict_status]) if %w[open ignored resolved].include?(params[:conflict_status])
+    @conflicts = @conflicts.where(status: @conflict_status) unless @conflict_status == "all"
     @conflict_count = @conflicts.count
     @conflict_pages = Paginator.new(@conflict_count, 25, params[:page])
     @conflicts = @conflicts.limit(25).offset(@conflict_pages.offset)

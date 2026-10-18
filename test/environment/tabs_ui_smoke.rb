@@ -44,7 +44,7 @@ begin
   end
   demo = ENV.fetch("MIRROR_CONFLICT_DEMO_PROJECT")
   raise "Invalid demo identifier" unless demo.match?(/\Aconflict-demo-[a-f0-9]+\z/)
-  driver.navigate.to("http://gateway:3102/projects/#{demo}/mirror?tab=conflicts")
+  driver.navigate.to("http://gateway:3102/projects/#{demo}/mirror?tab=conflicts&conflict_status=all")
   raise "Expected three demo conflicts" unless driver.find_elements(css: "#mirror-conflicts tbody tr").size == 3
   driver.save_screenshot("/mirror-data/mirror-conflicts-demo.png")
   puts "Tabs UI passed at 800/1280/1920; three real demo conflicts visible"

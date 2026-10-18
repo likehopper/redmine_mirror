@@ -45,6 +45,9 @@ Redmine::Plugin.register :redmine_mirror do
 end
 
 Project.include(RedmineMirror::ProjectPatch) unless Project < RedmineMirror::ProjectPatch
-ProjectsHelper.prepend(RedmineMirror::ProjectsHelperPatch) unless ProjectsHelper < RedmineMirror::ProjectsHelperPatch
-ProjectsController.helper(MirrorHelper)
+# The settings tab is added by a helper of ProjectsController, not by patching
+# ProjectsHelper: plugins that chain project_settings_tabs with alias_method would
+# capture a prepended method and break its call to super.
+ProjectsController.helper(MirrorHelper) unless ProjectsController._helpers < MirrorHelper
+ProjectsController.helper(RedmineMirror::ProjectsHelperPatch) unless ProjectsController._helpers < RedmineMirror::ProjectsHelperPatch
 Rails.application.config.filter_parameters += [:api_key, :encrypted_api_key]

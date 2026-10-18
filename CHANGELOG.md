@@ -16,6 +16,15 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.13 — 2026-10-18
+
+- Fixed: with a plugin that extends the project settings tabs through `alias_method`
+  (such as Smile's project enumerations plugin), the project settings page failed with
+  an internal error since 1.0.0-beta.12. Mirror adds its tab without patching
+  Redmine's `ProjectsHelper`. The CI now installs plugins of that kind to catch it.
+- The **Conflicts** tab lists the open conflicts by default; the filter offers the other
+  statuses and *All*, and keeping or rechecking a conflict returns to the same filter.
+
 ## 1.0.0-beta.12 — 2026-10-18
 
 The configuration moves to the project settings and the Mirror menu becomes the

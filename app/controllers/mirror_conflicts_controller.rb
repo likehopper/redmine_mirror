@@ -35,11 +35,19 @@ class MirrorConflictsController < ApplicationController
       conflict.update!(status: params[:resolution] == "ignore" ? "ignored" : "open", resolved_by: User.current)
     end
     flash[:notice] = l(:notice_successful_update)
-    redirect_to project_mirror_path(@project, tab: "conflicts")
+    redirect_to conflicts_path
   rescue ActiveRecord::RecordNotFound
     render_404
   rescue RedmineMirror::Error => error
     flash[:error] = error.message
-    redirect_to project_mirror_path(@project, tab: "conflicts")
+    redirect_to conflicts_path
+  end
+
+  private
+
+  # Back to the conflicts tab with the status filter the user was looking at.
+  def conflicts_path
+    status = params[:conflict_status] if %w[open ignored resolved all].include?(params[:conflict_status])
+    project_mirror_path(@project, { tab: "conflicts", conflict_status: status }.compact)
   end
 end
