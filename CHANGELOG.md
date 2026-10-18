@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.12 — 2026-10-18
 
 The configuration moves to the project settings and the Mirror menu becomes the
 operations page. No migration; former Mirror links lead to their new place.

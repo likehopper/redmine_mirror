@@ -225,3 +225,12 @@ importée devient un lien vers la source, et une demande importée plus loin dan
 exécution est corrigée par une seconde passe. Runner CI : 103 tests Redmine / 451
 assertions. `versions.sh` source 4.2 → destination 6.1.4 : sept smokes réussis.
 `formats.sh` source 4.2 CKEditor → destination 5.1.13 CKEditor : réussi, relance inchangée.
+
+1.0.0-beta.12 (18 octobre 2026) : la configuration passe dans l'onglet Mirror des
+paramètres du projet et le menu Mirror devient la page d'exploitation (vue d'ensemble avec
+mise en route, historique, conflits, liens en attente, correspondances d'objets). Trois
+permissions (voir, lancer, configurer) et liste des Redmine source autorisés dans la
+configuration du plugin. Runner CI : 116 tests Redmine / 523 assertions. `versions.sh`
+source 4.2 → destination 6.1.4 : test d'interface et sept smokes réussis. `formats.sh`
+source 4.2 CKEditor → destination 5.1.13 CKEditor : réussi. Captures du guide régénérées
+par `test/documentation/run.sh`.
