@@ -73,5 +73,10 @@ forms, permissions and navigation with long translated labels. Check YAML/JSON p
 and that view comments are absent from rendered HTML. When the UI changes, regenerate
 the guide's screenshots with `bash test/documentation/run.sh`.
 
+Patch Redmine core classes and helpers without breaking other plugins: many still chain
+methods with `alias_method`, which captures a method added with `prepend` and breaks
+its `super`. Prefer hooks, `ProjectsController.helper` modules and new methods; the CI
+runner installs test plugins of both styles (`test/compatibility/plugins/`).
+
 Record each tested Redmine/database combination in the validation record: the minimum
 version declared in `init.rb` is not a compatibility claim.

@@ -17,7 +17,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 # Compatibility and publication checks
 
 Minimum declared Redmine version: **5.0**. This is not a compatibility certification.
-Current plugin version: **1.0.0-beta.12**.
+Current plugin version: **1.0.0-beta.13**.
 
 Destination (Redmine running Mirror):
 
@@ -51,6 +51,10 @@ bash test/compatibility/run.sh
 It builds from the public official `redmine:6.1.4` image, installs Chromium and its
 matching driver, and creates a fresh SQLite database inside a disposable container.
 It requires no locally prepared Reporting image and exposes no service ports.
+It also installs three test plugins, [`plugins/`](plugins), that add a project settings
+tab with an `alias_method` chain (before and after Mirror) or `Module#prepend`, as
+production plugins do (Smile, Reporting, SLA): the suite fails if the project settings
+page or one of these tabs breaks.
 It checks the actual Redmine version, runs standalone tests, fresh migrations,
 uninstall/reinstall and the complete Redmine plugin suite including browser tests.
 Build/run logs and failure screenshots are retained under a printed

@@ -220,6 +220,7 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     screenshot "24-conflicts", "#content"
     accept_confirm { click_button "Keep local object" }
     assert_selector "#flash_notice"
+    visit "/projects/#{PROJECT}/mirror?tab=conflicts&conflict_status=all"
     assert_selector "#mirror-conflicts td", text: "Kept locally"
     screenshot "25-conflict-kept", "#content"
 

@@ -246,6 +246,23 @@ class MirrorControllerTest < ActionController::TestCase
     assert_select "#mirror-attention a", text: "1 open conflicts"
   end
 
+  def test_conflicts_tab_lists_open_conflicts_by_default
+    configure
+    values = { connection_key: "test", module_key: "issue_tracking", destination_id: 1, message: "Local modification detected" }
+    @project.mirror_conflicts.create!(values.merge(source_id: 98))
+    @project.mirror_conflicts.create!(values.merge(source_id: 99, status: "ignored"))
+    @request.session[:user_id] = 1
+    get :index, params: { project_id: @project.identifier, tab: "conflicts" }
+    assert_select "#mirror-conflicts tbody tr", count: 1
+    assert_select "select#conflict_status option[selected]", text: "Open"
+    assert_select "#mirror-conflicts input[name=conflict_status][value=open]"
+    get :index, params: { project_id: @project.identifier, tab: "conflicts", conflict_status: "all" }
+    assert_select "#mirror-conflicts tbody tr", count: 2
+    get :index, params: { project_id: @project.identifier, tab: "conflicts", conflict_status: "resolved" }
+    assert_select "#mirror-conflicts tbody tr", count: 0
+    assert_select "p.nodata"
+  end
+
   def test_pending_migrations_are_explained_instead_of_failing
     MirrorProjectSetting.stub(:column_names, MirrorProjectSetting.column_names - ["source_text_format"]) do
       @request.session[:user_id] = 1

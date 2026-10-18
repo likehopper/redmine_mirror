@@ -121,6 +121,27 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     assert_select "#tab-mirror", count: 0
   end
 
+  # The compatibility runner installs plugins that add project settings tabs with
+  # alias_method chains and prepend, before and after Mirror (test/compatibility/plugins):
+  # the page must render every tab. A 500 on the project settings went unnoticed once.
+  COMPAT_PLUGINS = %w[aaa_mirror_compat_alias zzz_mirror_compat_alias zzz_mirror_compat_prepend].freeze
+
+  def test_settings_page_keeps_the_tabs_of_other_plugins
+    installed = COMPAT_PLUGINS.select { |name| Redmine::Plugin.installed?(name) }
+    assert_equal COMPAT_PLUGINS, installed, "compatibility plugins missing" if ENV["MIRROR_COMPAT_PLUGINS"] == "1"
+    log_user("admin", "admin")
+    get "/projects/ecookbook/settings"
+    assert_response :success
+    assert_select "#tab-mirror"
+    installed.each do |name|
+      assert_select "#tab-#{name}"
+      assert_select "##{name}-content"
+    end
+    get "/projects/ecookbook/settings/mirror", params: { mirror_tab: "issue_tracking" }
+    assert_response :success
+    assert_select "#mirror-table-tracker"
+  end
+
   def test_other_settings_tabs_render_only_the_light_connection_view
     log_user("admin", "admin")
     get "/projects/ecookbook/settings/info"

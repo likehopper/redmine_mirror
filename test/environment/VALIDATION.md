@@ -234,3 +234,12 @@ configuration du plugin. Runner CI : 116 tests Redmine / 523 assertions. `versio
 source 4.2 → destination 6.1.4 : test d'interface et sept smokes réussis. `formats.sh`
 source 4.2 CKEditor → destination 5.1.13 CKEditor : réussi. Captures du guide régénérées
 par `test/documentation/run.sh`.
+
+1.0.0-beta.13 (18 octobre 2026) : sur la préproduction, les paramètres de projet
+renvoyaient une erreur 500 : le plugin Smile « project enumerations » enchaîne
+`project_settings_tabs` par `alias_method`, ce qui captait la méthode ajoutée par
+`prepend` à `ProjectsHelper` et cassait son `super`. Mirror ajoute désormais son onglet
+par un helper de `ProjectsController`. Le runner CI installe trois plugins de test
+(alias_method avant et après Mirror, prepend) : ils reproduisent l'erreur sur la
+beta.12 (9 tests sur 9 en échec) et passent avec la correction. L'onglet Conflits affiche
+les conflits ouverts par défaut. Runner CI : 118 tests Redmine / 549 assertions.
