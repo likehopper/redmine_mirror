@@ -60,6 +60,7 @@ projects with a read-only role:
 | View private notes | Private notes |
 | View spent time, visibility **All time entries** | Time tracking |
 | View watchers list | Watchers |
+| View wiki, View wiki history | Wiki |
 | Manage issue categories (optional) | Category default assignees; without it, categories come from the issues that use them |
 
 Projects the account is not a member of are not visible. **Issue custom fields** also
@@ -135,8 +136,8 @@ A red counter on a module tab gives the number of references it still has to map
 
 ## 7. Map users
 
-**Users** lists the users found in the source data. Map each one to an active member of
-the project, or **Anonymize** them. Time logged by an anonymized user goes to the
+**Users** lists the users found in the source data. Map each one to a member of the
+project, locked accounts of people who left included, or **Anonymize** them. Time logged by an anonymized user goes to the
 **local user for anonymized time**: here the source administrator is anonymized and a
 dedicated *Mirror Archive* member receives that time.
 
@@ -269,7 +270,7 @@ and **Cancel this execution** withdraws a queued run.
 | "A trusted HTTPS Redmine URL is required" | Use an `https://` URL without credentials, query or fragment. |
 | "Configure database_cipher_key…" | Set `database_cipher_key` in `config/configuration.yml`, then restart. |
 | A reference is missing in a table | **Refresh source references**; check what the source API key can see. |
-| A local user is missing from the choices | Add them to the project as an active member. |
+| A local user is missing from the choices | Add them to the project. For a locked account: unlock it, add it, lock it again. |
 | Run stays **Queued**, "already queued or running" | The worker is not running: schedule `redmine_mirror:tick`, or cancel the run in **Overview**. |
 | "HTTP 403 for GET …" | The source account lacks the permission for that request (step 2). |
 | "MIRROR_DESTINATION_URL is not configured" | Set both variables in the worker's environment. |

@@ -129,6 +129,8 @@ Redmine's own fixtures remain the basis of the automated suites.
 | `references_seed.rb` | A category and a version per project, used by each first issue; their changes in a child A journal; `mirror-unmapped-child` and `mirror-unmapped-project`, never mirrored |
 | `issue_state_seed.rb` | `mirror-state-demo`, two subprojects, an independent and an unmapped project; internal, cross-project and unmirrored parents; watcher `mirror-observer` outside the project |
 | `custom_fields_seed.rb` | `mirror-custom-fields-demo`: two issues (one private) and seven fields (required text, multiple list, integer, date, boolean, user, version), with history |
+| `wiki_seed.rb` | `mirror-wiki-demo`: start page with versions 1 and 3 (2 deleted) by two authors at fixed dates, child page with an attachment |
+| `locked_seed.rb` | `mirror-locked-demo`: an issue authored by and assigned to `mirror-leaver`, on a version closed afterwards, with a note, a watcher and a time entry by that user |
 
 To enrich an existing source:
 
@@ -165,6 +167,8 @@ Unless stated otherwise, it imports into temporary projects and deletes them aft
 | `issue_state_smoke.rb` | Hierarchy and watchers: two passes, out-of-project watcher, preview, idempotence |
 | `custom_fields_smoke.rb` | Seven formats, required field without local default, history, privacy, preview, idempotence, local change refused; temporary fields deleted |
 | `conflicts_smoke.rb` | Conflict recorded, local object kept with its correspondence, recheck, correction and resolution |
+| `wiki_smoke.rb` | Needs `wiki_seed.rb`. Preview, version numbers and gaps, authors, dates, parent, attachment, idempotence, new source version (edits the source page), local conflict |
+| `locked_smoke.rb` | Needs `locked_seed.rb`. `mirror-leaver` locked on the destination: author, assignee, note and time entry kept, closed version set, locked watcher skipped, idempotent rerun |
 | `relations_ui_smoke.rb` | Relation policy saved per project, pending list and counter in Chromium; policy restored |
 
 Source fixtures for hierarchy and custom fields stay available at

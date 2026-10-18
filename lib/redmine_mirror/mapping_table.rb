@@ -42,7 +42,8 @@ module RedmineMirror
       when "status" then project.rolled_up_statuses.presence || IssueStatus.sorted
       when "priority" then IssuePriority.active.sorted
       when "activity" then project.activities
-      when "user" then project.users.active.sorted
+      # Locked members keep the history of people who left (authors, past assignees).
+      when "user" then User.where(id: project.memberships.select(:user_id), status: [User::STATUS_ACTIVE, User::STATUS_LOCKED]).sorted
       else raise Error, "Unknown mapping table #{key}"
       end
     end

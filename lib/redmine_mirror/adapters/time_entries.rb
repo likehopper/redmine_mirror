@@ -53,6 +53,20 @@ module RedmineMirror
         result.merge("project_id" => project_id)
       end
 
+      # Redmine's REST API only logs time for active members: an entry of a locked
+      # user is written for the API account, then given back to its user locally.
+      def rest_attributes(payload)
+        locked_user?(payload) ? payload.except("user_id") : payload
+      end
+
+      def restore_metadata(payload, target_id, project_id)
+        TimeEntry.where(project_id: project_id).find(target_id).update_columns(user_id: payload.fetch("user_id")) if locked_user?(payload)
+      end
+
+      def locked_user?(payload)
+        payload["user_id"].is_a?(Integer) && User.find_by(id: payload["user_id"])&.locked?
+      end
+
       def destination_attributes(record)
         result = super
         %w[activity user issue].each { |kind| result["#{kind}_id"] = record[kind] && record[kind]["id"] }

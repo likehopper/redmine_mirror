@@ -84,7 +84,7 @@ module RedmineMirror
     private
 
     def request(method, path, params: {}, payload: nil, binary: false, max_bytes: 32 * 1024 * 1024)
-      raise Error, "Invalid API path" unless path.match?(/\A[a-z0-9_\/.-]+\z/) && !path.include?("..") && !path.start_with?("/")
+      raise Error, "Invalid API path" unless path.match?(/\A[A-Za-z0-9_\/.%~-]+\z/) && !path.include?("..") && !path.start_with?("/")
       uri = URI.join(@base_uri.to_s, path)
       uri.query = URI.encode_www_form(params) unless params.empty?
       request = { get: Net::HTTP::Get, post: Net::HTTP::Post, put: Net::HTTP::Put }.fetch(method).new(uri)

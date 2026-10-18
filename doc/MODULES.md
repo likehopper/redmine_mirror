@@ -39,8 +39,8 @@ references.
   need an explicit reset, not available yet.
 
 Mappings belong to the project. The user table is shared by all its modules.
-Local choices are the project's active members and existing local references.
-A local reference that disappears stays flagged in the form until replaced.
+Local choices are the project's members, locked ones included, and existing local
+references. A local reference that disappears stays flagged in the form until replaced.
 
 ## Users and anonymization
 
@@ -59,6 +59,17 @@ imported object count is always zero.
 
 Anonymization covers user references only, not text content or names written in it.
 
+**Locked users** keep the history of people who left: map a source user to their
+locked local account, which must still be a project member (Redmine keeps memberships
+when an account is locked; to add one, unlock the account, add it, lock it again).
+
+| Data | Locked user |
+| --- | --- |
+| Issue author, history, attachments | Kept |
+| Issue assignee, time entries | Kept, restored through local models (the REST API refuses them) |
+| Watchers | Not subscribed (a locked user receives no notification) |
+| User custom field values | Not imported, with a warning (Redmine refuses them) |
+
 ## Issues
 
 Copies subject, description, tracker, status, priority, assignee, privacy, category,
@@ -68,11 +79,16 @@ native workflows and validations apply. Author and dates are then restored throu
 local models: the destination must be the Redmine the worker runs on
 (`MIRROR_DESTINATION_URL`). Invalid dates or unmapped authors block the preview.
 
+A locked assignee or a version that is not open (closed or locked), which the REST API
+refuses, is left out of the API write and restored through local models, without a
+journal. A version must belong to the project or be shared with it.
+
 ## Time entries
 
 Copies hours, activity, date, comments, user and issue, through the REST API. The
 destination API account must be allowed to log time for the mapped users. Time
-logged on the project without an issue is imported too. Issues run first.
+logged on the project without an issue is imported too. Issues run first. Time of a
+locked user is logged by the API account, then given back to that user locally.
 
 ## Categories and versions
 
@@ -201,6 +217,24 @@ entries and its history are still synchronized. A required destination field lef
 without a value makes Redmine reject the issue. An empty selection is a missing mapping; **Ignore this field**
 excludes its values and history details but keeps the rest of each journal.
 
+## Wiki
+
+Imports the source wiki's pages into the destination project's wiki: every version
+with its author, comments and date, the page creation date, parents and the current
+attachments. Enable the Wiki module on the destination project first. Writes go through
+local models and send no notification.
+
+- Requires the source permissions *View wiki* and *View wiki history*. **Refresh source
+  references** lists the authors of every version in *Users*.
+- Local versions keep the source numbers; a version deleted on the source leaves the
+  same gap. New source versions are added on later runs.
+- Texts follow the destination format and issue references are rewritten, as for issues.
+  Wiki links (`[[Page]]`) keep their titles, which are the same on both sides.
+- A local edit of an imported page, or a local page with the same title but no
+  correspondence, is a conflict.
+- The API identifies a page by its title: a page renamed on the source is imported as a
+  new page, and the old one stays. The start page and page protection are not copied.
+
 ## Synchronization and worker
 
 **Run preview** and **Synchronize now** queue a run; the worker processes it. Every run
@@ -301,7 +335,7 @@ development environments.
 - One way only, from source to destination. Deletions are not propagated.
 - Not a backup: data hidden from the source API key, instance configuration, accounts,
   roles and custom field definitions are not copied.
-- Wiki, project files, SLA and Reporting adapters are not implemented yet.
+- Project files, SLA and Reporting adapters are not implemented yet.
 - HTTPS with certificate checks is required; HTTP redirects are never followed.
 - No transaction across API calls: an error keeps earlier writes, and an interruption
   between a creation and its correspondence can create a duplicate on resume. Inspect

@@ -243,3 +243,17 @@ par un helper de `ProjectsController`. Le runner CI installe trois plugins de te
 (alias_method avant et après Mirror, prepend) : ils reproduisent l'erreur sur la
 beta.12 (9 tests sur 9 en échec) et passent avec la correction. L'onglet Conflits affiche
 les conflits ouverts par défaut. Runner CI : 118 tests Redmine / 549 assertions.
+
+1.0.0-beta.14 (18 octobre 2026) : utilisateurs verrouillés et versions fermées, module
+Wiki. Un compte verrouillé encore membre du projet peut être choisi dans Utilisateurs ;
+l'API REST refusant un assigné verrouillé, une version non ouverte et une saisie de temps
+d'un compte verrouillé, ces valeurs sont écrites après l'appel par les modèles locaux.
+Le module Wiki importe toutes les versions (numéros source, auteurs, commentaires,
+dates), les pages parentes et les fichiers, sans notification. Nouveaux smokes
+`locked_smoke.rb` (avec `locked_seed.rb`) et `wiki_smoke.rb` (avec `wiki_seed.rb`),
+ajoutés à `versions.sh`. Runner CI : 127 tests Redmine / 589 assertions, `zeitwerk:check`,
+moteur 32 / 112. Environnement à deux instances 6.1.4 : onze smokes réussis, dont
+`tabs_ui_smoke.rb` sur une démo de conflits. `versions.sh` source 4.2.10 → destination
+6.1.4 et source 4.2.10 → destination 5.1.13 : neuf smokes d'écriture réussis chacun.
+Après le redémarrage de la source ou de la destination, la passerelle nginx gardait leur
+ancienne adresse (HTTP 401, échecs Chromium) : redémarrer aussi `gateway`.

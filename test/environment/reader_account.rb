@@ -20,7 +20,7 @@ abort "Disposable test environment only" unless ENV["MIRROR_TEST_ENVIRONMENT"] =
 abort "Source instance only" unless ENV["MIRROR_ROLE"] == "source"
 role = Role.find_or_initialize_by(name: "Mirror reader")
 # Everything Mirror reads, nothing it could change.
-role.permissions = %i[view_issues view_private_notes view_time_entries view_issue_watchers]
+role.permissions = %i[view_issues view_private_notes view_time_entries view_issue_watchers view_wiki_pages view_wiki_edits]
 role.issues_visibility = "all"
 role.users_visibility = "all"
 role.time_entries_visibility = "all" if role.respond_to?(:time_entries_visibility=)
