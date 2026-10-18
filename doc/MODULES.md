@@ -117,8 +117,8 @@ For an endpoint not imported yet, the **Unsynchronized endpoint** option decides
 - **Add a private note**: a single private note with the relation and the remote link,
   without the target's subject. It stays in the history after the link is created.
 
-Pending targets (`pending`) and rejected links (`blocked`) are listed in the module tab,
-with source/local links, type, delay, reason and last check; **Synchronization** shows
+Pending targets (`pending`) and rejected links (`blocked`) are listed in **Pending links**,
+with source/local links, type, delay, reason and last check; **Overview** shows
 their count. Import the target project, then rerun this one: projects never trigger
 each other. A preview records nothing; an import updates the list, and removes relations
 resolved or no longer returned by the source (never the imported native relations).
@@ -133,7 +133,7 @@ Links parents through correspondences, including parents imported by another pro
 from the same source. Redmine validates cycles and cross-project subtask rules.
 
 An unimported parent is logged as `ignored` with its remote link and listed in the
-**pending parents** table of the module tab (`pending`; `blocked` for links refused
+**pending parents** table of **Pending links** (`pending`; `blocked` for links refused
 during preflight). Import the parent's project, then rerun the child's. A local parent
 change blocks the run.
 
@@ -208,7 +208,7 @@ first validates all records (preflight), then writes. The preflight lists every 
 object, not only the first one. Progress counts processed objects, unchanged ones
 included, and reaches 100% when the run ends.
 
-**When an object fails** (Synchronization tab):
+**When an object fails** (Settings → Mirror → Automatic synchronization):
 
 - *Skip it and synchronize the rest* (default): the failing object, and the objects that
   depend on it (its time entries, history…), are not written; everything else is. The run
@@ -259,7 +259,8 @@ value differs, the run stops at the first conflict, preview included, and record
   conflict for the next run. Fingerprints are not reset: a remaining difference blocks
   again. A successful import marks the conflict resolved.
 
-Both require *Configure Mirror mappings* and are refused while a run is queued or running.
+Both require *Run Mirror synchronizations and resolve conflicts* and are refused while a run
+is queued or running.
 There is no field merge or forced overwrite. This tracking applies to project runs (UI,
 worker or `MIRROR_PROJECT_ID`), not to the standalone JSON mode.
 

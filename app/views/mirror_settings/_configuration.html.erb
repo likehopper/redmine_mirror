@@ -1,0 +1,50 @@
+<%#
+File: redmine_mirror/app/views/mirror_settings/_configuration.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+The Mirror tab of the project settings: connection, schedule and one mapping tab per module.
+Redmine renders every settings tab on load: only the selected Mirror sub-tab is built.
+%><% content_for :header_tags do %>
+  <%= stylesheet_link_tag "mirror", plugin: "redmine_mirror" %>
+  <%= javascript_include_tag "mirror", plugin: "redmine_mirror" %>
+<% end %>
+<% prepare_mirror_configuration(@project) %>
+<% unmapped = mirror_unmapped_counts(@project, @setting) %>
+<% if @setting.persisted? %>
+  <p class="mirror-page-link"><%= l(:text_mirror_operations_on_page) %> <%= link_to l(:label_mirror_open_page), mirror_page_path(@project), class: "icon icon-arrow-right" %></p>
+<% end %>
+<% if @setting.persisted? && @setting.catalog_refreshing? %>
+  <p class="warning" id="mirror-catalog-status" data-mirror-reload="10"><%= l(:text_mirror_catalog_refreshing, time: format_time(@setting.catalog_requested_at)) %>
+    <% if (progress = @setting.catalog_progress).any? %>
+      <br><%= l(:text_mirror_catalog_progress, step: progress["step"], steps: progress["steps"], module: mirror_module_label(progress["module"]), records: progress["records"], time: format_time(Time.iso8601(progress["at"]))) %>
+    <% end %></p>
+<% elsif @setting.persisted? && @setting.catalog_status == "failed" %>
+  <div class="flash error" id="mirror-catalog-status"><%= l(:text_mirror_catalog_failed, error: @setting.catalog_error) %></div>
+<% end %>
+<div class="mirror-tabs"><div class="tabs" id="mirror-settings-subtabs"><ul>
+  <li><%= link_to l(:label_mirror_connection), mirror_configuration_path(@project), class: (@mirror_tab == "connection" ? "selected" : nil) %></li>
+  <% if @setting.persisted? %>
+    <li><%= link_to l(:label_mirror_schedule), mirror_configuration_path(@project, "schedule"), class: (@mirror_tab == "schedule" ? "selected" : nil) %></li>
+    <% @adapters.each do |adapter| %>
+      <li><%= link_to mirror_configuration_path(@project, adapter.key), class: (@mirror_tab == adapter.key ? "selected" : nil) do %><%= l(adapter.label) %><% if unmapped[adapter.key] %> <span class="mirror-badge" title="<%= l(:label_mirror_to_map, count: unmapped[adapter.key]) %>"><%= unmapped[adapter.key] %></span><% end %><% end %></li>
+    <% end %>
+  <% end %>
+</ul></div></div>
+<% if @mirror_tab == "connection" %>
+  <%= render "mirror_settings/connection" %>
+<% elsif @mirror_tab == "schedule" %>
+  <%= render "mirror_settings/schedule" %>
+<% else %>
+  <%= render "mirror_settings/mappings", adapter: @adapters.find { |entry| entry.key == @mirror_tab } %>
+<% end %>

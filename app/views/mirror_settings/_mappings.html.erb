@@ -1,0 +1,79 @@
+<%#
+File: redmine_mirror/app/views/mirror_settings/_mappings.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+A module's correspondences: each source reference used by the project and its local
+reference. Unmapped references with a single local namesake are preselected.
+%><% if adapter.is_a?(RedmineMirror::Adapters::ProjectReferences) %>
+  <p><%= l(:text_mirror_reference_objects) %> <%= link_to l(:label_mirror_objects), mirror_page_path(@project, "objects", module_key: adapter.key) %></p>
+<% end %>
+<% if %w[issue_hierarchy issue_relations].include?(adapter.key) %>
+  <p><%= link_to l(:label_mirror_pending_links), mirror_page_path(@project, "pending") %></p>
+<% end %>
+<%= render adapter.settings_partial, adapter: adapter if adapter.settings_partial %>
+<% if %w[issue_hierarchy issue_watchers].include?(adapter.key) %>
+  <p><%= l("text_mirror_#{adapter.key}".to_sym) %></p>
+  <p><%= link_to l(:label_mirror_module_users), mirror_configuration_path(@project, "users") %></p>
+<% end %>
+<% if adapter.mapping_tables.any? %><p><%= l(:text_mirror_mapping_help) %></p><% end %>
+<% suggested = 0 %>
+<%= form_tag project_mirror_mappings_path(@project, module_key: adapter.key), method: :patch, id: "mirror-mappings-form" do %>
+  <% adapter.mapping_tables.each do |table| %>
+    <h3><%= l(table.label) %></h3>
+    <table class="list mirror-mapping-table" id="mirror-table-<%= table.key %>">
+      <thead><tr><th><%= l(:label_mirror_source) %></th><th><%= l(:label_mirror_destination) %></th></tr></thead>
+      <tbody>
+      <% local_choices = [[l(:label_mirror_unmapped), ""]] + table.local_records(@project).map { |record| ["#{record.name} (##{record.id})#{" - #{l(:status_locked)}" if record.is_a?(User) && record.locked?}", record.id.to_s] } %>
+      <% local_choices << [l(:label_mirror_ignore_field), "ignore"] if table.ignore_allowed? %>
+      <% local_choices << [l(:label_mirror_anonymous), "anonymous"] if table.anonymous_allowed? %>
+      <%# Only references used by the source project (and those already mapped), unless all are requested. %>
+      <% used = @setting.source_catalog["#{table.key}_used"] %>
+      <% rows = @setting.source_catalog.fetch(table.key, {}).sort_by { |id, name| [name.downcase, id.to_i] } %>
+      <% hidden = used && params[:all_references] != "1" ? rows.reject { |id, _| used.include?(id) || @mapping_values[[table.key, id]].present? } : [] %>
+      <% (rows - hidden).each do |id, name| %>
+        <% selected = @mapping_values[[table.key, id]] %>
+        <% suggestion = selected.blank? ? mirror_name_suggestion(local_choices, name) : nil %>
+        <% suggested += 1 if suggestion %>
+        <% choices = local_choices.dup %>
+        <% choices << [l(:label_mirror_invalid_destination), selected] if selected.present? && choices.none? { |choice| choice.last == selected } %>
+        <tr class="<%= selected.blank? ? (suggestion ? 'mirror-suggested' : 'mirror-unmapped') : nil %>"><td><%= name %> (#<%= mirror_object_link(table.key, id, source_url: @setting.source_url) %>)</td><td>
+          <%= label_tag "mirror-#{table.key}-#{id}", l(:label_mirror_destination), class: "hidden-for-sighted" %>
+          <%= select_tag "mappings[#{table.key}][#{id}]", options_for_select(choices, selected.presence || suggestion), id: "mirror-#{table.key}-#{id}",
+            class: "mirror-autocomplete", data: { placeholder: l(:label_mirror_type_to_search) } %>
+          <% if suggestion %><em class="info mirror-suggestion"><%= l(:label_mirror_suggested) %></em><% end %>
+          <%= mirror_object_link(table.key, selected) if selected.present? && !%w[anonymous ignore].include?(selected) %>
+        </td></tr>
+      <% end %>
+      </tbody>
+    </table>
+    <% if @setting.source_catalog.fetch(table.key, {}).empty? %><p class="nodata"><%= l(:label_no_data) %></p><% end %>
+    <% if hidden.any? %><p class="mirror-unused-references"><%= link_to l(:label_mirror_show_unused_references, count: hidden.size), mirror_configuration_path(@project, adapter.key, all_references: 1) %></p><% end %>
+  <% end %>
+  <% if suggested.positive? %>
+    <p class="warning" id="mirror-suggestions"><%= l(:text_mirror_suggested_mappings, count: suggested) %></p>
+  <% end %>
+  <%= render "mirror_settings/custom_field_values", adapter: adapter if adapter.key == "issue_custom_fields" %>
+  <% if adapter.key == "issue_relations" %>
+    <p><%= label_tag :missing_target, l(:label_mirror_missing_relation) %>
+    <%= select_tag "module_options[missing_target]", options_for_select([[l(:label_mirror_relation_ignore), "ignore"], [l(:label_mirror_relation_note), "note"]], @setting.module_options.dig(adapter.key, "missing_target") || "ignore"), id: "missing_target" %></p>
+  <% end %>
+  <% if adapter.anonymous_time_user_required? %>
+    <div class="box tabular"><p>
+      <%= label_tag "anonymous-time-user", l(:label_mirror_anonymous_time_user) %>
+      <%= select_tag "module_options[anonymous_user_id]", options_for_select([[l(:label_mirror_unmapped), ""]] + @project.users.active.sorted.map { |user| [user.name, user.id] }, @setting.module_options.dig(adapter.key, "anonymous_user_id")), id: "anonymous-time-user" %>
+      <em class="info"><%= l(:text_mirror_anonymous_time_user) %></em>
+    </p></div>
+  <% end %>
+  <%= submit_tag l(:button_save) %>
+<% end %>

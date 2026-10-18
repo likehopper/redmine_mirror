@@ -55,7 +55,7 @@ could be reused.
 
 ## Configure in the UI
 
-Open http://localhost:3102/projects/mirror-demo/mirror/settings and enter:
+Open http://localhost:3102/projects/mirror-demo/settings/mirror and enter:
 
 - source URL `http://source:3000`, source project `1`;
 - API key: exactly 40 `1` characters.
@@ -73,8 +73,8 @@ docker compose -f test/environment/compose.yml exec destination bundle exec ruby
 
 ## Synchronize
 
-From the UI: open the **Synchronization** tab
-(http://localhost:3102/projects/mirror-demo/mirror/settings?tab=synchronization),
+From the UI: open the **Mirror** page
+(http://localhost:3102/projects/mirror-demo/mirror),
 click **Run preview**, then **Synchronize now**. The `worker` service processes queued
 and scheduled runs: each cycle includes Rails startup and a 15-second pause.
 

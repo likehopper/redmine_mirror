@@ -1,0 +1,35 @@
+<%#
+File: redmine_mirror/app/views/mirror/_pending_relations.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Render project-scoped Mirror controls and diagnostics using native Redmine helpers.
+%><h3><%= l(:label_mirror_pending_relations) %></h3>
+<%= form_tag project_mirror_path(@project), method: :get do %>
+<%= hidden_field_tag :tab, "pending" %>
+<%= select_tag :pending_status, options_for_select([[l(:label_all), ""], [l(:label_mirror_relation_pending), "pending"], [l(:label_mirror_relation_blocked), "blocked"]], params[:pending_status]) %>
+<%= submit_tag l(:button_apply) %>
+<% end %>
+<table class="list" id="mirror-pending-relations"><thead><tr>
+<th><%= l(:label_mirror_pending_source_issue) %></th><th><%= l(:label_mirror_remote_relation_id) %></th><th><%= l(:label_mirror_local_issue_id) %></th><th><%= l(:label_mirror_missing_remote_issue) %></th><th><%= l(:field_type) %></th><th><%= l(:label_mirror_relation_delay) %></th><th><%= l(:field_status) %></th><th><%= l(:label_mirror_reason) %></th><th><%= l(:label_mirror_relation_checked) %></th><th><%= l(:label_mirror_existing_note) %></th>
+</tr></thead><tbody>
+<% @pending.each do |row| %><tr>
+<% source_issue_id = MirrorMapping.find_by(project_id: @project.id, module_key: "issue_tracking", destination_id: row.local_issue_id)&.source_id %>
+<td><%= mirror_object_link("issue_tracking", source_issue_id, source_url: @setting.source_url) %></td>
+<td><%= mirror_object_link("issue_relations", row.source_id, source_url: @setting.source_url, local_issue_id: row.local_issue_id) %></td><td><%= mirror_object_link("issue_tracking", row.local_issue_id) %></td>
+<td><%= mirror_object_link("issue_tracking", row.remote_issue_id, source_url: @setting.source_url) %></td>
+<td><%= row.relation_type %></td><td><%= row.delay %></td><td><%= l("label_mirror_relation_#{row.status}".to_sym) %></td>
+<td><%= row.reason == "Remote endpoint not synchronized" ? l(:text_mirror_remote_endpoint_missing) : row.reason %></td><td><%= format_time(row.checked_at) %></td>
+<td><%= link_to "##{row.note_id}", "#{issue_path(row.local_issue_id)}#change-#{row.note_id}" if row.note_id && row.local_issue_id %></td>
+</tr><% end %></tbody></table>
+<span class="pagination"><%= pagination_links_full @pending_pages, @pending_total %></span>

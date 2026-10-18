@@ -47,71 +47,74 @@ choose = lambda do |select, value|
   abort "No local match for #{select.attribute('name')} (#{name})" unless option
   menu.select_by(:value, option.attribute("value"))
 end
+# The configuration is the Mirror tab of the project settings, beside Redmine's own tabs.
+in_tab = ->(css) { driver.find_element(css: "#tab-content-mirror #{css}") }
 begin
   base = "http://gateway:3102"
+  settings = "#{base}/projects/mirror-demo/settings/mirror"
   driver.navigate.to("#{base}/login")
   driver.find_element(id: "username").send_keys("admin")
   driver.find_element(id: "password").send_keys("Mirror-test-2026!")
   driver.find_element(name: "login").click
   wait.until { driver.find_elements(id: "loggedas").any? }
-  driver.navigate.to("#{base}/projects/mirror-demo/mirror/settings")
+  driver.navigate.to(settings)
   if driver.find_element(name: "connection[source_url]").attribute("value").empty?
     driver.find_element(name: "connection[source_url]").send_keys(config.fetch("source_url"))
     driver.find_element(name: "connection[source_project_id]").send_keys(config.fetch("source_project_id").to_s)
     driver.find_element(name: "connection[api_key]").send_keys(ENV.fetch("MIRROR_SOURCE_API_KEY"))
-    driver.find_element(css: 'input[value="time_tracking"]').click
-    driver.find_element(name: "commit").click
-    wait.until { driver.find_elements(css: "#mirror-settings-sections a[href*='tab=users']").any? }
+    in_tab.call('input[value="time_tracking"]').click
+    in_tab.call("[name=commit]").click
+    wait.until { driver.find_elements(css: "#mirror-settings-subtabs a[href*='mirror_tab=users']").any? }
     wait_catalog.call
     %w[users issue_tracking time_tracking].each do |key|
-      driver.navigate.to("#{base}/projects/mirror-demo/mirror/settings?tab=#{key}")
+      driver.navigate.to("#{settings}?mirror_tab=#{key}")
       driver.find_elements(css: 'select[name^="mappings["]').each do |select|
         kind, source_id = select.attribute("name").scan(/\[([^\]]+)\]/).flatten
         choose.call(select, config.fetch("mappings").fetch(kind, {}).fetch(source_id, "").to_s)
       end
-      driver.find_element(name: "commit").click
+      in_tab.call("[name=commit]").click
       wait.until { driver.find_elements(id: "flash_notice").any? }
     end
   end
   if ENV["MIRROR_ENABLE_HISTORY"] == "1"
-    driver.navigate.to("#{base}/projects/mirror-demo/mirror/settings")
+    driver.navigate.to(settings)
     %w[issue_journals issue_attachments].each do |key|
-      checkbox = driver.find_element(css: "input[value='#{key}']")
+      checkbox = in_tab.call("input[value='#{key}']")
       checkbox.click unless checkbox.selected?
     end
-    driver.find_element(name: "commit").click
+    in_tab.call("[name=commit]").click
     wait.until { driver.find_elements(id: "flash_notice").any? }
     wait_catalog.call
-    driver.navigate.to("#{base}/projects/mirror-demo/mirror/settings?tab=users")
+    driver.navigate.to("#{settings}?mirror_tab=users")
     # The source administrator is intentionally anonymized in this demo project.
     Selenium::WebDriver::Support::Select.new(driver.find_element(id: "mirror-user-1")).select_by(:value, "anonymous")
-    driver.find_element(name: "commit").click
+    in_tab.call("[name=commit]").click
     wait.until { driver.find_elements(id: "flash_notice").any? }
   end
   if ENV["MIRROR_REFRESH_TEST"] == "1"
-    driver.navigate.to("#{base}/projects/mirror-demo/mirror/settings")
-    driver.find_element(css: "form[action$='/refresh'] [type='submit']").click
+    driver.navigate.to(settings)
+    in_tab.call("form[action$='/refresh'] [type='submit']").click
     wait.until { driver.find_elements(id: "flash_notice").any? }
     wait_catalog.call
   end
-  driver.navigate.to("#{base}/projects/mirror-demo/mirror/settings")
-  abort "Expected two navigation groups" unless driver.find_elements(css: "#mirror-settings-sections li").size == 2
-  abort "Expected four synchronization tabs" unless driver.find_elements(css: "#mirror-settings-subtabs li").size == 4
-  driver.find_element(css: "#mirror-settings-sections a[href*='tab=users']").click
+  driver.navigate.to(settings)
+  modules = Project.find_by!(identifier: "mirror-demo").mirror_project_setting.selected_modules
+  abort "Expected connection, schedule and module tabs" unless driver.find_elements(css: "#mirror-settings-subtabs li").size == modules.size + 2
+  driver.find_element(css: "#mirror-settings-subtabs a[href*='mirror_tab=users']").click
   wait.until { driver.find_elements(id: "mirror-table-user").any? }
-  abort "Synchronization tab mixed with modules" if driver.find_elements(css: "#mirror-settings-subtabs a[href*='tab=synchronization']").any?
-  abort "Missing object mappings tab" unless driver.find_elements(css: "#mirror-settings-subtabs a[href*='tab=objects']").any?
-  driver.navigate.to("#{base}/projects/mirror-demo/mirror/settings?tab=issue_tracking")
+  driver.navigate.to("#{base}/projects/mirror-demo/mirror")
+  abort "Missing Mirror page tabs" unless driver.find_elements(css: "#mirror-page-tabs a[href*='tab=objects']").any?
+  driver.navigate.to("#{settings}?mirror_tab=issue_tracking")
   if ENV["MIRROR_COMPLETE_STATUS_MAPPINGS"] == "1"
     driver.find_elements(css: 'select[name^="mappings[status]"]').each do |select|
       source_id = select.attribute("name").scan(/\[([^\]]+)\]/).flatten.last
       choose.call(select, config.fetch("mappings").fetch("status").fetch(source_id, "").to_s)
     end
-    driver.find_element(name: "commit").click
+    in_tab.call("[name=commit]").click
     wait.until { driver.find_elements(id: "flash_notice").any? }
   end
   abort "Missing tracker correspondence table" unless driver.find_elements(id: "mirror-table-tracker").any?
-  driver.navigate.to("#{base}/projects/mirror-demo/mirror/settings?tab=users")
+  driver.navigate.to("#{settings}?mirror_tab=users")
   abort "Missing user correspondence table" unless driver.find_elements(id: "mirror-table-user").any?
   abort "API key leaked" if driver.page_source.include?(ENV.fetch("MIRROR_SOURCE_API_KEY"))
   driver.save_screenshot("/mirror-data/mirror-mappings.png")

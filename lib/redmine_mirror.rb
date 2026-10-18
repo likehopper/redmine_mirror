@@ -35,11 +35,34 @@ require File.join(File.dirname(__FILE__), "redmine_mirror/mapping_table")
 require File.join(File.dirname(__FILE__), "redmine_mirror/adapters")
 require File.join(File.dirname(__FILE__), "redmine_mirror/source_catalog")
 require File.join(File.dirname(__FILE__), "redmine_mirror/project_patch")
+require File.join(File.dirname(__FILE__), "redmine_mirror/projects_helper_patch")
+require File.join(File.dirname(__FILE__), "redmine_mirror/authorization")
 require File.join(File.dirname(__FILE__), "redmine_mirror/runner")
 require File.join(File.dirname(__FILE__), "redmine_mirror/database_store")
 require File.join(File.dirname(__FILE__), "redmine_mirror/synchronization")
 module RedmineMirror
   REGISTRY = Registry.new
+
+  # Source Redmine URLs that non-administrators may connect to (plugin settings).
+  def self.allowed_source_urls
+    settings = Setting.plugin_redmine_mirror rescue {}
+    settings.to_h.fetch("allowed_source_urls", "").to_s.lines.map { |line| line.strip.sub(%r{/+\z}, "") }.reject(&:empty?).uniq
+  end
+
+  def self.allowed_source_url?(url)
+    allowed_source_urls.include?(url.to_s.strip.sub(%r{/+\z}, ""))
+  end
+
+  # Configuring Mirror: its permission, or the right to enable the project's modules.
+  def self.manager?(project, user = User.current)
+    return false unless project&.module_enabled?(:mirror)
+    user.allowed_to?(:manage_mirror, project) || user.allowed_to?(:select_project_modules, project)
+  end
+
+  # Launching executions and resolving conflicts; configuring includes it.
+  def self.runner?(project, user = User.current)
+    manager?(project, user) || user.allowed_to?(:run_mirror, project)
+  end
 
   # Register an adapter shipped by another Redmine plugin. See doc/ADAPTERS.md.
   def self.register_adapter(adapter)

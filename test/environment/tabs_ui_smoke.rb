@@ -29,7 +29,7 @@ begin
   driver.find_element(id: "password").send_keys("Mirror-test-2026!")
   driver.find_element(name: "login").click
   wait.until { driver.find_elements(id: "loggedas").any? }
-  driver.navigate.to("http://gateway:3102/projects/mirror-demo/mirror/settings?tab=users")
+  driver.navigate.to("http://gateway:3102/projects/mirror-demo/settings/mirror?mirror_tab=users")
   [800, 1280, 1920].each do |width|
     driver.manage.window.resize_to(width, 900)
     visible = driver.execute_script(<<~JS)
@@ -44,7 +44,7 @@ begin
   end
   demo = ENV.fetch("MIRROR_CONFLICT_DEMO_PROJECT")
   raise "Invalid demo identifier" unless demo.match?(/\Aconflict-demo-[a-f0-9]+\z/)
-  driver.navigate.to("http://gateway:3102/projects/#{demo}/mirror/settings?tab=conflicts")
+  driver.navigate.to("http://gateway:3102/projects/#{demo}/mirror?tab=conflicts")
   raise "Expected three demo conflicts" unless driver.find_elements(css: "#mirror-conflicts tbody tr").size == 3
   driver.save_screenshot("/mirror-data/mirror-conflicts-demo.png")
   puts "Tabs UI passed at 800/1280/1920; three real demo conflicts visible"

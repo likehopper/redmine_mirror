@@ -15,13 +15,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Render project-scoped Mirror controls and diagnostics using native Redmine helpers.
 %><h2><%= l(:label_mirror_sync_history) %> #<%= @run.id %></h2>
-<p><%= link_to l(:button_back), project_mirror_settings_path(@project, tab: "history") %></p>
+<p><%= link_to l(:button_back), mirror_page_path(@project, "history") %></p>
 <p><%= l(:field_status) %>: <strong><%= l("label_mirror_run_#{@run.status}".to_sym) %></strong></p>
-<%= render "mirror_settings/queued_run", run: @run if @run.status == "queued" && User.current.allowed_to?(:manage_mirror, @project) %>
+<%= render "mirror/queued_run", run: @run if @run.status == "queued" %>
 <p><%= l(:label_mirror_sync_started) %>: <%= @run.started_at ? format_time(@run.started_at) : "—" %></p>
 <p><%= l(:label_mirror_sync_finished) %>: <%= @run.finished_at ? format_time(@run.finished_at) : "—" %></p>
-<% if @run.error_message.present? %><p><%= link_to l(:label_mirror_conflicts), project_mirror_settings_path(@project, tab: "conflicts") %></p><div class="flash error"><%= @run.error_message %></div><% end %>
-<p><%= l(:label_mirror_progress) %>: <%= if !@run.progress_percentage.nil? then "#{@run.progress_percentage}%" elsif @run.status == "running" then l(:text_mirror_objects_checked, count: @run.processed_records) else "—" end %></p>
+<% if @run.error_message.present? %><p><%= link_to l(:label_mirror_conflicts), mirror_page_path(@project, "conflicts") %></p><div class="flash error"><%= @run.error_message %></div><% end %>
+<p<%= ' data-mirror-reload="10"'.html_safe if %w[queued running].include?(@run.status) %>><%= l(:label_mirror_progress) %>: <%= if !@run.progress_percentage.nil? then "#{@run.progress_percentage}%" elsif @run.status == "running" then l(:text_mirror_objects_checked, count: @run.processed_records) else "—" end %></p>
 <ul><% @run.module_counts.each do |key, count| %><li><%= mirror_module_label(key) %>: <%= count %></li><% end %></ul>
 <%= form_tag project_mirror_run_path(@project, @run), method: :get do %>
 <fieldset><legend><%= l(:label_filter_plural) %></legend>

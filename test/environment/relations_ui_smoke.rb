@@ -31,14 +31,14 @@ begin
   driver.find_element(id: "password").send_keys("Mirror-test-2026!")
   driver.find_element(name: "login").click
   wait.until { driver.find_elements(id: "loggedas").any? }
-  driver.navigate.to("http://gateway:3102/projects/mirror-demo/mirror/settings?tab=issue_relations")
+  driver.navigate.to("http://gateway:3102/projects/mirror-demo/mirror?tab=pending")
   wait.until { driver.find_elements(id: "mirror-pending-relations").any? }
   raise "Pending rows not visible: #{driver.current_url}, #{driver.title}, tables=#{driver.find_elements(id: 'mirror-pending-relations').size}" unless driver.find_elements(css: "#mirror-pending-relations tbody tr").size == 2
   raise "Source issue links missing" unless driver.find_elements(css: '#mirror-pending-relations tbody tr td:first-child a[href="http://localhost:3101/issues/1"]').size == 2
   raise "Remote target links missing" unless driver.find_elements(css: '#mirror-pending-relations tbody tr td:nth-child(4) a[href^="http://localhost:3101/issues/"]').size == 2
-  driver.navigate.to("http://gateway:3102/projects/mirror-demo/mirror/settings?tab=synchronization")
-  raise "Pending counter missing" unless driver.find_elements(css: 'a[href*="tab=issue_relations"]').any? { |link| link.text.include?("2") }
-  driver.navigate.to("http://gateway:3102/projects/mirror-demo/mirror/settings?tab=issue_relations")
+  driver.navigate.to("http://gateway:3102/projects/mirror-demo/mirror")
+  raise "Pending counter missing" unless driver.find_elements(css: '#mirror-attention a[href*="tab=pending"]').any? { |link| link.text.include?("2") }
+  driver.navigate.to("http://gateway:3102/projects/mirror-demo/settings/mirror?mirror_tab=issue_relations")
   Selenium::WebDriver::Support::Select.new(driver.find_element(id: "missing_target")).select_by(:value, "note")
   driver.find_element(css: 'form[action$="/modules/issue_relations"] [type="submit"]').click
   wait.until { driver.find_elements(id: "flash_notice").any? }

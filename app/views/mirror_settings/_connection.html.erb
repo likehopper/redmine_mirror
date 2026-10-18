@@ -1,0 +1,63 @@
+<%#
+File: redmine_mirror/app/views/mirror_settings/_connection.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Connection: source Redmine and project, API key, source text format and modules.
+%><% admin = User.current.admin? %>
+<% allowed = RedmineMirror.allowed_source_urls %>
+<% unless @setting.persisted? %>
+  <p><%= l(:text_mirror_connection_intro) %></p>
+<% end %>
+<%= form_tag project_mirror_connection_path(@project), method: :patch, id: "mirror-connection-form" do %>
+  <div class="box tabular">
+    <p><%= label_tag "connection_source_url", l(:label_mirror_source_url), class: "required" %>
+      <% if @setting.persisted? %>
+        <%= text_field_tag "connection[source_url]", @setting.source_url, size: 60, readonly: true %>
+        <em class="info"><%= l(:text_mirror_source_fixed) %></em>
+      <% elsif admin %>
+        <%= text_field_tag "connection[source_url]", @setting.source_url, size: 60, placeholder: "https://redmine.example.com", list: ("mirror-allowed-sources" if allowed.any?) %>
+        <% if allowed.any? %><datalist id="mirror-allowed-sources"><% allowed.each do |url| %><option value="<%= url %>"></option><% end %></datalist><% end %>
+        <em class="info"><%= l(:text_mirror_source_admin, link: link_to(l(:label_mirror_plugin_settings), plugin_settings_path(id: "redmine_mirror"))).html_safe %></em>
+      <% elsif allowed.any? %>
+        <%= select_tag "connection[source_url]", options_for_select(allowed, @setting.source_url), id: "connection_source_url" %>
+      <% else %>
+        <span class="warning" id="mirror-no-allowed-source"><%= l(:text_mirror_no_allowed_source) %></span>
+      <% end %></p>
+    <p><%= label_tag "connection_source_project_id", l(:label_mirror_source_project), class: "required" %><%= text_field_tag "connection[source_project_id]", @setting.source_project_identifier.presence || @setting.source_project_id, size: 30, placeholder: "my-project" %>
+      <em class="info"><%= @setting.source_project_id ? l(:text_mirror_source_project_number, id: @setting.source_project_id) : l(:text_mirror_source_project_help) %></em></p>
+    <p><%= label_tag "connection_api_key", l(:label_mirror_api_key), class: (@setting.persisted? ? nil : "required") %><%= password_field_tag "connection[api_key]", nil, autocomplete: "new-password" %>
+      <em class="info"><%= @setting.persisted? ? l(:text_mirror_keep_api_key) : l(:text_mirror_api_key_account) %></em></p>
+    <p><%= label_tag "connection_source_text_format", l(:label_mirror_source_text_format) %>
+      <%= select_tag "connection[source_text_format]", options_for_select(RedmineMirror::TextFormat::SOURCE_FORMATS.map { |format| [l("label_mirror_text_format_#{format}"), format] }, @setting.source_text_format), id: "connection_source_text_format" %>
+      <em class="info" id="mirror-text-formats"><%= l(:text_mirror_destination_text_format, name: mirror_text_format_name(RedmineMirror::TextFormat.destination_format(@project))) %>
+        <% if (counts = @setting.source_catalog["text_formats"]).present? %>
+          <%= l(:text_mirror_detected_text_formats, formats: counts.sort_by { |_, count| -count.to_i }.map { |format, count| "#{l("label_mirror_text_format_#{format}")} #{count}" }.join(", ")) %>
+        <% end %></em></p>
+    <p><label><%= l(:label_mirror_modules) %></label>
+      <%= hidden_field_tag "connection[modules][]", "" %>
+      <% RedmineMirror::REGISTRY.resolve(RedmineMirror::REGISTRY.keys).select(&:selectable?).each do |adapter| %>
+        <% next unless adapter.available? || @setting.selected_modules.include?(adapter.key) %>
+        <label class="block"><%= check_box_tag "connection[modules][]", adapter.key, @setting.selected_modules.include?(adapter.key), id: "connection_modules_#{adapter.key}" %> <%= l(adapter.label) %></label>
+      <% end %>
+      <em class="info"><%= l(:text_mirror_modules_help) %></em></p>
+    <% if @setting.unavailable_modules.any? %>
+      <p id="mirror-unavailable-modules" class="warning"><%= l(:text_mirror_unavailable_modules, modules: @setting.unavailable_modules.map { |key| mirror_module_label(key) }.join(", ")) %></p>
+    <% end %>
+  </div>
+  <%= submit_tag l(:button_save), disabled: !@setting.persisted? && !admin && allowed.empty? %>
+<% end %>
+<% if @setting.persisted? %>
+  <%= button_to l(:button_mirror_refresh), project_mirror_refresh_path(@project), method: :post, disabled: @setting.catalog_refreshing? %>
+  <p><em class="info"><%= l(:text_mirror_refresh_help) %></em></p>
+<% end %>

@@ -32,7 +32,7 @@ class MirrorConflictsControllerTest < ActionController::TestCase
   end
   def test_keep_and_recheck_preserve_mapping_and_fingerprints
     patch :update, params: { project_id: @project.id, id: @conflict.id, resolution: "ignore" }
-    assert_redirected_to project_mirror_settings_path(@project, tab: "conflicts")
+    assert_redirected_to project_mirror_path(@project, tab: "conflicts")
     assert_equal "ignored", @conflict.reload.status
     assert_equal 1, @conflict.resolved_by_id
     assert RedmineMirror::DatabaseStore.new("test", project_id: @project.id).excluded?("issue_tracking", 99)
@@ -54,7 +54,7 @@ class MirrorConflictsControllerTest < ActionController::TestCase
     assert_equal "open", @conflict.reload.status
   end
   def test_user_without_permission_is_forbidden
-    Role.all.each { |role| role.remove_permission!(:manage_mirror) }
+    Role.all.each { |role| %i[run_mirror manage_mirror select_project_modules].each { |permission| role.remove_permission!(permission) } }
     @request.session[:user_id] = 2
     patch :update, params: { project_id: @project.id, id: @conflict.id, resolution: "ignore" }
     assert_response :forbidden

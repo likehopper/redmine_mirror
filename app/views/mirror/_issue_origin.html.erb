@@ -14,7 +14,7 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Render project-scoped Mirror controls and diagnostics using native Redmine helpers.
-%><% if @issue && User.current.allowed_to?(:manage_mirror, @issue.project) %>
+%><% if @issue && User.current.allowed_to?(:view_mirror, @issue.project) || RedmineMirror.runner?(@issue.project) %>
   <% setting = @issue.project.mirror_project_setting %>
   <% mapping = MirrorMapping.find_by(project_id: @issue.project_id, module_key: "issue_tracking", destination_id: @issue.id) if setting %>
   <% if mapping %>
@@ -22,7 +22,7 @@ Render project-scoped Mirror controls and diagnostics using native Redmine helpe
     <% if %w[http https].include?(base.scheme) && base.host && !base.userinfo %>
       <% url = base.to_s.sub(%r{/+\z}, "") %>
       <% url = "http://localhost:3101" if ENV["MIRROR_TEST_ENVIRONMENT"] == "disposable" && %w[source gateway].include?(base.host) %>
-      <p id="mirror-issue-origin"><strong><%= l(:label_mirror_source_issue) %>:</strong> <%= link_to "##{mapping.source_id}", "#{url}/issues/#{mapping.source_id}" %> — <%= link_to l(:label_mirror_objects), project_mirror_settings_path(@issue.project, tab: "objects", module_key: "issue_tracking", source_id: mapping.source_id) %></p>
+      <p id="mirror-issue-origin"><strong><%= l(:label_mirror_source_issue) %>:</strong> <%= link_to "##{mapping.source_id}", "#{url}/issues/#{mapping.source_id}" %> — <%= link_to l(:label_mirror_objects), project_mirror_path(@issue.project, tab: "objects", module_key: "issue_tracking", source_id: mapping.source_id) %></p>
     <% end %>
   <% end %>
 <% end %>

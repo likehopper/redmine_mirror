@@ -1,0 +1,77 @@
+<%#
+File: redmine_mirror/app/views/mirror/_overview.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Overview: getting started, source and schedule, actions, current execution, items to check, recent executions.
+%><% steps = mirror_setup_steps(@project, @setting) %>
+<%= render "mirror/setup", steps: steps unless mirror_setup_complete?(steps) %>
+<% active = @project.mirror_sync_runs.where(status: %w[queued running]).order(id: :desc).first %>
+<% current = active || @project.mirror_sync_runs.order(id: :desc).first %>
+<div class="splitcontent">
+<div class="splitcontentleft">
+  <div class="box tabular" id="mirror-source-summary">
+    <p><label><%= l(:label_mirror_source_project_short) %></label>
+      <% source = "#{@setting.source_url}/projects/#{@setting.source_project_identifier.presence || @setting.source_project_id}" %>
+      <%= link_to source, source, class: "external" %></p>
+    <p><label><%= l(:label_mirror_modules) %></label><%= @setting.selected_modules.map { |key| mirror_module_label(key) }.join(", ") %></p>
+    <p><label><%= l(:label_mirror_auto_sync_short) %></label>
+      <%= @setting.auto_sync_enabled? ? l(:text_mirror_auto_sync_on, minutes: @setting.sync_interval_minutes, time: (@setting.next_sync_at ? format_time(@setting.next_sync_at) : "—")) : l(:text_mirror_auto_sync_off) %>
+      <% if mirror_manager?(@project) %><%= link_to l(:button_edit), mirror_configuration_path(@project, "schedule"), class: "icon-only icon-edit", title: l(:button_edit) %><% end %></p>
+  </div>
+  <% if mirror_can_run?(@project) %>
+    <div class="box" id="mirror-actions">
+      <p><%= button_to l(:button_mirror_preview), project_mirror_enqueue_path(@project), params: { mode: "preview" }, method: :post, form_class: "mirror-inline-form", disabled: active.present? %>
+        <em class="info"><%= l(:text_mirror_preview_help) %></em></p>
+      <p><%= button_to l(:button_mirror_sync_now), project_mirror_enqueue_path(@project), params: { mode: "apply" }, method: :post, form_class: "mirror-inline-form", disabled: active.present?,
+               data: { confirm: (l(:text_mirror_sync_confirm) unless steps[3][1] == :done) } %>
+        <em class="info"><%= l(:text_mirror_sync_help) %></em></p>
+    </div>
+  <% end %>
+</div>
+<div class="splitcontentright">
+  <%= render "mirror/queued_run", run: active if active&.status == "queued" %>
+  <div class="box tabular" id="mirror-sync-summary"<%= ' data-mirror-reload="10"'.html_safe if active %>>
+    <p><label><%= l(:field_status) %></label><%= active ? l("label_mirror_run_#{active.status}".to_sym) : l(:label_mirror_idle) %>
+      <% if current %> — <%= link_to l(:label_mirror_log), project_mirror_run_path(@project, current) %><% end %></p>
+    <p><label><%= l(:label_mirror_progress) %></label>
+      <% if current && current.progress_percentage.nil? && current.status == "running" %><%= l(:text_mirror_objects_checked, count: current.processed_records) %>
+      <% elsif current && !current.progress_percentage.nil? %><progress value="<%= current.progress_percentage %>" max="100"></progress> <%= current.progress_percentage %>%
+      <% else %>—<% end %></p>
+    <%# Dates of the execution shown above, not of another one. %>
+    <p><label><%= l(:label_mirror_sync_started) %></label><%= current&.started_at ? format_time(current.started_at) : "—" %></p>
+    <p><label><%= l(:label_mirror_sync_finished) %></label><%= current&.finished_at ? format_time(current.finished_at) : "—" %></p>
+  </div>
+  <% attention = [] %>
+  <% attention << link_to(l(:label_mirror_open_conflicts, count: @open_conflict_count), mirror_page_path(@project, "conflicts")) if @open_conflict_count.positive? %>
+  <% attention << link_to(l(:label_mirror_pending_count, count: @pending_count), mirror_page_path(@project, "pending")) if @pending_count.positive? %>
+  <% attention << link_to(l(:label_mirror_pending_parent_count, count: @pending_parent_count), mirror_page_path(@project, "pending")) if @pending_parent_count.positive? %>
+  <% if @setting.unavailable_modules.any? %>
+    <% attention << l(:text_mirror_unavailable_modules, modules: @setting.unavailable_modules.map { |key| mirror_module_label(key) }.join(", ")) %>
+  <% end %>
+  <% if attention.any? %>
+    <div class="box" id="mirror-attention"><h3><%= l(:label_mirror_attention) %></h3>
+      <ul><% attention.each do |item| %><li><%= item %></li><% end %></ul></div>
+  <% end %>
+</div>
+</div>
+<% recent = @project.mirror_sync_runs.order(id: :desc).limit(5).to_a %>
+<% if recent.any? %>
+  <h3><%= l(:label_mirror_recent_runs) %></h3>
+  <table class="list" id="mirror-recent-runs"><thead><tr><th>#</th><th><%= l(:field_created_on) %></th><th><%= l(:field_status) %></th><th><%= l(:label_mirror_sync_mode) %></th><th><%= l(:label_mirror_trigger) %></th></tr></thead><tbody>
+  <% recent.each do |run| %>
+    <tr><td><%= link_to run.id, project_mirror_run_path(@project, run) %></td><td><%= format_time(run.created_at) %></td><td><%= l("label_mirror_run_#{run.status}".to_sym) %></td><td><%= run.apply? ? l(:button_mirror_sync_now) : l(:button_mirror_preview) %></td><td><%= l("label_mirror_trigger_#{run.trigger}".to_sym) %></td></tr>
+  <% end %>
+  </tbody></table>
+  <p><%= link_to l(:label_mirror_all_history), mirror_page_path(@project, "history") %></p>
+<% end %>

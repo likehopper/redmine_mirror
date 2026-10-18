@@ -43,7 +43,7 @@ end
 # A run queued from the browser is executed by the worker service.
 def browser_run(driver, project, mode)
   last = project.mirror_sync_runs.maximum(:id).to_i
-  driver.navigate.to("http://gateway:3102/projects/#{project.identifier}/mirror/settings?tab=synchronization")
+  driver.navigate.to("http://gateway:3102/projects/#{project.identifier}/mirror")
   driver.find_element(css: %(form[action$="/synchronizations"] input[value="#{mode}"])).find_element(xpath: "..").find_element(css: '[type="submit"]').click
   wait_for_run(project, last)
 end
@@ -91,11 +91,11 @@ when "import"
   setting.source_catalog = RedmineMirror::SourceCatalog.new(client: source, project_id: source_project.fetch("id"), adapters: setting.adapters).fetch
   setting.save!
   browser do |driver|
-    driver.navigate.to("http://gateway:3102/projects/#{project.identifier}/mirror/settings")
-    labels = driver.find_elements(css: "label.block").map(&:text)
+    driver.navigate.to("http://gateway:3102/projects/#{project.identifier}/settings/mirror")
+    labels = driver.find_elements(css: "#mirror-connection-form label.block").map(&:text)
     check (["Reporting settings", "Reporting credit policies"] - labels).empty?, "modules missing from the connection tab: #{labels.inspect}"
     # Map each source tracker to the local tracker of the same name, in the module tab.
-    driver.navigate.to("http://gateway:3102/projects/#{project.identifier}/mirror/settings?tab=reporting_credit_policies")
+    driver.navigate.to("http://gateway:3102/projects/#{project.identifier}/settings/mirror?mirror_tab=reporting_credit_policies")
     setting.source_catalog.fetch("tracker").each do |id, name|
       Selenium::WebDriver::Support::Select.new(driver.find_element(id: "mirror-tracker-#{id}")).select_by(:value, trackers.fetch(name).id.to_s)
     end
@@ -118,7 +118,7 @@ when "import"
           "support policy"
     check project.reporting_credit_policies.find_by!(tracker_id: trackers["Feature"].id).active_until == Date.new(2027, 3, 31), "feature policy"
 
-    driver.navigate.to("http://gateway:3102/projects/#{project.identifier}/mirror/settings?tab=objects")
+    driver.navigate.to("http://gateway:3102/projects/#{project.identifier}/mirror?tab=objects")
     source_policy_links = source_policies.map { |policy| %(a[href="http://localhost:3101/projects/#{source_project.fetch('id')}/reporting/credit_policies/#{policy.fetch('id')}/edit"]) }
     check source_policy_links.all? { |css| driver.find_elements(css: css).any? }, "source policy links"
     check driver.find_elements(css: %(a[href^="/projects/#{project.identifier}/reporting/credit_policies/"])).size == 2, "local policy links"
@@ -144,7 +144,7 @@ when "update"
   check %w[failed partial].include?(conflicted.status) && conflicted.error_message.include?("Local modification"), "local change #{conflicted.error_message}"
   conflict = project.mirror_conflicts.find_by!(module_key: "reporting_credit_policies", status: "open")
   browser do |driver|
-    driver.navigate.to("http://gateway:3102/projects/#{project.identifier}/mirror/settings?tab=conflicts")
+    driver.navigate.to("http://gateway:3102/projects/#{project.identifier}/mirror?tab=conflicts")
     driver.find_element(css: %(form[action$="/conflicts/#{conflict.id}"] input[name="resolution"][value="ignore"])).find_element(xpath: "..").find_element(css: '[type="submit"]').click
     driver.switch_to.alert.accept
     Selenium::WebDriver::Wait.new(timeout: 20).until { conflict.reload.status == "ignored" }

@@ -52,4 +52,14 @@ $(function () {
       input.autocomplete("search", "");
     });
   });
+
+  // Catalog refresh or execution in progress: reload while the Mirror content is visible,
+  // unless a form field has been edited.
+  var reload = $("[data-mirror-reload]:visible").first();
+  if (reload.length) {
+    var edited = false;
+    $(document).on("input change", "form :input", function () { edited = true; });
+    setTimeout(function () { if (!edited && reload.is(":visible")) window.location.reload(); },
+      (parseInt(reload.data("mirror-reload"), 10) || 10) * 1000);
+  }
 });

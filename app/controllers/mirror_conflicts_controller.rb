@@ -16,8 +16,9 @@
 # Exclude or recheck scoped conflicts without resetting fingerprints or changing local data.
 
 class MirrorConflictsController < ApplicationController
+  include RedmineMirror::Authorization
   before_action :find_project_by_project_id
-  before_action :authorize
+  before_action -> { authorize_mirror(:run) }
 
   def update
     setting = @project.mirror_project_setting
@@ -34,11 +35,11 @@ class MirrorConflictsController < ApplicationController
       conflict.update!(status: params[:resolution] == "ignore" ? "ignored" : "open", resolved_by: User.current)
     end
     flash[:notice] = l(:notice_successful_update)
-    redirect_to project_mirror_settings_path(@project, tab: "conflicts")
+    redirect_to project_mirror_path(@project, tab: "conflicts")
   rescue ActiveRecord::RecordNotFound
     render_404
   rescue RedmineMirror::Error => error
     flash[:error] = error.message
-    redirect_to project_mirror_settings_path(@project, tab: "conflicts")
+    redirect_to project_mirror_path(@project, tab: "conflicts")
   end
 end

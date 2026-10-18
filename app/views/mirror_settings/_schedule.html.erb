@@ -1,0 +1,31 @@
+<%#
+File: redmine_mirror/app/views/mirror_settings/_schedule.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Automatic synchronization schedule and the behaviour when an object fails.
+%><p><%= l(:text_mirror_worker_required) %></p>
+<%= form_tag project_mirror_schedule_path(@project), method: :patch do %>
+  <div class="box tabular">
+    <p><%= label_tag "schedule-enabled", l(:label_mirror_auto_sync) %>
+      <%= hidden_field_tag "schedule[enabled]", "0" %>
+      <%= check_box_tag "schedule[enabled]", "1", @setting.auto_sync_enabled?, id: "schedule-enabled" %></p>
+    <p><%= label_tag "schedule-interval", l(:label_mirror_frequency) %>
+      <%= select_tag "schedule[interval_minutes]", options_for_select(MirrorProjectSetting::SYNC_INTERVALS.map { |minutes| [l(:label_mirror_interval, minutes: minutes), minutes] }, @setting.sync_interval_minutes), id: "schedule-interval" %></p>
+    <p><%= label_tag "schedule-on-error", l(:label_mirror_on_error) %>
+      <%= select_tag "schedule[on_error]", options_for_select(MirrorProjectSetting::ON_ERROR.map { |mode| [l("label_mirror_on_error_#{mode}"), mode] }, @setting.on_error), id: "schedule-on-error" %>
+      <em class="info"><%= l(:text_mirror_on_error) %></em></p>
+    <p><label><%= l(:label_mirror_next_sync) %></label><%= @setting.next_sync_at ? format_time(@setting.next_sync_at) : "—" %></p>
+  </div>
+  <%= submit_tag l(:button_save) %>
+<% end %>
