@@ -13,14 +13,39 @@ This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
-Render project-scoped Mirror controls and diagnostics using native Redmine helpers.
-%><h2><%= l(:label_mirror) %></h2>
-<p><%= l(:text_mirror_operator_sync) %></p>
-<ul>
-  <% @modules.each do |module_key| %>
-    <li><%= module_key %></li>
-  <% end %>
-</ul>
-<% if User.current.allowed_to?(:manage_mirror, @project) %>
-  <p><%= link_to l(:label_mirror_settings), project_mirror_settings_path(@project), class: "icon icon-settings" %></p>
+The project's Mirror page: overview and getting started, history, conflicts, pending links, objects.
+%><% content_for :header_tags do %>
+  <%= stylesheet_link_tag "mirror", plugin: "redmine_mirror" %>
+  <%= javascript_include_tag "mirror", plugin: "redmine_mirror" %>
 <% end %>
+<% if mirror_manager?(@project) %>
+  <div class="contextual"><%= link_to l(:label_mirror_configure), mirror_configuration_path(@project), class: "icon icon-settings" %></div>
+<% end %>
+<h2><%= l(:label_mirror) %></h2>
+<% if @setting.nil? %>
+  <p id="mirror-not-configured"><%= l(:text_mirror_not_configured) %></p>
+  <% if mirror_manager?(@project) %>
+    <%= render "mirror/setup", steps: mirror_setup_steps(@project, nil) %>
+  <% else %>
+    <p><%= l(:text_mirror_not_configured_ask) %></p>
+  <% end %>
+<% else %>
+  <% tabs = [["overview", l(:label_mirror_overview)], ["history", l(:label_mirror_sync_history)],
+             ["conflicts", @open_conflict_count.positive? ? l(:label_mirror_conflicts_count, count: @open_conflict_count) : l(:label_mirror_conflicts)]] %>
+  <% if (@pending_count + @pending_parent_count).positive? || (@setting.selected_modules & %w[issue_relations issue_hierarchy]).any? %>
+    <% tabs << ["pending", l(:label_mirror_pending_links)] %>
+  <% end %>
+  <% tabs << ["objects", l(:label_mirror_objects)] %>
+  <div class="mirror-tabs"><div class="tabs" id="mirror-page-tabs"><ul>
+    <% tabs.each do |key, label| %>
+      <li><%= link_to label, mirror_page_path(@project, key == "overview" ? nil : key), class: (@tab == key ? "selected" : nil) %></li>
+    <% end %>
+  </ul></div></div>
+  <% if @tab == "pending" %>
+    <%= render "mirror/pending_relations" %>
+    <%= render "mirror/pending_parents" %>
+  <% else %>
+    <%= render "mirror/#{@tab}" %>
+  <% end %>
+<% end %>
+<% html_title(l(:label_mirror)) %>

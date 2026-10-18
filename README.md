@@ -100,12 +100,15 @@ RAILS_ENV=production bundle exec rake redmine_mirror:tick
 Without the worker, runs stay queued. Then follow the illustrated
 [configuration guide](doc/CONFIGURATION.md):
 
-1. Enable the REST API.
-2. Grant *View Mirror* and *Configure Mirror mappings* to the relevant roles.
-3. Enable the **Mirror** module on the destination project.
-4. As an administrator, set the source connection and modules.
+1. Enable the REST API, and list the allowed source Redmine URLs in the plugin
+   configuration.
+2. Grant *View Mirror*, *Run Mirror synchronizations* and *Configure Mirror* to the
+   relevant roles.
+3. Enable the **Mirror** module on the destination project: its **Mirror** menu guides
+   the next steps.
+4. In **Settings → Mirror**, set the source connection and modules.
 5. Map users and references.
-6. Run a preview, then synchronize.
+6. On the **Mirror** page, run a preview, then synchronize.
 
 ### Upgrading
 

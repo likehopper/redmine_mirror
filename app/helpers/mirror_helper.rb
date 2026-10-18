@@ -16,6 +16,96 @@
 # Build native and remote object links without exposing configured API credentials.
 
 module MirrorHelper
+  # The Mirror page of the project menu: overview, history, conflicts, pending links, objects.
+  def mirror_page_path(project, tab = nil, **options)
+    project_mirror_path(project, { tab: tab }.compact.merge(options))
+  end
+
+  # The Mirror tab of the project settings: connection, schedule and module mappings.
+  def mirror_configuration_path(project, mirror_tab = nil, **options)
+    settings_project_path(project, { tab: "mirror", mirror_tab: mirror_tab }.compact.merge(options))
+  end
+
+  def mirror_can_run?(project)
+    RedmineMirror.runner?(project)
+  end
+
+  def mirror_manager?(project)
+    RedmineMirror.manager?(project)
+  end
+
+  # Data of the Mirror tab, rendered inside Redmine's project settings page.
+  def prepare_mirror_configuration(project)
+    @setting = project.mirror_project_setting || project.build_mirror_project_setting
+    @adapters = @setting.persisted? ? @setting.adapters : []
+    tabs = ["connection"] + (@setting.persisted? ? ["schedule"] + @adapters.map(&:key) : [])
+    @mirror_tab = tabs.include?(params[:mirror_tab]) ? params[:mirror_tab] : "connection"
+    @mapping_values = project.mirror_reference_mappings.to_h do |row|
+      [[row.reference_type, row.source_id.to_s], row.mode == "existing" ? row.destination_id.to_s : row.mode]
+    end
+  end
+
+  # Source references used by the project that have no correspondence yet, per module.
+  def mirror_unmapped_counts(project, setting)
+    return {} unless setting&.persisted?
+    @mirror_unmapped_counts ||= begin
+      catalog = setting.source_catalog
+      mapped = project.mirror_reference_mappings.pluck(:reference_type, :source_id).map { |kind, id| [kind, id.to_s] }.to_set
+      setting.adapters.each_with_object({}) do |adapter, counts|
+        count = adapter.mapping_tables.sum do |table|
+          ids = catalog.fetch(table.key, {}).keys
+          used = catalog["#{table.key}_used"]
+          ids &= used if used
+          ids.count { |id| !mapped.include?([table.key, id]) }
+        end
+        counts[adapter.key] = count if count.positive?
+      end
+    end
+  end
+
+  # Getting started: each step with its state (:done, :waiting, :failed or :todo), a
+  # detail and the page where it is done. Scheduling is optional.
+  def mirror_setup_steps(project, setting)
+    connected = setting&.persisted?
+    runs = connected ? project.mirror_sync_runs.where(status: %w[succeeded partial]) : nil
+    catalog = if !connected then :todo
+              elsif setting.catalog_refreshing? then :waiting
+              elsif setting.catalog_status == "failed" then :failed
+              else :done
+              end
+    unmapped = mirror_unmapped_counts(project, setting)
+    mappings = catalog != :done ? :todo : (unmapped.empty? ? :done : :todo)
+    synchronized = connected && runs.where(apply: true).exists?
+    previewed = synchronized || (connected && runs.where(apply: false).exists?)
+    [
+      [:connection, connected ? :done : :todo, nil, mirror_configuration_path(project)],
+      [:references, catalog, (setting.catalog_error if catalog == :failed), mirror_configuration_path(project)],
+      [:mappings, mappings, unmapped.map { |key, count| "#{mirror_module_label(key)} #{count}" }.join(", ").presence,
+        mirror_configuration_path(project, unmapped.keys.first)],
+      [:preview, previewed ? :done : :todo, nil, mirror_page_path(project)],
+      [:sync, synchronized ? :done : :todo, nil, mirror_page_path(project)],
+      [:schedule, connected && setting.auto_sync_enabled? ? :done : :todo, nil, mirror_configuration_path(project, "schedule")]
+    ]
+  end
+
+  # Getting started is shown until a first synchronization succeeded.
+  def mirror_setup_complete?(steps)
+    steps.first(5).all? { |step| step[1] == :done }
+  end
+
+  # Local record with the same name as an unmapped source reference, preselected in the
+  # mapping form for the user to check and save.
+  def mirror_name_suggestion(choices, name)
+    return nil if name.blank?
+    matches = choices.select { |label, value| value.match?(/\A\d+\z/) && label.sub(/ \(#\d+\)( - .*)?\z/, "").casecmp?(name.to_s.strip) }
+    matches.one? ? matches.first.last : nil
+  end
+  # Name of a Redmine text formatting, as in the administration settings.
+  def mirror_text_format_name(format)
+    return "—" if format.blank?
+    Redmine::WikiFormatting.formats_for_select.find { |_, name| name.to_s == format.to_s }&.first || format
+  end
+
   def mirror_module_label(key)
     RedmineMirror::REGISTRY.keys.include?(key) ? l("label_mirror_module_#{key}".to_sym) : key
   end
@@ -40,20 +130,20 @@ module MirrorHelper
     if (match = text.match(/\AMissing (\w+) mapping for source ID (\d+)/))
       kind, id = match.captures
       tab = MAPPING_TABS[kind]
-      [@setting.source_catalog.dig(kind, id), :label_mirror_fix_mapping, tab && project_mirror_settings_path(@project, tab: tab)]
+      [@setting.source_catalog.dig(kind, id), :label_mirror_fix_mapping, tab && mirror_manager?(@project) && mirror_configuration_path(@project, tab)]
     elsif (match = text.match(/\ACustom field "(.+?)" is not enabled for destination tracker/))
       field = IssueCustomField.find_by(name: match[1])
       if User.current.admin? && field
         [nil, :label_mirror_fix_field_trackers, edit_custom_field_path(field)]
       else
-        [nil, :label_mirror_fix_ignore_field, project_mirror_settings_path(@project, tab: "issue_custom_fields")]
+        [nil, :label_mirror_fix_ignore_field, mirror_manager?(@project) && mirror_configuration_path(@project, "issue_custom_fields")]
       end
     elsif text.include?("is not enabled in this project")
-      [nil, :label_mirror_fix_project_fields, settings_project_path(@project, tab: "issues")]
+      [nil, :label_mirror_fix_project_fields, User.current.allowed_to?(:edit_project, @project) && settings_project_path(@project, tab: "issues")]
     elsif text.match?(/value mapping for custom field|incompatible formats|Invalid value for custom field|custom_field mapping/)
-      [nil, :label_mirror_fix_mapping, project_mirror_settings_path(@project, tab: "issue_custom_fields")]
+      [nil, :label_mirror_fix_mapping, mirror_manager?(@project) && mirror_configuration_path(@project, "issue_custom_fields")]
     elsif text.start_with?("Local modification detected")
-      [nil, :label_mirror_fix_conflict, project_mirror_settings_path(@project, tab: "conflicts")]
+      [nil, :label_mirror_fix_conflict, mirror_page_path(@project, "conflicts")]
     elsif text.include?("maximum attachment size") && User.current.admin?
       [nil, :label_mirror_fix_attachment_size, settings_path(tab: "attachments")]
     else

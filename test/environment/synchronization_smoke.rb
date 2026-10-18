@@ -50,7 +50,7 @@ begin
   driver.find_element(id: "password").send_keys("Mirror-test-2026!")
   driver.find_element(name: "login").click
   wait.until { driver.find_elements(id: "loggedas").any? }
-  page_url = "http://gateway:3102/projects/#{project.identifier}/mirror/settings?tab=synchronization"
+  page_url = "http://gateway:3102/projects/#{project.identifier}/mirror"
   driver.navigate.to(page_url)
   driver.find_element(css: 'form[action$="/synchronizations"] input[value="preview"]').find_element(xpath: "..").find_element(css: '[type="submit"]').click
   wait.until do
@@ -74,13 +74,13 @@ begin
   imported = project.mirror_sync_runs.where(apply: true).order(:id).last
   abort "Missing local IDs in logs" unless imported.log_events.all? { |event| event["destination_id"].present? }
   abort "Missing project object mappings" unless MirrorMapping.where(project_id: project.id).count == 27
-  driver.navigate.to("http://gateway:3102/projects/#{project.identifier}/mirror/settings?tab=objects")
+  driver.navigate.to("http://gateway:3102/projects/#{project.identifier}/mirror?tab=objects")
   abort "Missing remote object links" unless driver.find_elements(css: 'a[href^="http://localhost:3101/issues/"]').size == 12
   abort "Missing local object links" unless driver.find_elements(css: 'a[href^="/issues/"]').size == 12
-  driver.navigate.to(page_url)
+  driver.navigate.to("http://gateway:3102/projects/#{project.identifier}/settings/mirror?mirror_tab=schedule")
   driver.find_element(id: "schedule-enabled").click
   Selenium::WebDriver::Support::Select.new(driver.find_element(id: "schedule-interval")).select_by(:value, "15")
-  driver.find_element(name: "commit").click
+  driver.find_element(css: "#tab-content-mirror [name=commit]").click
   # The form posts asynchronously from this process's point of view: wait for the save.
   Selenium::WebDriver::Wait.new(timeout: 20).until { setting.reload.auto_sync_enabled? } rescue nil
   abort "Schedule not saved" unless setting.reload.auto_sync_enabled? && setting.sync_interval_minutes == 15

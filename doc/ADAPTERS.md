@@ -105,8 +105,8 @@ Add translated labels to the existing locale roots:
   label_mirror_module_project_notes: Notes du projet
 ```
 
-Restart web and worker processes. An administrator selects the module in
-**Mirror → Connection** and saves; Mirror then shows its tab (empty for this example)
+Restart web and worker processes. A member who configures Mirror selects the module in
+**Settings → Mirror → Connection** and saves; Mirror then shows its tab (empty for this example)
 and includes it in previews, schedules and logs. Existing projects do not select it
 automatically.
 
@@ -249,7 +249,8 @@ adapter rather than relaxing the check.
 
 If the owning plugin is removed, projects keep their configuration and correspondences.
 The connection tab lists the missing module, and runs are refused until the plugin is
-back or an administrator deselects it: a selected module is never skipped silently.
+back or a member who configures Mirror deselects it: a selected module is never skipped
+silently.
 
 Version 1 does not forward arbitrary options from the mapping form: use reference tables,
 or extend Mirror with code and tests (see below).

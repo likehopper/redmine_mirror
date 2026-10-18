@@ -58,150 +58,172 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     assert_selector "#flash_notice"
   end
 
-  def test_03_roles_get_mirror_permissions
+  def test_03_source_is_allowed
+    visit "/settings/plugin/redmine_mirror"
+    fill_in "settings_allowed_source_urls", with: SOURCE_URL
+    screenshot "03-allowed-sources", "#content"
+    click_button "Apply"
+    assert_selector "#flash_notice"
+    assert RedmineMirror.allowed_source_url?(SOURCE_URL)
+  end
+
+  def test_04_roles_get_mirror_permissions
     role = Role.find_by!(name: "Manager")
     visit "/roles/#{role.id}/edit"
     fieldset = find("#role_permissions_view_mirror").ancestor("fieldset")
-    fieldset.check("role_permissions_view_mirror")
-    fieldset.check("role_permissions_manage_mirror")
-    screenshot "03-role-permissions", fieldset
+    %w[view_mirror run_mirror manage_mirror].each { |permission| fieldset.check("role_permissions_#{permission}") }
+    screenshot "04-role-permissions", fieldset
     click_button "Save"
     assert_selector "#flash_notice"
   end
 
-  def test_04_project_enables_the_module
+  def test_05_project_enables_the_module
     visit "/projects/#{PROJECT}/settings/info"
     check "project_enabled_module_names_mirror"
-    screenshot "04-project-modules", "#project_modules"
+    screenshot "05-project-modules", "#project_modules"
     within("#tab-content-info") { click_button "Save" }
     assert_selector "#flash_notice"
     assert_selector "#main-menu a.mirror"
-    screenshot "05-project-menu", "#main-menu"
+    screenshot "06-project-menu", "#main-menu"
+    within("#main-menu") { click_link "Mirror" }
+    assert_selector "#mirror-step-connection.mirror-step-current"
+    screenshot "07-getting-started", "#content"
   end
 
-  def test_05_connection
-    visit "/projects/#{PROJECT}"
-    within("#main-menu") { click_link "Mirror" }
-    assert_current_path "/projects/#{PROJECT}/mirror/settings"
+  def test_06_connection
+    visit "/projects/#{PROJECT}/mirror"
+    within("#mirror-setup") { click_link "Connect the source project" }
+    assert_current_path "/projects/#{PROJECT}/settings/mirror"
     fill_in "connection_source_url", with: SOURCE_URL
-    fill_in "connection_source_project_id", with: source_project_id.to_s
+    fill_in "connection_source_project_id", with: PROJECT
     fill_in "connection_api_key", with: SOURCE_API_KEY
     MODULES.each { |key| find("input[name='connection[modules][]'][value='#{key}']").check }
-    screenshot "06-connection", "#content"
+    screenshot "08-connection", "#tab-content-mirror"
     click_button "Save"
     assert_selector "#flash_notice"
+    assert_selector "#mirror-catalog-status"
     assert_empty MODULES - project.mirror_project_setting.selected_modules
     assert_no_text SOURCE_API_KEY
+    # What the worker does next (rake redmine_mirror:tick).
+    RedmineMirror::Synchronization.refresh_catalogs
+    visit current_url
+    assert_selector "#mirror-settings-subtabs .mirror-badge"
+    screenshot "09-modules-to-map", "#mirror-settings-subtabs"
   end
 
-  def test_06_user_mappings
+  def test_07_user_mappings
     open_module_tab "users"
     map_by_name "user", "Redmine Admin" => "Anonymize"
     select "Mirror Archive", from: "anonymous-time-user"
-    screenshot "07-users", "#content"
+    screenshot "10-users", "#tab-content-mirror"
     click_button "Save"
     assert_selector "#flash_notice"
   end
 
-  def test_07_issue_and_time_mappings
+  def test_08_issue_and_time_mappings
     open_module_tab "issue_tracking"
+    # Local references with the same name are preselected: check, then save.
+    assert_selector "#mirror-suggestions"
+    screenshot "11-issues", "#tab-content-mirror"
     %w[tracker status priority].each { |table| map_by_name table }
-    screenshot "08-issues", "#content"
     click_button "Save"
     assert_selector "#flash_notice"
 
     open_module_tab "time_tracking"
     map_by_name "activity"
-    screenshot "09-time-tracking", "#content"
+    screenshot "12-time-tracking", "#tab-content-mirror"
     click_button "Save"
     assert_selector "#flash_notice"
   end
 
-  def test_08_relation_policy
+  def test_09_relation_policy
     open_module_tab "issue_relations"
     select "Add a private note", from: "missing_target"
-    screenshot "10-relations-policy", "#content"
+    screenshot "13-relations-policy", "#tab-content-mirror"
     click_button "Save"
     assert_selector "#flash_notice"
+    assert_no_selector "#mirror-settings-subtabs .mirror-badge"
   end
 
-  def test_09_preview
-    visit "/projects/#{PROJECT}/mirror/settings?tab=synchronization"
-    screenshot "11-synchronization", "#content"
+  def test_10_preview
+    visit "/projects/#{PROJECT}/mirror"
+    assert_selector "#mirror-step-preview.mirror-step-current"
+    screenshot "14-overview", "#content"
     click_button "Run preview"
     assert_text "Execution queued"
     run = run_worker
     assert_equal "succeeded", run.status, run.error_message
     assert project.issues.none?
     visit current_path
-    screenshot "12-preview-log", "#content", max_height: 760
+    screenshot "15-preview-log", "#content", max_height: 760
   end
 
-  def test_10_import
-    visit "/projects/#{PROJECT}/mirror/settings?tab=synchronization"
+  def test_11_import
+    visit "/projects/#{PROJECT}/mirror"
     click_button "Synchronize now"
     assert_text "Execution queued"
     run = run_worker
     assert_equal "succeeded", run.status, run.error_message
     assert_equal 12, project.issues.count
     visit current_path
-    screenshot "13-import-log", "#content", max_height: 760
+    screenshot "16-import-log", "#content", max_height: 760
     # README illustration.
     screenshot "home", "#content", max_height: 520
-    visit "/projects/#{PROJECT}/mirror/settings?tab=synchronization"
-    screenshot "14-synchronization-done", "#content"
+    visit "/projects/#{PROJECT}/mirror"
+    assert_no_selector "#mirror-setup"
+    screenshot "17-overview-done", "#content"
   end
 
-  def test_11_imported_data
-    visit "/projects/#{PROJECT}/mirror/settings?tab=objects"
+  def test_12_imported_data
+    visit "/projects/#{PROJECT}/mirror?tab=objects"
     assert_selector "table.list tbody tr"
-    screenshot "15-object-mappings", "#content", max_height: 760
+    screenshot "18-object-mappings", "#content", max_height: 760
     issue = project.issues.order(:id).first
     visit "/issues/#{issue.id}"
     assert_selector "#mirror-issue-origin"
-    screenshot "16-imported-issue", "#content", max_height: 900
-    visit "/projects/#{PROJECT}/mirror/settings?tab=issue_relations"
+    screenshot "19-imported-issue", "#content", max_height: 900
+    visit "/projects/#{PROJECT}/mirror?tab=pending"
     assert_selector "#mirror-pending-relations tbody tr"
-    screenshot "17-pending-relations", "#content"
+    screenshot "20-pending-links", "#content"
   end
 
-  def test_12_schedule
-    visit "/projects/#{PROJECT}/mirror/settings?tab=synchronization"
+  def test_13_schedule
+    visit "/projects/#{PROJECT}/settings/mirror?mirror_tab=schedule"
     check "schedule-enabled"
     select "Every 60 minutes", from: "schedule-interval"
     click_button "Save"
     assert_selector "#flash_notice"
     assert project.mirror_project_setting.auto_sync_enabled?
-    screenshot "18-schedule", find("#schedule-enabled").ancestor("form")
+    screenshot "21-schedule", find("#schedule-enabled").ancestor("form")
   end
 
-  def test_13_history
-    visit "/projects/#{PROJECT}/mirror/settings?tab=history"
+  def test_14_history
+    visit "/projects/#{PROJECT}/mirror?tab=history"
     assert_selector "#mirror-history tbody tr", count: 2
-    screenshot "19-history", "#content"
+    screenshot "22-history", "#content"
   end
 
-  def test_14_conflict
+  def test_15_conflict
     # A destination user edits an imported issue: Mirror must not overwrite it.
     issue = project.issues.order(:id).first
     issue.init_journal(User.find_by!(login: "alice"))
     issue.update!(subject: "#{issue.subject} (edited locally)")
-    visit "/projects/#{PROJECT}/mirror/settings?tab=synchronization"
+    visit "/projects/#{PROJECT}/mirror"
     click_button "Synchronize now"
     assert_text "Execution queued"
     run = run_worker
-    assert_equal "failed", run.status
+    assert_equal "partial", run.status
     visit current_path
-    screenshot "20-conflict-log", "#content", max_height: 460
-    visit "/projects/#{PROJECT}/mirror/settings?tab=conflicts"
+    screenshot "23-conflict-log", "#content", max_height: 460
+    visit "/projects/#{PROJECT}/mirror?tab=conflicts"
     assert_selector "#mirror-conflicts tbody tr", count: 1
-    screenshot "21-conflicts", "#content"
+    screenshot "24-conflicts", "#content"
     accept_confirm { click_button "Keep local object" }
     assert_selector "#flash_notice"
     assert_selector "#mirror-conflicts td", text: "Kept locally"
-    screenshot "22-conflict-kept", "#content"
+    screenshot "25-conflict-kept", "#content"
 
-    visit "/projects/#{PROJECT}/mirror/settings?tab=synchronization"
+    visit "/projects/#{PROJECT}/mirror"
     click_button "Synchronize now"
     assert_text "Execution queued"
     assert_equal "succeeded", run_worker.status
@@ -234,14 +256,9 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     Project.find_by!(identifier: PROJECT)
   end
 
-  def source_project_id
-    RedmineMirror::Client.new(url: SOURCE_URL, api_key: SOURCE_API_KEY, allow_http: true)
-                         .get("projects/#{PROJECT}.json").fetch("project").fetch("id")
-  end
-
   def open_module_tab(key)
-    visit "/projects/#{PROJECT}/mirror/settings?tab=#{key}"
-    assert_selector "#mirror-settings-subtabs a.selected[href*='tab=#{key}']"
+    visit "/projects/#{PROJECT}/settings/mirror?mirror_tab=#{key}"
+    assert_selector "#mirror-settings-subtabs a.selected[href*='mirror_tab=#{key}']"
   end
 
   # Selects the local reference named like the remote one, unless overridden.

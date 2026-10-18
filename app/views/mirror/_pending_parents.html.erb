@@ -1,0 +1,32 @@
+<%#
+File: redmine_mirror/app/views/mirror/_pending_parents.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Render project-scoped Mirror controls and diagnostics using native Redmine helpers.
+%><h3><%= l(:label_mirror_pending_parents) %></h3>
+<%= form_tag project_mirror_path(@project), method: :get do %>
+<%= hidden_field_tag :tab, "pending" %>
+<%= select_tag :pending_status, options_for_select([[l(:label_all), ""], [l(:label_mirror_relation_pending), "pending"], [l(:label_mirror_relation_blocked), "blocked"]], params[:pending_status]) %>
+<%= submit_tag l(:button_apply) %>
+<% end %>
+<table class="list" id="mirror-pending-parents"><thead><tr>
+<th><%= l(:label_mirror_pending_source_issue) %></th><th><%= l(:label_mirror_local_issue_id) %></th><th><%= l(:label_mirror_remote_parent) %></th><th><%= l(:field_status) %></th><th><%= l(:label_mirror_reason) %></th><th><%= l(:label_mirror_relation_checked) %></th>
+</tr></thead><tbody>
+<% @parents.each do |row| %><tr>
+<td><%= mirror_object_link("issue_tracking", row.source_id, source_url: @setting.source_url) %></td>
+<td><%= mirror_object_link("issue_tracking", row.local_issue_id) %></td>
+<td><%= mirror_object_link("issue_tracking", row.remote_parent_id, source_url: @setting.source_url) %></td>
+<td><%= l("label_mirror_relation_#{row.status}") %></td><td><%= row.reason == "Remote parent not synchronized" ? l(:text_mirror_remote_parent_missing) : row.reason %></td><td><%= format_time(row.checked_at) %></td>
+</tr><% end %></tbody></table>
+<span class="pagination"><%= pagination_links_full @parent_pages, @parent_count %></span>

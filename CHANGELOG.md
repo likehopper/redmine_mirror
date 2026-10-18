@@ -16,6 +16,29 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+The configuration moves to the project settings and the Mirror menu becomes the
+operations page. No migration; former Mirror links lead to their new place.
+
+- **Settings → Mirror** holds the connection, the automatic synchronization and one
+  mapping tab per module. A red counter on a module tab gives the references it still
+  has to map. A source reference with a single local namesake is preselected (yellow):
+  check it, then save.
+- The **Mirror** menu shows **Overview** (getting started until a first synchronization,
+  source, schedule, preview and synchronize buttons, current execution, items to check,
+  recent executions), **Execution history**, **Conflicts** with the number of open ones,
+  **Pending links** (relations and parents) and **Object mappings**. Pages with a catalog
+  refresh or an execution in progress refresh themselves.
+- Three permissions: *View Mirror* (status, history, logs, conflicts), *Run Mirror
+  synchronizations and resolve conflicts*, and *Configure Mirror*. Members who can enable
+  the project's modules can also configure Mirror. Roles with the former *Configure
+  Mirror mappings* keep all their rights; *View Mirror* now also shows the history and
+  logs.
+- Project members can now set the connection, but only to a source Redmine an
+  administrator allowed in the plugin configuration; administrators can enter any URL.
+- The execution log links an error to its fix only for members who can make it.
+
 ## 1.0.0-beta.11 — 2026-10-18
 
 - Issue references in descriptions, notes and history (`#123`, `##123`, `###123` and

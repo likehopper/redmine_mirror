@@ -16,9 +16,12 @@
 # Enqueue authorized project work and expose filtered execution diagnostics.
 
 class MirrorSynchronizationsController < ApplicationController
+  include RedmineMirror::Authorization
   helper MirrorHelper
   before_action :find_project_by_project_id
-  before_action :authorize
+  before_action -> { authorize_mirror(:view) }, only: :show
+  before_action -> { authorize_mirror(:run) }, only: [:create, :cancel]
+  before_action -> { authorize_mirror(:manage) }, only: :update
   before_action :load_setting
 
   def update
@@ -29,10 +32,10 @@ class MirrorSynchronizationsController < ApplicationController
       next_sync_at: input[:enabled] == "1" ? Time.current + interval.minutes : nil,
       on_error: input[:on_error].presence || @setting.on_error)
     flash[:notice] = l(:notice_successful_update)
-    redirect_to project_mirror_settings_path(@project, tab: "synchronization")
+    redirect_to settings_project_path(@project, tab: "mirror", mirror_tab: "schedule")
   rescue RedmineMirror::Error, ActiveRecord::RecordInvalid, ArgumentError, KeyError
     flash[:error] = l(:text_mirror_invalid_schedule)
-    redirect_to project_mirror_settings_path(@project, tab: "synchronization")
+    redirect_to settings_project_path(@project, tab: "mirror", mirror_tab: "schedule")
   end
 
   def create
@@ -42,7 +45,7 @@ class MirrorSynchronizationsController < ApplicationController
     redirect_to project_mirror_run_path(@project, run)
   rescue RedmineMirror::Error => error
     flash[:error] = error.message
-    redirect_to project_mirror_settings_path(@project, tab: "synchronization")
+    redirect_to project_mirror_path(@project)
   end
 
   def cancel
@@ -50,10 +53,10 @@ class MirrorSynchronizationsController < ApplicationController
     return render_404 unless run
     RedmineMirror::Synchronization.cancel(run)
     flash[:notice] = l(:text_mirror_run_cancelled)
-    redirect_to project_mirror_settings_path(@project, tab: "synchronization")
+    redirect_to project_mirror_path(@project)
   rescue RedmineMirror::Error => error
     flash[:error] = error.message
-    redirect_to project_mirror_settings_path(@project, tab: "synchronization")
+    redirect_to project_mirror_path(@project)
   end
 
   def show

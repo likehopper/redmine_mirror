@@ -18,9 +18,16 @@ Document Mirror setup, operation, extension points or validation evidence.
 
 # Configuration guide
 
-From an installed plugin to a first synchronization, in eleven steps. Everything
+From an installed plugin to a first synchronization, in twelve steps. Everything
 happens on the **destination** Redmine; the source only needs its REST API and an API
 key. Module details are in the [module reference](MODULES.md).
+
+Mirror has two places in a project:
+
+- **Settings → Mirror**: the configuration (connection, automatic synchronization, one
+  mapping tab per module), for members allowed to configure Mirror;
+- the **Mirror** menu: the operations (getting started, launching, execution history,
+  conflicts, pending links, imported objects).
 
 The screenshots come from the browser test
 [`configuration_test.rb`](../test/documentation/configuration_test.rb). It mirrors the
@@ -62,35 +69,50 @@ the destination field you map it to and is checked in the preview, and list choi
 are the values found in the issues and their history. An administrator key adds
 format compatibility checks and the complete lists of possible values.
 
-## 3. Grant the permissions
+## 3. Allow the source Redmine
+
+`Administration → Plugins → Redmine Mirror → Configure`: list the source Redmine URLs,
+one per line. Project members can connect only to these sources; administrators can
+enter any URL.
+
+![Allowed sources](screenshots/configuration/03-allowed-sources.png)
+
+## 4. Grant the permissions
 
 `Administration → Roles and permissions → <role>`, **Mirror** block:
 
-- **View Mirror**: open the Mirror tab;
-- **Configure Mirror mappings**: edit mappings, run and schedule synchronizations,
-  read logs and handle conflicts.
+| Permission | Allows |
+| --- | --- |
+| **View Mirror** | Mirror menu: status, execution history and logs, conflicts, pending links, objects |
+| **Run Mirror synchronizations and resolve conflicts** | The above, plus preview, synchronize now, cancel a queued run, keep or recheck a conflict |
+| **Configure Mirror** | The above, plus the **Settings → Mirror** tab: connection, schedule and mappings |
 
-![Role permissions](screenshots/configuration/03-role-permissions.png)
+Members who can enable the project's modules (*Select project modules*) can also
+configure Mirror.
 
-The connection itself (step 5) is reserved to administrators.
+![Role permissions](screenshots/configuration/04-role-permissions.png)
 
-## 4. Enable the module
+## 5. Enable the module
 
 `Project → Settings → Project`: tick **Mirror** under **Modules**, then save. Keep
 *Issue tracking* and *Time tracking* enabled for the modules you import.
 
-![Project modules](screenshots/configuration/04-project-modules.png)
+![Project modules](screenshots/configuration/05-project-modules.png)
 
 The **Mirror** tab appears in the project menu.
 
-![Project menu](screenshots/configuration/05-project-menu.png)
+![Project menu](screenshots/configuration/06-project-menu.png)
 
-## 5. Connect the source
+Until a first synchronization, it shows **Getting started**: each step, its state, and
+a link to the page of the next one.
 
-Open **Mirror**. In **Synchronization configuration → Connection**, an administrator
-enters:
+![Getting started](screenshots/configuration/07-getting-started.png)
 
-- **Source Redmine URL**;
+## 6. Connect the source
+
+**Connect the source project** opens **Settings → Mirror → Connection**:
+
+- **Source Redmine URL**: one of the allowed sources;
 - **Source project**: its identifier, as in `<source>/projects/<identifier>`, or its numeric ID;
 - **Source API key**: stored encrypted and never displayed again;
 - **Source text format**: *Auto* detects Textile, Markdown or HTML (CKEditor) for each
@@ -100,26 +122,30 @@ enters:
 - **Modules** to import. Dependencies are added on save: *Time tracking* adds *Issues*,
   and both add *Users*.
 
-![Connection](screenshots/configuration/06-connection.png)
+![Connection](screenshots/configuration/08-connection.png)
 
 Saving checks the connection; the worker then loads the source references, which can
-take a few minutes on large projects, and the page shows when it is still busy. The URL
-and project cannot be changed afterwards. **Refresh source references** asks the worker
-to reload them after new users, statuses or activities appear on the source.
+take a few minutes on large projects. The page shows its progress and refreshes until
+it has finished. The URL and project cannot be changed afterwards. **Refresh source
+references** reloads them after new users, statuses or activities appear on the source.
 
-## 6. Map users
+A red counter on a module tab gives the number of references it still has to map.
 
-**Modules and mappings → Users** lists the users found in the source data. Map each one
-to an active member of the project, or **Anonymize** them. Time logged by an anonymized
-user goes to the **local user for anonymized time**: here the source administrator is
-anonymized and a dedicated *Mirror Archive* member receives that time.
+![Modules to map](screenshots/configuration/09-modules-to-map.png)
 
-![User mappings](screenshots/configuration/07-users.png)
+## 7. Map users
+
+**Users** lists the users found in the source data. Map each one to an active member of
+the project, or **Anonymize** them. Time logged by an anonymized user goes to the
+**local user for anonymized time**: here the source administrator is anonymized and a
+dedicated *Mirror Archive* member receives that time.
+
+![User mappings](screenshots/configuration/10-users.png)
 
 Mirror never creates accounts: add the missing members to the project first. The user
 table is shared by every module.
 
-## 7. Map the references
+## 8. Map the references
 
 Each module tab lists the source references it needs. **Issues** maps trackers,
 statuses and priorities. Only the references used by the source project's issues and
@@ -127,90 +153,95 @@ their history are listed, plus those already mapped; a link shows the others. Lo
 statuses are limited to those of the project's tracker workflows. Long lists, such as
 users, can be filtered by typing.
 
-![Issue mappings](screenshots/configuration/08-issues.png)
+A reference without correspondence is marked in red. When a single local reference has
+the same name, it is preselected and marked in yellow: check it, then save.
+
+![Issue mappings](screenshots/configuration/11-issues.png)
 
 **Time tracking** maps activities.
 
-![Time tracking mappings](screenshots/configuration/09-time-tracking.png)
+![Time tracking mappings](screenshots/configuration/12-time-tracking.png)
 
-Save each tab. A reference left on **To configure** blocks the preview.
+Save each tab. A reference left on **To configure** stops the objects that use it.
 
 **Issue relations** also chooses what to do when the other end of a relation is not
 imported yet: log it, or add a private note with the remote link.
 
-![Relation policy](screenshots/configuration/10-relations-policy.png)
+![Relation policy](screenshots/configuration/13-relations-policy.png)
 
-## 8. Run a preview
+## 9. Run a preview
 
-In **Synchronization configuration → Synchronization**, click **Run preview**.
+On the **Mirror** page, **Overview** shows the source, the modules, the schedule, the
+current execution and what needs checking. Click **Run preview**.
 
-![Synchronization tab](screenshots/configuration/11-synchronization.png)
+![Overview](screenshots/configuration/14-overview.png)
 
-The run is queued, then processed by the worker (see [Run the worker](#run-the-worker)).
-Refresh the page: the log lists what an import would do, object by object, without
-writing anything.
+The run is queued, then processed by the worker (see [Run the worker](#run-the-worker));
+the page refreshes until it finishes. The log lists what an import would do, object by
+object, without writing anything.
 
-![Preview log](screenshots/configuration/12-preview-log.png)
+![Preview log](screenshots/configuration/15-preview-log.png)
 
-A missing mapping or a local change stops the preview with an explicit error.
+Each error has its cause and, when Mirror knows it, a link to where it is fixed: a
+mapping tab, a custom field, the project's fields, a conflict.
 
-## 9. Synchronize
+## 10. Synchronize
 
 Click **Synchronize now**. The log gives, for each object, its remote and local IDs with
 links, and the action taken. Its **Summary** counts the actions per module, groups the
-errors by cause, and lists the **special cases to check**: converted texts, issue numbers,
-links to the source Redmine, images and links to attachments. Click one to list the
-objects concerned, each with its local and source links. The preview shows them too,
-before anything is written.
+errors and warnings by cause, and lists the **special cases to check**: converted texts,
+issue numbers, links to the source Redmine, images and links to attachments. Click one
+to list the objects concerned, each with its local and source links. The preview shows
+them too, before anything is written.
 
-![Import log](screenshots/configuration/13-import-log.png)
+![Import log](screenshots/configuration/16-import-log.png)
 
-The **Synchronization** tab shows the last run, its progress and the pending relations
-and parents.
+Once a synchronization has succeeded, **Overview** no longer shows Getting started.
 
-![After the import](screenshots/configuration/14-synchronization-done.png)
+![After the import](screenshots/configuration/17-overview-done.png)
 
-**Modules and mappings → Object mappings** lists every remote/local correspondence.
+**Object mappings** lists every remote/local correspondence.
 
-![Object mappings](screenshots/configuration/15-object-mappings.png)
+![Object mappings](screenshots/configuration/18-object-mappings.png)
 
-Imported issues keep their author, dates, notes and attachments. Members who can
-configure Mirror see a **Mirror source issue** link.
+Imported issues keep their author, dates, notes and attachments. Members who can view
+Mirror see a **Mirror source issue** link.
 
-![Imported issue](screenshots/configuration/16-imported-issue.png)
+![Imported issue](screenshots/configuration/19-imported-issue.png)
 
-Relations to projects not mirrored yet stay pending, in the **Issue relations** tab.
-Import those projects, then synchronize this one again.
+Relations and parents in projects not mirrored yet wait in **Pending links**. Import
+those projects, then synchronize this one again.
 
-![Pending relations](screenshots/configuration/17-pending-relations.png)
+![Pending links](screenshots/configuration/20-pending-links.png)
 
-## 10. Schedule automatic runs
+## 11. Schedule automatic runs
 
-In **Synchronization**, tick **Enable automatic synchronization**, choose a frequency
-(5 minutes to 1 day) and save. The next execution date is displayed.
+In **Settings → Mirror → Automatic synchronization**, tick **Enable automatic
+synchronization**, choose a frequency (5 minutes to 1 day) and what to do when an object
+fails, then save. The next execution date is displayed.
 
-![Schedule](screenshots/configuration/18-schedule.png)
+![Schedule](screenshots/configuration/21-schedule.png)
 
 **Execution history** lists every run, with filters by status, mode, origin, module and
 date.
 
-![Execution history](screenshots/configuration/19-history.png)
+![Execution history](screenshots/configuration/22-history.png)
 
-## 11. Handle conflicts
+## 12. Handle conflicts
 
 Mirror never overwrites a local change. Here, a destination user edited an imported
-issue's subject: the next run stops before writing.
+issue's subject: the next run leaves it unchanged and reports it.
 
-![Run stopped by a conflict](screenshots/configuration/20-conflict-log.png)
+![Run with a conflict](screenshots/configuration/23-conflict-log.png)
 
-**Conflicts** lists the object and the reason.
+**Conflicts** lists the object and the reason; its tab shows the number of open ones.
 
-![Conflicts](screenshots/configuration/21-conflicts.png)
+![Conflicts](screenshots/configuration/24-conflicts.png)
 
 - **Keep local object**: excludes this object from this module, then synchronize again.
 - **Recheck after correction**: after restoring the data or fixing a mapping.
 
-![Conflict kept locally](screenshots/configuration/22-conflict-kept.png)
+![Conflict kept locally](screenshots/configuration/25-conflict-kept.png)
 
 ## Run the worker
 
@@ -225,24 +256,25 @@ MIRROR_DESTINATION_URL=https://redmine.example MIRROR_DESTINATION_API_KEY=... \
 
 `MIRROR_DESTINATION_API_KEY` belongs to a destination account allowed to create issues,
 log time for the mapped users and perform the workflow transitions. Without the worker,
-runs stay **Queued** and block new ones: after 5 minutes the **Synchronization** tab warns
-about it, and **Cancel this execution** withdraws a queued run.
+runs stay **Queued** and block new ones: after 5 minutes the **Overview** warns about it,
+and **Cancel this execution** withdraws a queued run.
 
 ## Troubleshooting
 
 | Symptom | Check |
 | --- | --- |
-| No **Mirror** tab | Step 4, then *View Mirror* (step 3). |
-| Connection fields read-only | Only administrators edit the connection. |
+| No **Mirror** menu | Step 5, then *View Mirror* (step 4). |
+| No **Mirror** tab in the project settings | *Configure Mirror* (step 4). |
+| "This source Redmine URL is not allowed" | An administrator adds it to the allowed sources (step 3). |
 | "A trusted HTTPS Redmine URL is required" | Use an `https://` URL without credentials, query or fragment. |
 | "Configure database_cipher_key…" | Set `database_cipher_key` in `config/configuration.yml`, then restart. |
 | A reference is missing in a table | **Refresh source references**; check what the source API key can see. |
 | A local user is missing from the choices | Add them to the project as an active member. |
-| Run stays **Queued**, "already queued or running" | The worker is not running: schedule `redmine_mirror:tick`, or cancel the run in **Synchronization**. |
+| Run stays **Queued**, "already queued or running" | The worker is not running: schedule `redmine_mirror:tick`, or cancel the run in **Overview**. |
 | "HTTP 403 for GET …" | The source account lacks the permission for that request (step 2). |
 | "MIRROR_DESTINATION_URL is not configured" | Set both variables in the worker's environment. |
-| Preview fails on a mapping | Complete the module tabs (steps 6 and 7). |
-| Run fails on a conflict | Step 11. |
+| Preview fails on a mapping | Complete the module tabs with a red counter (steps 7 and 8). |
+| Run reports a conflict | Step 12. |
 | Relations or parents pending | Import the other project, then rerun this one. |
 
 ## Regenerating the screenshots

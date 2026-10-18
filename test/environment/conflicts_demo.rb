@@ -48,6 +48,6 @@ Member.create!(project: project, user: User.find_by!(login: "alice"), roles: [Ro
   end
   originals.each { |id, subject| Issue.find(id).update_columns(subject: "[Mirror conflict demo] #{subject}") }
   File.write("/mirror-data/conflict-demo-#{project.id}.json", JSON.pretty_generate(originals))
-  puts "Demo retained: http://localhost:3102/projects/#{project.identifier}/mirror/settings?tab=conflicts"
+  puts "Demo retained: http://localhost:3102/projects/#{project.identifier}/mirror?tab=conflicts"
   puts "Original subjects: /mirror-data/conflict-demo-#{project.id}.json"
   puts "#{project.mirror_conflicts.where(status: 'open').count} real conflicts, automatic synchronization disabled"

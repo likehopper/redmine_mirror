@@ -18,20 +18,25 @@
 require_relative "../test_helper"
 require File.expand_path("test/application_system_test_case", Dir.pwd)
 class MirrorNavigationTest < ApplicationSystemTestCase
-  fixtures :projects, :users, :roles, :members, :member_roles, :enabled_modules
+  fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules, :trackers, :projects_trackers,
+    :issue_statuses, :enumerations, :versions, :issue_categories, :boards, :repositories, :custom_fields, :workflows
 
-  def test_admin_can_open_mirror_project_tab
+  # Getting started leads from the Mirror menu to the configuration in the project settings.
+  def test_getting_started_leads_to_the_configuration
     Project.find(1).enable_module!(:mirror)
     log_user("admin", "admin")
     visit "/projects/ecookbook/mirror"
-    assert_current_path "/projects/ecookbook/mirror/settings"
-    assert_selector "#mirror-settings-tabs"
-    assert_selector 'input[name="connection[source_url]"]' 
+    assert_selector "#mirror-step-connection.mirror-step-current"
+    within("#mirror-setup") { click_link "Connect the source project" }
+    assert_current_path "/projects/ecookbook/settings/mirror"
+    assert_selector "#tab-mirror.selected"
+    assert_selector 'input[name="connection[source_url]"]'
   end
 end
 
 class MirrorMappingSystemTest < ApplicationSystemTestCase
-  fixtures :projects, :users, :roles, :members, :member_roles, :enabled_modules
+  fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules, :trackers, :projects_trackers,
+    :issue_statuses, :enumerations, :versions, :issue_categories, :boards, :repositories, :custom_fields, :workflows
 
   def test_admin_saves_anonymous_mapping_in_project_module_tab
     project = Project.find(1)
@@ -42,21 +47,22 @@ class MirrorMappingSystemTest < ApplicationSystemTestCase
     setting.source_catalog = { "user" => { "7" => "Remote Alice" } }
     setting.save!
     log_user("admin", "admin")
-    visit "/projects/ecookbook/mirror/settings"
+    visit "/projects/ecookbook/settings/mirror"
     assert_no_text "hidden-system-test-key"
-    find(".tabs a[href*='tab=users']").click
+    find("#mirror-settings-subtabs a[href*='mirror_tab=users']").click
     select "Anonymize", from: "mirror-user-7"
     click_button "Save"
     assert_selector "#flash_notice"
     assert_equal "anonymous", project.mirror_reference_mappings.find_by!(reference_type: "user", source_id: 7).mode
-    visit "/projects/ecookbook/mirror/settings?tab=users"
+    visit "/projects/ecookbook/settings/mirror?mirror_tab=users"
     assert_select_value = find("#mirror-user-7").value
     assert_equal "anonymous", assert_select_value
   end
 end
 
 class MirrorSynchronizationSystemTest < ApplicationSystemTestCase
-  fixtures :projects, :users, :roles, :members, :member_roles, :enabled_modules
+  fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules, :trackers, :projects_trackers,
+    :issue_statuses, :enumerations, :versions, :issue_categories, :boards, :repositories, :custom_fields, :workflows
 
   def test_admin_configures_schedule_and_queues_preview
     project = Project.find(1)
@@ -66,12 +72,14 @@ class MirrorSynchronizationSystemTest < ApplicationSystemTestCase
     setting.api_key = "system-test-api-key"
     setting.save!
     log_user("admin", "admin")
-    visit "/projects/ecookbook/mirror/settings?tab=synchronization"
+    visit "/projects/ecookbook/settings/mirror?mirror_tab=schedule"
     check "schedule-enabled"
     select "Every 15 minutes", from: "schedule-interval"
     click_button "Save"
     assert_selector "#flash_notice"
     assert setting.reload.auto_sync_enabled?
+    click_link "Mirror page"
+    assert_text "every 15 minutes"
     click_button "Run preview"
     assert_text "Queued"
     assert_equal "queued", project.mirror_sync_runs.first!.status
@@ -79,7 +87,8 @@ class MirrorSynchronizationSystemTest < ApplicationSystemTestCase
 end
 
 class MirrorHistorySystemTest < ApplicationSystemTestCase
-  fixtures :projects, :users, :roles, :members, :member_roles, :enabled_modules
+  fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules, :trackers, :projects_trackers,
+    :issue_statuses, :enumerations, :versions, :issue_categories, :boards, :repositories, :custom_fields, :workflows
 
   def test_history_and_log_filters_are_accessible_from_tabs
     project = Project.find(1)
@@ -92,7 +101,7 @@ class MirrorHistorySystemTest < ApplicationSystemTestCase
       { module: "issue_tracking", source_id: 1, action: "create" },
       { module: "time_tracking", source_id: 2, action: "unchanged" }]))
     log_user("admin", "admin")
-    visit "/projects/ecookbook/mirror/settings?tab=history"
+    visit "/projects/ecookbook/mirror?tab=history"
     select "Succeeded", from: "status"
     click_button "Apply"
     # Wait for the filtered navigation before clicking a link from the replacement document.
@@ -109,7 +118,8 @@ class MirrorHistorySystemTest < ApplicationSystemTestCase
 end
 
 class MirrorIssueStateSystemTest < ApplicationSystemTestCase
-  fixtures :projects, :users, :roles, :members, :member_roles, :enabled_modules
+  fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules, :trackers, :projects_trackers,
+    :issue_statuses, :enumerations, :versions, :issue_categories, :boards, :repositories, :custom_fields, :workflows
 
   def test_hierarchy_and_watchers_have_module_tabs_and_user_mapping_link
     project = Project.find(1)
@@ -119,22 +129,22 @@ class MirrorIssueStateSystemTest < ApplicationSystemTestCase
     setting.api_key = "hidden-system-key"
     setting.save!
     log_user("admin", "admin")
-    visit "/projects/ecookbook/mirror/settings"
+    visit "/projects/ecookbook/settings/mirror"
     assert_selector 'input[value="issue_hierarchy"]:checked'
     assert_selector 'input[value="issue_watchers"]:checked'
-    find("#mirror-settings-sections a[href*='tab=users']").click
     within("#mirror-settings-subtabs") { click_link "Issue hierarchy" }
     assert_text "Native Redmine cross-project subtask rules apply"
-    assert_selector "#mirror-pending-parents"
+    assert_selector 'a[href="/projects/ecookbook/mirror?tab=pending"]', text: "Pending links"
     within("#mirror-settings-subtabs") { click_link "Issue watchers" }
     assert_text "Local subscriptions are preserved"
-    assert_selector 'a[href*="tab=users"]'
+    assert_selector 'a[href*="mirror_tab=users"]'
     assert_no_text "hidden-system-key"
   end
 end
 
 class MirrorCustomFieldSystemTest < ApplicationSystemTestCase
-  fixtures :projects, :users, :roles, :members, :member_roles, :enabled_modules
+  fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules, :trackers, :projects_trackers,
+    :issue_statuses, :enumerations, :versions, :issue_categories, :boards, :repositories, :custom_fields, :workflows
 
   def test_admin_maps_field_then_list_values
     project = Project.find(1)
@@ -147,7 +157,7 @@ class MirrorCustomFieldSystemTest < ApplicationSystemTestCase
       "900" => { "field_format" => "list", "multiple" => false, "possible_values" => [{ "value" => "Remote A", "label" => "Remote A" }] } } }
     setting.save!
     log_user("admin", "admin")
-    visit "/projects/ecookbook/mirror/settings?tab=issue_custom_fields"
+    visit "/projects/ecookbook/settings/mirror?mirror_tab=issue_custom_fields"
     select "Local options (##{field.id})", from: "mirror-custom_field-900"
     click_button "Save"
     assert_selector "#flash_notice"
@@ -167,7 +177,8 @@ class MirrorCustomFieldSystemTest < ApplicationSystemTestCase
 end
 
 class MirrorConflictSystemTest < ApplicationSystemTestCase
-  fixtures :projects, :users, :roles, :members, :member_roles, :enabled_modules
+  fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules, :trackers, :projects_trackers,
+    :issue_statuses, :enumerations, :versions, :issue_categories, :boards, :repositories, :custom_fields, :workflows
   def test_admin_can_keep_local_object_and_recheck
     project = Project.find(1)
     project.enable_module!(:mirror)
@@ -178,7 +189,7 @@ class MirrorConflictSystemTest < ApplicationSystemTestCase
     MirrorMapping.create!(project_id: project.id, connection_key: "test", module_key: "issue_tracking", source_id: 99, destination_id: 1, source_fingerprint: "a", destination_fingerprint: "b")
     conflict = project.mirror_conflicts.create!(connection_key: "test", module_key: "issue_tracking", source_id: 99, destination_id: 1, message: "Local modification detected")
     log_user("admin", "admin")
-    visit "/projects/ecookbook/mirror/settings?tab=conflicts"
+    visit "/projects/ecookbook/mirror?tab=conflicts"
     assert_text "Local modification detected"
     accept_confirm { click_button "Keep local object" }
     assert_text "Kept locally"
@@ -191,7 +202,8 @@ class MirrorConflictSystemTest < ApplicationSystemTestCase
 end
 
 class MirrorWrappingTabsSystemTest < ApplicationSystemTestCase
-  fixtures :projects, :users, :roles, :members, :member_roles, :enabled_modules
+  fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules, :trackers, :projects_trackers,
+    :issue_statuses, :enumerations, :versions, :issue_categories, :boards, :repositories, :custom_fields, :workflows
   def test_all_module_tabs_remain_visible_on_narrow_screens
     User.find(1).update_column(:language, "fr")
     project = Project.find(1)
@@ -201,10 +213,10 @@ class MirrorWrappingTabsSystemTest < ApplicationSystemTestCase
     setting.api_key = "hidden-tabs-key"
     setting.save!
     log_user("admin", "admin")
-    visit "/projects/ecookbook/mirror/settings?tab=users"
+    visit "/projects/ecookbook/settings/mirror?mirror_tab=users"
     [800, 1280, 1920].each do |width|
       page.driver.browser.manage.window.resize_to(width, 900)
-      assert_selector "#mirror-settings-subtabs a", count: RedmineMirror::REGISTRY.keys.size + 1
+      assert_selector "#mirror-settings-subtabs a", count: RedmineMirror::REGISTRY.keys.size + 2
       assert page.evaluate_script(<<~JS), "Tabs overflow at width #{width}"
         (() => {
           const group = document.querySelector('#mirror-settings-subtabs').getBoundingClientRect();
@@ -221,7 +233,8 @@ class MirrorWrappingTabsSystemTest < ApplicationSystemTestCase
 end
 
 class MirrorReferenceChoicesSystemTest < ApplicationSystemTestCase
-  fixtures :projects, :users, :roles, :members, :member_roles, :enabled_modules, :trackers, :issue_statuses
+  fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules, :trackers, :projects_trackers,
+    :issue_statuses, :enumerations, :versions, :issue_categories, :boards, :repositories, :custom_fields, :workflows
 
   def setup
     @project = Project.find(1)
@@ -237,13 +250,13 @@ class MirrorReferenceChoicesSystemTest < ApplicationSystemTestCase
   end
 
   def test_connection_shows_the_source_project_identifier
-    visit "/projects/ecookbook/mirror/settings"
+    visit "/projects/ecookbook/settings/mirror"
     assert_equal "legacy-app", find_field("connection[source_project_id]").value
     assert_text "Source project #12"
   end
 
   def test_only_references_used_by_the_source_project_are_listed
-    visit "/projects/ecookbook/mirror/settings?tab=issue_tracking"
+    visit "/projects/ecookbook/settings/mirror?mirror_tab=issue_tracking"
     assert_selector "#mirror-status-1"
     assert_no_selector "#mirror-status-2"
     click_link "Show the 2 references not used by the source project"
@@ -259,7 +272,7 @@ class MirrorReferenceChoicesSystemTest < ApplicationSystemTestCase
       Member.create!(project: @project, principal: user, roles: [role])
       user
     end
-    visit "/projects/ecookbook/mirror/settings?tab=users"
+    visit "/projects/ecookbook/settings/mirror?mirror_tab=users"
     assert_no_selector "#mirror-user-7", visible: true
     find("#mirror-user-7-search").fill_in(with: "Member 11")
     find(".ui-menu-item", text: "Mirror Member 11").click

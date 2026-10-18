@@ -1,0 +1,35 @@
+<%#
+File: redmine_mirror/app/views/mirror/_conflicts.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Render project-scoped Mirror controls and diagnostics using native Redmine helpers.
+%><p><%= l(:text_mirror_conflicts) %></p>
+<%= form_tag project_mirror_path(@project), method: :get do %>
+<%= hidden_field_tag :tab, "conflicts" %>
+<%= select_tag :conflict_status, options_for_select([[l(:label_all), ""]] + %w[open ignored resolved].map { |status| [l("label_mirror_conflict_#{status}"), status] }, params[:conflict_status]) %>
+<%= submit_tag l(:button_apply) %>
+<% end %>
+<table class="list" id="mirror-conflicts"><thead><tr>
+<th><%= l(:label_mirror_modules) %></th><th><%= l(:label_mirror_remote_id) %></th><th><%= l(:label_mirror_local_id) %></th><th><%= l(:field_status) %></th><th><%= l(:label_mirror_reason) %></th><th><%= l(:label_mirror_action) %></th>
+</tr></thead><tbody>
+<% @conflicts.each do |conflict| %>
+<tr><td><%= mirror_module_label(conflict.module_key) %></td><td><%= mirror_object_link(conflict.module_key, conflict.source_id, source_url: @setting.source_url) %></td><td><%= mirror_object_link(conflict.module_key, conflict.destination_id) %></td><td><%= l("label_mirror_conflict_#{conflict.status}") %></td><td><%= conflict.message %></td><td>
+<% if mirror_can_run?(@project) && conflict.status != "ignored" && conflict.destination_id %>
+<%= button_to l(:button_mirror_keep_local), project_mirror_conflict_path(@project, conflict), method: :patch, params: { resolution: "ignore" }, data: { confirm: l(:text_mirror_keep_local_confirm) } %>
+<% end %>
+<%= button_to l(:button_mirror_recheck), project_mirror_conflict_path(@project, conflict), method: :patch, params: { resolution: "recheck" } if mirror_can_run?(@project) %>
+</td></tr>
+<% end %>
+</tbody></table>
+<span class="pagination"><%= pagination_links_full @conflict_pages, @conflict_count %></span>

@@ -32,6 +32,13 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     @request.session[:user_id] = 1
   end
 
+  # User 2 manages the project: without the right to enable modules nor Mirror
+  # permissions, they may not run or configure Mirror.
+  def revoke_member_rights
+    Role.all.each { |role| %i[view_mirror run_mirror manage_mirror select_project_modules].each { |permission| role.remove_permission!(permission) } }
+    @request.session[:user_id] = 2
+  end
+
   def test_manual_apply_is_queued_once
     post :create, params: { project_id: @project.identifier, mode: "apply" }
     run = @project.mirror_sync_runs.first!
@@ -47,7 +54,7 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
   def test_queued_run_can_be_cancelled_but_not_a_running_one
     run = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual")
     patch :cancel, params: { project_id: @project.identifier, id: run.id }
-    assert_redirected_to project_mirror_settings_path(@project, tab: "synchronization")
+    assert_redirected_to project_mirror_path(@project)
     assert_equal "cancelled", run.reload.status
     assert run.finished_at
     # The project is no longer blocked, and a cancelled run is never executed.
@@ -86,7 +93,7 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
 
   def test_unauthorized_member_cannot_cancel
     run = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual")
-    @request.session[:user_id] = 2
+    revoke_member_rights
     patch :cancel, params: { project_id: @project.identifier, id: run.id }
     assert_response :forbidden
     assert_equal "queued", run.reload.status
@@ -111,12 +118,21 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
   end
 
   def test_unauthorized_member_cannot_enqueue_or_schedule
-    @request.session[:user_id] = 2
+    revoke_member_rights
     post :create, params: { project_id: @project.identifier, mode: "apply" }
     assert_response :forbidden
     patch :update, params: { project_id: @project.identifier, schedule: { enabled: "1", interval_minutes: "15" } }
     assert_response :forbidden
     assert_equal 0, MirrorSyncRun.count
+  end
+
+  def test_runner_launches_but_cannot_schedule
+    revoke_member_rights
+    Role.givable.each { |role| role.add_permission!(:run_mirror) }
+    post :create, params: { project_id: @project.identifier, mode: "preview" }
+    assert_equal 1, MirrorSyncRun.count
+    patch :update, params: { project_id: @project.identifier, schedule: { enabled: "1", interval_minutes: "15" } }
+    assert_response :forbidden
   end
 
   def test_run_log_is_project_scoped_and_escaped
@@ -254,7 +270,7 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
 end
 
 class MirrorQueuedRunDisplayTest < ActionController::TestCase
-  tests MirrorSettingsController
+  tests MirrorController
   fixtures :projects, :users, :roles, :members, :member_roles, :enabled_modules
 
   def setup
@@ -272,12 +288,12 @@ class MirrorQueuedRunDisplayTest < ActionController::TestCase
     @project.mirror_sync_runs.create!(apply: false, trigger: "manual", status: "failed",
       started_at: 2.days.ago, finished_at: 2.days.ago)
     queued = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual")
-    get :show, params: { project_id: @project.identifier, tab: "synchronization" }
+    get :index, params: { project_id: @project.identifier }
     assert_select "#mirror-queued-run form[action=?]", "/projects/#{@project.identifier}/mirror/synchronizations/#{queued.id}/cancel"
     assert_select "#mirror-queued-run .warning", count: 0
     assert_select "#mirror-sync-summary", text: /Started\s*—/
     queued.update_columns(created_at: 10.minutes.ago)
-    get :show, params: { project_id: @project.identifier, tab: "synchronization" }
+    get :index, params: { project_id: @project.identifier }
     assert_select "#mirror-queued-run .warning", text: /redmine_mirror:tick/
   end
 end

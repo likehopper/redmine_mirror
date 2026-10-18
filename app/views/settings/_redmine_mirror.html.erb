@@ -1,0 +1,21 @@
+<%#
+File: redmine_mirror/app/views/settings/_redmine_mirror.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Plugin settings: the source Redmine URLs that project managers may connect to.
+%><p>
+  <%= label_tag "settings_allowed_source_urls", l(:label_mirror_allowed_source_urls) %>
+  <%= text_area_tag "settings[allowed_source_urls]", @settings["allowed_source_urls"], rows: 5, cols: 60, id: "settings_allowed_source_urls", placeholder: "https://redmine.example.com" %>
+  <em class="info"><%= l(:text_mirror_allowed_source_urls) %></em>
+</p>

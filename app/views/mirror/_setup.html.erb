@@ -1,0 +1,31 @@
+<%#
+File: redmine_mirror/app/views/mirror/_setup.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Getting started: the steps from connection to the first synchronization, each linked to its page.
+%><div class="box" id="mirror-setup">
+  <h3><%= l(:label_mirror_setup) %></h3>
+  <% current = steps.find { |step| step[1] != :done }&.first %>
+  <ol class="mirror-steps">
+    <% steps.each do |key, state, detail, path| %>
+      <li class="mirror-step mirror-step-<%= state %><%= ' mirror-step-current' if key == current %>" id="mirror-step-<%= key %>">
+        <span class="mirror-step-state"><%= l("label_mirror_step_state_#{state}") %></span>
+        <% allowed = %i[connection references mappings schedule].include?(key) ? mirror_manager?(@project) : mirror_can_run?(@project) %>
+        <strong><%= allowed && key == current ? link_to(l("label_mirror_step_#{key}"), path) : l("label_mirror_step_#{key}") %></strong>
+        <span class="mirror-step-help"><%= l("text_mirror_step_#{key}") %></span>
+        <% if detail %><span class="mirror-step-detail"><%= detail %></span><% end %>
+      </li>
+    <% end %>
+  </ol>
+</div>

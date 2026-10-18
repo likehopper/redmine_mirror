@@ -28,13 +28,23 @@ Redmine::Plugin.register :redmine_mirror do
   description "Modular project synchronization through Redmine REST APIs"
   version RedmineMirror::VERSION
   requires_redmine version_or_higher: "5.0"
+  # The project settings hold the configuration (manage_mirror); the Mirror menu shows
+  # the operations: status and history (view_mirror), launching executions and
+  # resolving conflicts (run_mirror). Configuring includes the other two, and the right
+  # to enable the project's modules includes configuring (RedmineMirror.manager?).
   project_module :mirror do
-    permission :manage_mirror, { mirror_conflicts: [:update], mirror_synchronizations: [:update, :create, :show, :cancel], mirror_settings: [:show, :update_connection, :update_mappings, :refresh] }, require: :member
-    permission :view_mirror, { mirror: [:index] }, require: :member
+    permission :view_mirror, { mirror: [:index], mirror_synchronizations: [:show] }, read: true, require: :member
+    permission :run_mirror, { mirror: [:index], mirror_synchronizations: [:show, :create, :cancel], mirror_conflicts: [:update] }, require: :member
+    permission :manage_mirror, { projects: [:settings], mirror: [:index], mirror_synchronizations: [:show, :create, :cancel, :update],
+      mirror_conflicts: [:update], mirror_settings: [:show, :update_connection, :update_mappings, :refresh] }, require: :member
   end
+  # Administrators list the source Redmine URLs that project managers may connect to.
+  settings default: { "allowed_source_urls" => "" }, partial: "settings/redmine_mirror"
   menu :project_menu, :mirror, { controller: "mirror", action: "index" },
        caption: :label_mirror, param: :project_id
 end
 
 Project.include(RedmineMirror::ProjectPatch) unless Project < RedmineMirror::ProjectPatch
+ProjectsHelper.prepend(RedmineMirror::ProjectsHelperPatch) unless ProjectsHelper < RedmineMirror::ProjectsHelperPatch
+ProjectsController.helper(MirrorHelper)
 Rails.application.config.filter_parameters += [:api_key, :encrypted_api_key]

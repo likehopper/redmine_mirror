@@ -31,6 +31,7 @@ project.trackers = Tracker.all
 manager = Role.find_by!(name: "Manager")
 if role == "destination"
   manager.add_permission!(:view_mirror)
+  manager.add_permission!(:run_mirror)
   manager.add_permission!(:manage_mirror)
 end
 Member.create!(project: project, user: user, roles: [manager])
