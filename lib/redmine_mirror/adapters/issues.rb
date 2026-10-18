@@ -83,11 +83,32 @@ module RedmineMirror
         result.merge("project_id" => project_id)
       end
 
+      # Redmine's REST API refuses a locked assignee and a version that is not open,
+      # although an existing issue keeps both when they are locked or closed later.
+      # Those references are held back from the API write and restored locally.
+      def rest_attributes(payload)
+        held = local_references(payload)
+        held.empty? ? payload : payload.except(*held)
+      end
+
+      def local_references(payload)
+        held = []
+        assignee = payload["assigned_to_id"]
+        held << "assigned_to_id" if assignee.is_a?(Integer) && User.find_by(id: assignee)&.locked?
+        version_id = payload["fixed_version_id"]
+        if version_id.is_a?(Integer)
+          version = Version.find_by(id: version_id)
+          raise Error, "Version ##{version_id} is not shared with the destination project" unless version && Project.find(payload.fetch("project_id")).shared_versions.include?(version)
+          held << "fixed_version_id" unless version.open?
+        end
+        held
+      end
+
       # REST creation uses the API actor and current timestamps. Restore validated
       # historical metadata locally without triggering another journal or notification.
       def restore_metadata(payload, target_id, project_id)
         issue = Issue.where(project_id: project_id).find(target_id)
-        values = payload.slice(*METADATA_FIELDS)
+        values = payload.slice(*METADATA_FIELDS, *local_references(payload))
         values["author_id"] ||= User.anonymous.id if payload.key?("author_id")
         %w[created_on updated_on closed_on].each do |field|
           values[field] = values[field] && Time.iso8601(values[field]) if values.key?(field)

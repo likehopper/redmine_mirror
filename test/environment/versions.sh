@@ -37,8 +37,8 @@ run() {
   "${compose[@]}" exec -T "$@" destination bundle exec rails runner "/mirror-environment/$script.rb" 2>&1 |
     grep -vE '^\s+from |ostruct|Gemfile or gemspec| INFO -- ' | tail -3
 }
-# Fixtures the boot seed does not load, used by issue_state_smoke and custom_fields_smoke.
-for seed in issue_state_seed custom_fields_seed; do
+# Fixtures the boot seed does not load, used by the smokes of the same name.
+for seed in issue_state_seed custom_fields_seed locked_seed wiki_seed; do
   # A seed normally takes seconds, but the Redmine 4.2 source occasionally stalls: bound
   # each attempt and retry once (the seeds are idempotent).
   "${compose[@]}" exec -T source timeout 300 bundle exec rails runner "/mirror-environment/$seed.rb" > /dev/null ||
@@ -53,7 +53,7 @@ fi
 script=ui_smoke run "${key_args[@]}"
 script=ui_smoke run "${key_args[@]}" -e MIRROR_ENABLE_HISTORY=1 -e MIRROR_REFRESH_TEST=1 -e MIRROR_COMPLETE_STATUS_MAPPINGS=1
 failed=0
-for script in smoke synchronization_smoke history_smoke relations_smoke issue_state_smoke custom_fields_smoke conflicts_smoke; do
+for script in smoke synchronization_smoke history_smoke relations_smoke issue_state_smoke custom_fields_smoke conflicts_smoke locked_smoke wiki_smoke; do
   # smoke.rb otherwise assumes identical IDs on both sides; use the UI mappings instead.
   output=$(run -e MIRROR_PROJECT_CONFIG_SMOKE=1) || true
   if grep -q "passed" <<< "$output"; then echo "PASS $script"; else echo "FAIL $script: $output"; failed=1; fi

@@ -30,8 +30,10 @@ module RedmineMirror
         record.fetch("watchers").filter_map do |reference|
           id = Users.new.resolve(mappings, reference.fetch("id"))
           next unless id # Anonymized identities cannot receive notifications.
-          user = User.active.find_by(id: id)
-          raise Error, "Watcher mapping must reference an active user" unless user
+          user = User.find_by(id: id)
+          # Redmine refuses locked watchers, who receive no notification anyway.
+          next if user&.locked?
+          raise Error, "Watcher mapping must reference an active user" unless user&.active?
           raise Error, "Mapped watcher cannot view destination issue" if issue && !issue.visible?(user)
           id
         end.uniq.sort

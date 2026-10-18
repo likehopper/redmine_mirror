@@ -198,7 +198,7 @@ class MirrorCoreTest < Minitest::Test
   end
 
   def test_registry_rejects_unknown_and_duplicate_modules
-    assert_raises(RedmineMirror::Error) { RedmineMirror::REGISTRY.resolve(["wiki"]) }
+    assert_raises(RedmineMirror::Error) { RedmineMirror::REGISTRY.resolve(["unknown_module"]) }
     assert_raises(RedmineMirror::Error) { RedmineMirror::REGISTRY.register(RedmineMirror::Adapters::Issues.new) }
   end
 

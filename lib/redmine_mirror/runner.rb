@@ -92,6 +92,13 @@ module RedmineMirror
             local_url = ENV["MIRROR_DESTINATION_URL"].to_s.sub(%r{/+\z}, "")
             raise Error, "Preserving issue metadata requires the configured local destination" unless @mapping_store.is_a?(DatabaseStore) && !local_url.empty? && config["destination_url"].to_s.sub(%r{/+\z}, "") == local_url
           end
+          # References the REST API refuses (locked users, closed versions) are written
+          # locally after the API call; only a local destination can restore them.
+          rest_payload = adapter.respond_to?(:rest_attributes) && @mapping_store.is_a?(DatabaseStore) ? adapter.rest_attributes(payload) : payload
+          if rest_payload != payload
+            local_url = ENV["MIRROR_DESTINATION_URL"].to_s.sub(%r{/+\z}, "")
+            raise Error, "Locked users and closed versions require the configured local destination" unless !local_url.empty? && config["destination_url"].to_s.sub(%r{/+\z}, "") == local_url
+          end
           mapping = @mapping_store.find(adapter.key, id)
           action = "create"
           if mapping
@@ -109,10 +116,10 @@ module RedmineMirror
           if apply && action != "unchanged"
             if mapping
               # Custom field updates retain their own conflict checks and native validation.
-              @destination_client.update("#{adapter.collection}/#{mapping.fetch('destination_id')}.json", adapter.entity => payload.except("custom_fields"))
+              @destination_client.update("#{adapter.collection}/#{mapping.fetch('destination_id')}.json", adapter.entity => rest_payload.except("custom_fields"))
               destination_record_id = mapping.fetch("destination_id")
             else
-              created = @destination_client.create("#{adapter.collection}.json", adapter.entity => payload)
+              created = @destination_client.create("#{adapter.collection}.json", adapter.entity => rest_payload)
               destination_record_id = created.fetch(adapter.entity).fetch("id")
             end
             adapter.restore_metadata(payload, destination_record_id, destination_project_id) if adapter.respond_to?(:restore_metadata) && @mapping_store.is_a?(DatabaseStore)

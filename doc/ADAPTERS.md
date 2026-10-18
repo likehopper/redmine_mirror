@@ -272,7 +272,7 @@ and no forced overwrite. Your endpoints must not leak private data in notificati
 | Local categories or versions before issues | `Adapters::ProjectReferences` |
 | Historical children with native timestamps | `Adapters::IssueChildren` |
 | A second pass updating existing issues | `Adapters::IssueState` |
-| Custom routes or title-based identity, such as wiki pages | Extend the engine contract first; the numeric-ID example does not support these endpoints |
+| Custom routes or title-based identity, such as wiki pages | A local adapter implementing `synchronize`, with a numeric key derived from the title, as `Adapters::Wiki` does |
 
 Local adapters implement `synchronize` with the arguments `Runner` passes, and return
 an event with `module`, `source_id`, `destination_id` and `action`. They own their conflict

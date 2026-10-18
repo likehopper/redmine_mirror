@@ -16,6 +16,17 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.14 — 2026-10-18
+
+- Locked users can be mapped: authors, history, attachments, assignees and time
+  entries of people who left keep their account. Locked watchers are not subscribed; a
+  user custom field value naming a locked user is skipped with a warning.
+- Issues on a closed or locked version are imported: the version is set locally, as
+  the REST API refuses it. A version not shared with the project now fails the preview.
+- New **Wiki** module: pages with every version (source numbers, authors, comments,
+  dates), parents and attachments, without notifications. A local edit is a conflict;
+  a page renamed on the source is imported as a new page.
+
 ## 1.0.0-beta.13 — 2026-10-18
 
 - Fixed: with a plugin that extends the project settings tabs through `alias_method`
