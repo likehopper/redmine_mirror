@@ -30,6 +30,7 @@ module RedmineMirror
     end
 
     def ignore_allowed?; false; end
+    def ignore_label; :label_mirror_ignore_field; end
 
     def anonymous_allowed?
       key == "user"
@@ -42,10 +43,19 @@ module RedmineMirror
       when "status" then project.rolled_up_statuses.presence || IssueStatus.sorted
       when "priority" then IssuePriority.active.sorted
       when "activity" then project.activities
-      # Locked members keep the history of people who left (authors, past assignees).
-      when "user" then User.where(id: project.memberships.select(:user_id), status: [User::STATUS_ACTIVE, User::STATUS_LOCKED]).sorted
+      when "user" then local_users(project)
       else raise Error, "Unknown mapping table #{key}"
       end
+    end
+
+    # Locked accounts keep the history of people who left (authors, past assignees).
+    # With the Members module, members managers choose among all accounts, as Redmine
+    # offers them when adding a member; others see the members and the users mapped.
+    def local_users(project)
+      users = User.where(status: [User::STATUS_ACTIVE, User::STATUS_LOCKED])
+      return users.sorted if RedmineMirror.members_manager?(project)
+      mapped = project.mirror_reference_mappings.where(reference_type: "user", mode: "existing").select(:destination_id)
+      users.where(id: project.memberships.select(:user_id)).or(users.where(id: mapped)).sorted
     end
 
     def local_path(_id, _project); nil; end

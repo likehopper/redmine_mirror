@@ -94,6 +94,20 @@ class MirrorWikiTest < ActiveSupport::TestCase
     end
   end
 
+  def test_local_edit_is_replaced_by_the_source_versions_when_it_wins
+    sync
+    child = @project.wiki.find_page("Mirror_child")
+    home = @project.wiki.find_page("Mirror_home")
+    home.content.text = "Local edit"
+    home.content.save!
+    RedmineMirror::Policy.with(source_wins: true) { sync }
+    home.reload
+    assert_equal [1, 3], home.content.versions.order(:version).pluck(:version)
+    assert_equal "h1. Home\n\nFinal", home.content.text
+    assert_equal home.id, child.reload.parent_id
+    assert_equal %w[unchanged unchanged], sync.map { |event| event[:action] }
+  end
+
   def test_missing_version_author_mapping_fails_in_preview
     @mappings = { "user" => { "7" => "2" } }
     assert_raises(RedmineMirror::Error) { sync(apply: false) }

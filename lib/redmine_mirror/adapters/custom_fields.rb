@@ -178,14 +178,17 @@ module RedmineMirror
         event = { module: key, source_id: record.fetch("id"), destination_id: local_id, action: "update" }
         return event unless issue
         current = state(issue, desired.keys)
-        raise Error, "Custom field value disappeared or mappings changed; manual resolution required" if store.find(key, record.fetch("id")) && desired.empty? && store.find(key, record.fetch("id")).fetch("source_fingerprint") != digest({})
+        if store.find(key, record.fetch("id")) && desired.empty? && store.find(key, record.fetch("id")).fetch("source_fingerprint") != digest({})
+          Policy.local_change!("Custom field value disappeared or mappings changed; manual resolution required")
+        end
         previous = store.find(key, record.fetch("id"))
         if !previous && current != desired
           defaults = state(Issue.new(project: issue.project, tracker: issue.tracker), desired.keys)
-          raise Error, "Existing local custom field values require manual resolution" unless current == defaults
+          Policy.local_change!("Existing local custom field values require manual resolution") unless current == defaults
         end
         if previous && digest(current) != previous.fetch("destination_fingerprint")
-          raise Error, "Local modification detected for #{key} source ID #{record.fetch('id')}"
+          Policy.local_change!("Local modification detected for #{key} source ID #{record.fetch('id')}")
+          TextFormat.note("local_overwritten")
         end
         event[:action] = current == desired ? "unchanged" : "update"
         issue.custom_field_values = desired

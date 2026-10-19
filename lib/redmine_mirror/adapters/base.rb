@@ -126,6 +126,20 @@ module RedmineMirror
       def destination_attributes(record)
         fields.each_with_object({}) { |field, result| result[field] = record[field] }
       end
+
+      # Mirror mode, for an object the source no longer lists: "deleted" when the source
+      # answers 404 for it, "moved" when it now belongs to another source project,
+      # "hidden" when the source refuses to show it, else "present".
+      def remote_state(client, path, source_project_id: nil)
+        record = client.get(path)
+        return "present" unless source_project_id
+        project = record.values.first.is_a?(Hash) ? record.values.first["project"] : nil
+        project && project["id"].to_i != source_project_id.to_i ? "moved" : "present"
+      rescue Error => error
+        return "deleted" if error.message.include?("HTTP 404")
+        return "hidden" if error.message.include?("HTTP 403")
+        raise
+      end
     end
 
   end

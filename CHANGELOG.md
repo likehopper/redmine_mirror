@@ -16,6 +16,21 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.15 — 2026-10-19
+
+- New **Members** module: adds the source members (users, locked accounts, groups) to
+  existing local accounts and groups, with mapped roles, before issues. Additive; a role
+  Mirror gave and that was removed locally is a conflict. With this module, members
+  managers choose among every account of the destination in the user mappings.
+- New **mirror mode** (*The source wins*, per project): local changes are overwritten,
+  local deletions recreated, and source deletions propagated once the source confirms
+  each object; beyond 10% of a module, deletions wait for a confirmation (migration 013).
+- In every mode, a note or file changed on the source and not locally is updated, instead
+  of blocking the run. A note or file deleted locally is a conflict, no longer an
+  internal error.
+- Text format detection: Textile block signatures (`h1.`, `bc.`, `p.`…) decide over
+  backticks, `## ` lines and pipe tables.
+
 ## 1.0.0-beta.14 — 2026-10-18
 
 - Locked users can be mapped: authors, history, attachments, assignees and time

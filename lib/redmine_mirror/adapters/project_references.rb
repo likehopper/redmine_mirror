@@ -31,11 +31,18 @@ module RedmineMirror
         imported_attributes = attributes(record, mappings)
         row = store.find(key, record.fetch("id"))
         target = row && model.find_by(project_id: project.id, id: row.fetch("destination_id"))
-        raise Error, "Destination #{key} moved or missing" if row && !target
-        if target && digest(local_attributes(target)) != row.fetch("destination_fingerprint")
-          raise Error, "Local modification detected for #{key} source ID #{record.fetch('id')}"
+        if row && !target
+          # Deleted locally: a conflict, or recreated when the source wins.
+          Policy.local_change!("Local modification detected for #{key} source ID #{record.fetch('id')}: the destination object was moved or deleted")
+          TextFormat.note("recreated")
+          row = nil
         end
-        action = row ? (digest(imported_attributes) == row.fetch("source_fingerprint") ? "unchanged" : "update") : "create"
+        local_changed = target && digest(local_attributes(target)) != row.fetch("destination_fingerprint")
+        if local_changed
+          Policy.local_change!("Local modification detected for #{key} source ID #{record.fetch('id')}")
+          TextFormat.note("local_overwritten")
+        end
+        action = row ? (!local_changed && digest(imported_attributes) == row.fetch("source_fingerprint") ? "unchanged" : "update") : "create"
         if action != "unchanged"
           candidate = target || model.new(project: project)
           candidate.assign_attributes(imported_attributes)
@@ -55,6 +62,14 @@ module RedmineMirror
       end
       def digest(value); Digest::SHA256.hexdigest(JSON.generate(value)); end
       def local_attributes(record); record.attributes.slice(*fields); end
+
+      def source_state(client, source_id, _destination_id, source_project_id:, project_id:)
+        remote_state(client, "#{collection}/#{Integer(source_id)}.json")
+      end
+
+      def delete_local(destination_id, project_id)
+        model.where(project_id: project_id).find_by(id: destination_id)&.destroy
+      end
     end
     class Categories < ProjectReferences
       def key; "issue_categories"; end
@@ -98,6 +113,14 @@ module RedmineMirror
       end
       def local_attributes(record)
         super.merge("effective_date" => record.effective_date&.iso8601)
+      end
+
+      # Redmine refuses to delete a version that issues still use.
+      def delete_local(destination_id, project_id)
+        version = model.where(project_id: project_id).find_by(id: destination_id)
+        return unless version
+        raise Error, "Version \"#{version.name}\" deleted on the source is still used locally; it was kept" unless version.deletable?
+        version.destroy
       end
     end
   end

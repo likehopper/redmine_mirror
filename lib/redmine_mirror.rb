@@ -19,7 +19,7 @@
 # lives here, not in lib/redmine_mirror/version.rb: Zeitwerk would require that file to
 # define RedmineMirror::Version, which would hide Redmine's Version model in this namespace.
 module RedmineMirror
-  VERSION = "1.0.0-beta.14"
+  VERSION = "1.0.0-beta.15"
   # Contract between Mirror and external adapters. Increase only on incompatible
   # changes to Adapters::Base, MappingTable or the registration rules.
   ADAPTER_API_VERSION = 1
@@ -37,6 +37,7 @@ require File.join(File.dirname(__FILE__), "redmine_mirror/source_catalog")
 require File.join(File.dirname(__FILE__), "redmine_mirror/project_patch")
 require File.join(File.dirname(__FILE__), "redmine_mirror/projects_helper_patch")
 require File.join(File.dirname(__FILE__), "redmine_mirror/authorization")
+require File.join(File.dirname(__FILE__), "redmine_mirror/policy")
 require File.join(File.dirname(__FILE__), "redmine_mirror/runner")
 require File.join(File.dirname(__FILE__), "redmine_mirror/database_store")
 require File.join(File.dirname(__FILE__), "redmine_mirror/synchronization")
@@ -57,6 +58,12 @@ module RedmineMirror
   def self.manager?(project, user = User.current)
     return false unless project&.module_enabled?(:mirror)
     user.allowed_to?(:manage_mirror, project) || user.allowed_to?(:select_project_modules, project)
+  end
+
+  # Choosing any account of the instance in the user mappings, for the Members module.
+  def self.members_manager?(project, user = User.current)
+    return false unless project&.mirror_project_setting&.selected_modules.to_a.include?("project_members")
+    user.admin? || user.allowed_to?(:manage_members, project)
   end
 
   # Launching executions and resolving conflicts; configuring includes it.
@@ -82,4 +89,5 @@ module RedmineMirror
   REGISTRY.register(Adapters::Watchers.new)
   REGISTRY.register(Adapters::CustomFields.new)
   REGISTRY.register(Adapters::Wiki.new)
+  REGISTRY.register(Adapters::Members.new)
 end

@@ -40,6 +40,21 @@ module RedmineMirror
           "created_on" => attachment.created_on.utc.iso8601, "sha256" => Digest::SHA256.file(attachment.diskfile).hexdigest)
       end
 
+      # A file cannot be edited in place: the local one is replaced.
+      def overwrite(attachment, record, attributes, issue, source)
+        attachment.destroy
+        import(record, attributes, issue, source)
+      end
+
+      def source_state(client, source_id, _destination_id, source_project_id:, project_id:)
+        remote_state(client, "attachments/#{Integer(source_id)}.json")
+      end
+
+      def delete_local(destination_id, project_id)
+        attachment = Attachment.find_by(id: destination_id)
+        attachment.destroy if attachment && attachment.project&.id == project_id
+      end
+
       def import(record, attributes, issue, source)
         # The destination's own limit (Administration > Files) is the one that matters.
         limit = Setting.attachment_max_size.to_i * 1024

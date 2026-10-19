@@ -37,10 +37,12 @@ module RedmineMirror
         return event unless issue
         previous = store.find(key, record.fetch("id"))
         current = local_state(issue)
-        if previous
-          raise Error, "Local modification detected for #{key} source ID #{record.fetch('id')}" unless digest(current) == previous.fetch("destination_fingerprint")
-        elsif !accept_existing_state? && current != empty_state && current != desired
-          raise Error, "Existing local #{key} requires manual resolution"
+        if previous && digest(current) != previous.fetch("destination_fingerprint")
+          Policy.local_change!("Local modification detected for #{key} source ID #{record.fetch('id')}")
+          TextFormat.note("local_overwritten")
+        elsif !previous && !accept_existing_state? && current != empty_state && current != desired
+          Policy.local_change!("Existing local #{key} requires manual resolution")
+          TextFormat.note("local_overwritten")
         end
         validate_state(issue, desired) unless current == desired || desired.to_s.start_with?("planned:")
         event[:action] = current == desired ? "unchanged" : "update"

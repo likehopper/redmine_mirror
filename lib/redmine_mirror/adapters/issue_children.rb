@@ -34,8 +34,9 @@ module RedmineMirror
         end
       end
 
-      # History is append-only here: both local edits and changed remote history
-      # require manual resolution. Native writes and their mappings share a transaction.
+      # A source change (an edited note, a converted text) updates the local object when
+      # it was not edited locally. A local edit or deletion is a conflict, or overwritten
+      # and recreated when the source wins. Native writes and mappings share a transaction.
       def synchronize(record, project_id:, mappings:, lookup:, store:, source:, apply:)
         raise Error, "Historical adapters require a local Redmine destination" unless defined?(Issue) && defined?(MirrorMapping)
         issue_id = lookup.call("issue_tracking", record.fetch("issue_id"))
@@ -49,15 +50,28 @@ module RedmineMirror
         mapping = store.find(key, record.fetch("id"))
         action = "create"
         if mapping
-          target = find_target(mapping.fetch("destination_id"), issue)
-          raise Error, "Local modification detected for #{key} source ID #{record.fetch('id')}" unless digest(local_attributes(target)) == mapping.fetch("destination_fingerprint")
-          raise Error, "Modified source history requires manual resolution for #{key} source ID #{record.fetch('id')}" unless fingerprint == mapping.fetch("source_fingerprint")
-          action = "unchanged"
+          target = begin
+            issue && find_target(mapping.fetch("destination_id"), issue)
+          rescue ActiveRecord::RecordNotFound
+            nil
+          end
+          if target.nil?
+            Policy.local_change!("Local modification detected for #{key} source ID #{record.fetch('id')}: the destination object was deleted")
+            TextFormat.note("recreated")
+            mapping = nil
+          else
+            local_changed = digest(local_attributes(target)) != mapping.fetch("destination_fingerprint")
+            if local_changed
+              Policy.local_change!("Local modification detected for #{key} source ID #{record.fetch('id')}")
+              TextFormat.note("local_overwritten")
+            end
+            action = local_changed || fingerprint != mapping.fetch("source_fingerprint") ? "update" : "unchanged"
+          end
         end
         target_id = mapping && mapping.fetch("destination_id")
-        if apply && !mapping
+        if apply && action != "unchanged"
           MirrorMapping.transaction do
-            target = import(record, attributes, issue, source)
+            target = action == "update" ? overwrite(target, record, attributes, issue, source) : import(record, attributes, issue, source)
             target_id = target.id
             store.save(key, record.fetch("id"), "destination_id" => target_id,
               "source_fingerprint" => fingerprint, "destination_fingerprint" => digest(local_attributes(target)))

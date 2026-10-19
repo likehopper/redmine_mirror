@@ -82,6 +82,81 @@ class MirrorCoreTest < Minitest::Test
     @runner = RedmineMirror::Runner.new(source: @source, destination: @destination, store: @store)
   end
 
+  # Mirror mode doubles: the API answers 404 for a missing object, the store lists and
+  # deletes correspondences, and the issues adapter records local deletions.
+  class MirrorApi < Api
+    attr_accessor :hidden
+    def each_record(collection, params); super.reject { |record| Array(hidden).include?(record["id"]) }.each; end
+    def get(path, params = {})
+      result = super
+      raise RedmineMirror::Error, "Redmine API returned HTTP 404 for GET #{path}" if result.values.first.nil?
+      result
+    end
+  end
+
+  class MirrorStore < Store
+    def mappings(key); rows.filter_map { |(module_key, id), row| [id, row.fetch("destination_id")] if module_key == key }; end
+    def delete(key, id); rows.delete([key, id]); end
+  end
+
+  class MirrorIssues < RedmineMirror::Adapters::Issues
+    def deleted; @deleted ||= []; end
+    def delete_local(destination_id, _project_id); deleted << destination_id; end
+  end
+
+  def mirror_runner(count)
+    issues = (1..count).map { |id| @issue.merge("id" => id, "subject" => "Issue #{id}") }
+    @source = MirrorApi.new("issues" => issues)
+    @destination = MirrorApi.new
+    @store = MirrorStore.new
+    registry = RedmineMirror::Registry.new
+    registry.register(RedmineMirror::Adapters::Users.new)
+    registry.register(@issues = MirrorIssues.new)
+    @config = @config.merge("modules" => ["issue_tracking"], "on_error" => "collect")
+    RedmineMirror::Runner.new(source: @source, destination: @destination, store: @store, registry: registry)
+  end
+
+  def test_source_wins_overwrites_local_changes_and_recreates_deletions
+    runner = mirror_runner(1)
+    runner.run(@config, apply: true)
+    @destination.records["issues"].first["subject"] = "Local edit"
+    assert_match(/Local modification/, runner.run(@config, apply: true).first[:reason])
+    event = runner.run(@config.merge("source_wins" => true), apply: true).first
+    assert_equal ["update", ["local_overwritten"]], [event[:action], event[:flags]]
+    assert_equal "Issue 1", @destination.records["issues"].first["subject"]
+    @destination.records["issues"].clear
+    event = runner.run(@config.merge("source_wins" => true), apply: true).first
+    assert_equal ["create", ["recreated"]], [event[:action], event[:flags]]
+    assert_equal 1, @destination.records["issues"].size
+  end
+
+  def test_source_deletions_are_verified_limited_and_confirmed
+    runner = mirror_runner(30)
+    config = @config.merge("source_wins" => true)
+    runner.run(config, apply: true)
+    # Missing from the list but still on the source: kept.
+    @source.hidden = [1]
+    assert_equal ["ignored"], runner.run(config, apply: true).reject { |event| event[:action] == "unchanged" }.map { |event| event[:action] }
+    @source.hidden = []
+    # Up to 10% of the module (at least 2) is deleted without confirmation.
+    @source.records["issues"].reject! { |issue| [2, 3].include?(issue["id"]) }
+    events = runner.run(config, apply: true).select { |event| event[:action] == "delete" }
+    assert_equal [2, 3], events.map { |event| event[:source_id] }.sort
+    assert_equal 2, @issues.deleted.size
+    assert_nil @store.find("issue_tracking", 2)
+    # Beyond the limit, nothing is deleted until a run confirms it.
+    @source.records["issues"].reject! { |issue| issue["id"].between?(4, 10) }
+    blocked = runner.run(config, apply: true).select { |event| event[:reason].to_s.start_with?("Deletion awaits confirmation") }
+    assert_equal 7, blocked.size
+    assert_equal 2, @issues.deleted.size
+    assert_equal 7, runner.run(config.merge("confirm_deletions" => true), apply: true).count { |event| event[:action] == "delete" }
+    assert_equal 9, @issues.deleted.size
+    # The preview lists deletions without deleting.
+    @source.records["issues"].reject! { |issue| issue["id"] == 11 }
+    assert_equal [11], runner.run(config).select { |event| event[:action] == "delete" }.map { |event| event[:source_id] }
+    assert_equal 9, @issues.deleted.size
+  end
+
   def test_preview_resolves_dependencies_without_writes
     result = @runner.run(@config)
     assert_equal %w[issue_tracking time_tracking], result.map { |item| item[:module] }
@@ -304,6 +379,11 @@ class MirrorCoreTest < Minitest::Test
     assert_equal "markdown", detect.call("## Notes\n\n**Bold** and `code` with [a link](https://x.org)")
     assert_equal "html", detect.call("<p>New <strong>HTML</strong> note</p>")
     assert_equal "textile", detect.call("p(. Indented paragraph")
+    # Textile headings decide over backticks, "## " lines, links and pipe tables.
+    mixed = "h1. Introduction\n\nTable `paysbdv_v2`.\n\n## first\n## second\n\n[doc](https://x.org)\n\n| a | b |\n|---|---|\n"
+    assert_equal "textile", detect.call(mixed)
+    # Except in Markdown that quotes Textile in a fenced block.
+    assert_equal "markdown", detect.call("## Title\n\n```\nh1. Quoted Textile\n```\n")
     assert_nil detect.call("Just a sentence with *emphasis*.")
     assert_nil detect.call("  ")
   end

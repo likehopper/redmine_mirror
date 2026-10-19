@@ -18,7 +18,7 @@ Document Mirror setup, operation, extension points or validation evidence.
 
 # <img src="assets/images/synchronisation-des-donnees-64.png" width="64" height="64" alt=""> Redmine Mirror
 
-![Version](https://img.shields.io/badge/Version-1.0.0--beta.14-orange)
+![Version](https://img.shields.io/badge/Version-1.0.0--beta.15-orange)
 ![Destination tested](https://img.shields.io/badge/Destination_tested-5.1_%7C_6.1-blue)
 ![Source tested](https://img.shields.io/badge/Source_tested-4.2_%7C_5.0_%7C_6.1-blue)
 ![Database tested](https://img.shields.io/badge/Database_tested-SQLite_3-blue)
@@ -32,7 +32,7 @@ existing destination project, through the destination REST API and native models
 
 Use it to migrate projects to a new instance, or to keep a regularly updated secondary
 copy. Each project has its own connection, mappings, schedule, history and conflicts.
-Version **1.0.0-beta.14** is a pre-release for testing before 1.0.0, not a stable release.
+Version **1.0.0-beta.15** is a pre-release for testing before 1.0.0, not a stable release.
 
 ## Features
 
@@ -49,10 +49,13 @@ Version **1.0.0-beta.14** is a pre-release for testing before 1.0.0, not a stabl
 | Issue custom fields | Existing compatible local fields, list value mappings, history |
 | Users | Identity mappings and anonymization; no account is created |
 | Wiki | Pages with every version, authors, dates, parents and attachments |
+| Members | Users, locked accounts and groups with mapped roles; additive |
 
 - Preview before writing, manual runs and automatic schedules.
 - Logs with remote and local IDs, links, filters and progress.
-- Local changes detected as conflicts, never overwritten.
+- Local changes detected as conflicts, or overwritten in mirror mode, which also
+  recreates local deletions and propagates source deletions, checked one by one and
+  limited per run.
 - Pending cross-project relations and parents listed for follow-up.
 - Source API keys encrypted, never displayed or logged.
 - Text formats converted to the destination's: Textile or Markdown to HTML for CKEditor,
@@ -143,14 +146,15 @@ Without correspondences, a new import would duplicate them.
 
 Mirror keeps a secondary copy of the selected modules the source API key can read.
 **It is not a backup**: keep normal database and file backups. It does not copy instance
-configuration, accounts, roles or hidden data, and does not propagate deletions.
+configuration, accounts, roles or hidden data. Deletions are propagated in mirror mode
+only.
 
 - Project files and SLA modules are not implemented yet. Reporting settings and
   credit policies come with redmine_reporting when it is installed on the destination.
 - Some historical change types are not supported and fail explicitly.
 - Destination workflows and validations apply: a preview cannot guarantee every write.
-- Runs are not atomic across API calls; there is no automatic retry, merge or forced
-  overwrite. After a crash, inspect the destination before rerunning.
+- Runs are not atomic across API calls; there is no automatic retry or merge. After a
+  crash, inspect the destination before rerunning.
 
 Details in the [module reference](doc/MODULES.md#limits).
 

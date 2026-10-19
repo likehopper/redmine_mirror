@@ -25,7 +25,10 @@ module RedmineMirror
     # may persist a conflict diagnostic, but it never writes imported Redmine objects.
     def run(config, apply: false, track_relation_blocks: false, &block)
       # Texts are converted to the destination format for the whole run (TextFormat).
-      TextFormat.with(config["text_format"]) { run_modules(config, apply: apply, track_relation_blocks: track_relation_blocks, &block) }
+      # The source wins in mirror mode (Policy), for every adapter of the run.
+      Policy.with(source_wins: config["source_wins"]) do
+        TextFormat.with(config["text_format"]) { run_modules(config, apply: apply, track_relation_blocks: track_relation_blocks, &block) }
+      end
     end
 
     def run_modules(config, apply: false, track_relation_blocks: false)
@@ -102,14 +105,31 @@ module RedmineMirror
           mapping = @mapping_store.find(adapter.key, id)
           action = "create"
           if mapping
-            current = adapter.read(@destination_client, mapping.fetch("destination_id"))
-            raise Error, "Destination record moved to another project" unless current.fetch("project").fetch("id").to_i == destination_project_id
-            fingerprint = digest(adapter.destination_attributes(current))
-            # Existing issue mappings predate metadata tracking; validate their old fields first.
-            legacy_fingerprint = adapter.is_a?(Adapters::Issues) ? digest(adapter.destination_attributes(current).reject { |field, _| (Adapters::Issues::METADATA_FIELDS + %w[category_id fixed_version_id]).include?(field) }) : nil
-            reference_legacy = adapter.is_a?(Adapters::Issues) ? digest(adapter.destination_attributes(current).reject { |field, _| %w[category_id fixed_version_id].include?(field) }) : nil
-            raise Error, "Local modification detected for #{adapter.key} source ID #{id}" unless [fingerprint, legacy_fingerprint, reference_legacy].compact.include?(mapping.fetch("destination_fingerprint"))
-            action = mapping.fetch("source_fingerprint") == digest(payload) ? "unchanged" : "update"
+            current = begin
+              adapter.read(@destination_client, mapping.fetch("destination_id"))
+            rescue Error => error
+              raise unless error.message.include?("HTTP 404")
+              nil
+            end
+            if current.nil?
+              # Deleted locally: a conflict, or recreated when the source wins.
+              Policy.local_change!("Local modification detected for #{adapter.key} source ID #{id}: the destination object was deleted")
+              TextFormat.note("recreated")
+              mapping = nil
+            else
+              local_changed = current.fetch("project").fetch("id").to_i != destination_project_id
+              Policy.local_change!("Destination record moved to another project") if local_changed
+              fingerprint = digest(adapter.destination_attributes(current))
+              # Existing issue mappings predate metadata tracking; validate their old fields first.
+              legacy_fingerprint = adapter.is_a?(Adapters::Issues) ? digest(adapter.destination_attributes(current).reject { |field, _| (Adapters::Issues::METADATA_FIELDS + %w[category_id fixed_version_id]).include?(field) }) : nil
+              reference_legacy = adapter.is_a?(Adapters::Issues) ? digest(adapter.destination_attributes(current).reject { |field, _| %w[category_id fixed_version_id].include?(field) }) : nil
+              unless [fingerprint, legacy_fingerprint, reference_legacy].compact.include?(mapping.fetch("destination_fingerprint"))
+                Policy.local_change!("Local modification detected for #{adapter.key} source ID #{id}")
+                local_changed = true
+              end
+              TextFormat.note("local_overwritten") if local_changed
+              action = !local_changed && mapping.fetch("source_fingerprint") == digest(payload) ? "unchanged" : "update"
+            end
           end
           # API writes and correspondence persistence are not one transaction.
           # A lost response must be inspected before retrying a creation.
@@ -146,8 +166,9 @@ module RedmineMirror
           yield event if block_given?
         end
       end
+      seen = {}
       adapters.each do |adapter|
-        seen_source_ids = []
+        seen_source_ids = seen[adapter.key] = []
         adapter.records(@source_client, source_project_id).each do |record|
           # APIs may include descendants; never import another project's records.
           next unless record.fetch("project").fetch("id").to_i == source_project_id
@@ -162,10 +183,70 @@ module RedmineMirror
       end
       # The cited issues are imported now: rewrite those references to local numbers.
       deferred.each { |adapter, record| process.call(adapter, record) }
+      if config["source_wins"] && @mapping_store.respond_to?(:mappings)
+        propagate_deletions(adapters, seen, config, source_project_id, destination_project_id, apply) do |event|
+          results << event
+          yield event if block_given?
+        end
+      end
       results
     end
 
+    # Share of a module's objects a run may delete without an explicit confirmation.
+    DELETION_LIMIT = 0.1
+
+    # Mirror mode: an object imported earlier and no longer listed by the source is
+    # deleted locally only when the source confirms it for that very object (HTTP 404),
+    # never because a list missed it. Children come before their parents. Beyond the
+    # limit, nothing is deleted until a run confirms the deletions.
+    def propagate_deletions(adapters, seen, config, source_project_id, project_id, apply)
+      plans = adapters.reverse.filter_map do |adapter|
+        next unless adapter.respond_to?(:source_state)
+        known = @mapping_store.mappings(adapter.key)
+        listed = seen.fetch(adapter.key, [])
+        candidates = known.reject { |source_id, _| listed.include?(source_id) }.filter_map do |source_id, destination_id|
+          state = adapter.source_state(@source_client, source_id, destination_id, source_project_id: source_project_id, project_id: project_id)
+          next [source_id, destination_id] if state == "deleted"
+          yield({ module: adapter.key, source_id: source_id, destination_id: destination_id, action: "ignored", reason: "Not listed by the source but #{state}; kept" })
+          nil
+        rescue Error => error
+          raise unless %w[collect skip].include?(config["on_error"])
+          yield({ module: adapter.key, source_id: source_id, destination_id: destination_id, action: "error", reason: error.message })
+          nil
+        end
+        [adapter, candidates, [(known.size * DELETION_LIMIT).floor, 2].max]
+      end
+      blocked = !config["confirm_deletions"] && plans.any? { |_, candidates, limit| candidates.size > limit }
+      plans.each do |adapter, candidates, limit|
+        candidates.each do |source_id, destination_id|
+          event = { module: adapter.key, source_id: source_id, destination_id: destination_id, action: "delete" }
+          if blocked
+            yield event.merge(action: "error", reason: "Deletion awaits confirmation: #{candidates.size} #{adapter.key} object(s) deleted on the source, more than the limit of #{limit}")
+            next
+          end
+          begin
+            if apply
+              transaction do
+                adapter.delete_local(destination_id, project_id)
+                @mapping_store.delete(adapter.key, source_id)
+              end
+            end
+            yield event
+          rescue Error => error
+            raise unless %w[collect skip].include?(config["on_error"])
+            yield event.merge(action: "error", reason: error.message)
+          end
+        end
+      end
+    end
+
     private
+
+    # A local deletion and its correspondence go together; outside Redmine (standalone
+    # tests) there is no database transaction.
+    def transaction(&block)
+      defined?(::MirrorMapping) ? ::MirrorMapping.transaction(&block) : yield
+    end
 
     # Attach the special cases met while processing the record (execution log review).
     def flag(event)

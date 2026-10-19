@@ -28,6 +28,10 @@ module RedmineMirror
       /^h[1-6][<>=()]*\.\s/, /^(?:bq|bc|pre|p|fn\d+)[<>=()]*\.\s/, /"[^"\n]+":(?:https?:|\/|#)/,
       /(?:^|\s)![^!\s][^!\n]*![:\s.,]?/, /^\|_\./, /(?:^|\s)@[^@\s][^@\n]*@(?=\s|$|[.,;:])/, /^\*{1,3}\s\S/, /^#+\s.*$\n^#+\s/
     ].freeze
+    # Block signatures no Markdown formatter produces. A text written with them is
+    # Textile even when it also holds backticks, "## " lines (nested Textile lists) or
+    # pipe tables, which Textile authors type too and the source shows as written.
+    TEXTILE_BLOCKS = /^(?:h[1-6]|bc|bq|pre|p|fn\d+)[<>=()]*\.\s|^\|_\./
     # Only constructs Textile lacks: "- item" lists, "> " quotes and **bold** are common
     # in Textile and plain text too, and must not tip a text towards Markdown.
     MARKDOWN = [
@@ -41,6 +45,7 @@ module RedmineMirror
     def detect(text)
       return nil if text.nil? || text.strip.empty?
       return "html" if text.match?(HTML)
+      return "textile" if text.match?(TEXTILE_BLOCKS) && !text.match?(/^```/)
       textile = TEXTILE.count { |pattern| text.match?(pattern) }
       markdown = MARKDOWN.count { |pattern| text.match?(pattern) }
       return nil if textile == markdown
