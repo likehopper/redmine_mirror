@@ -95,9 +95,26 @@ module MirrorHelper
 
   # Local record with the same name as an unmapped source reference, preselected in the
   # mapping form for the user to check and save.
+  # "Name (#id) — login · email · company": the choice lists search all of them. Redmine's
+  # rules apply: login for administrators, a hidden email for administrators only, the
+  # company field when visible to the current user.
+  def mirror_user_label(user, company = RedmineMirror.user_company_field)
+    details = []
+    details << user.login if User.current.admin? && user.login.present?
+    details << user.mail if user.mail.present? && (User.current.admin? || !user.pref.hide_mail)
+    if company && company.visible_by?(nil, User.current)
+      value = user.custom_field_value(company)
+      details << value if value.present?
+    end
+    label = "#{user.name} (##{user.id})"
+    label += " — #{details.join(' · ')}" if details.any?
+    label += " - #{l(:status_locked)}" if user.locked?
+    label
+  end
+
   def mirror_name_suggestion(choices, name)
     return nil if name.blank?
-    matches = choices.select { |label, value| value.match?(/\A\d+\z/) && label.sub(/ \(#\d+\)( - .*)?\z/, "").casecmp?(name.to_s.strip) }
+    matches = choices.select { |label, value| value.match?(/\A\d+\z/) && label.sub(/ \(#\d+\)(?: .*)?\z/, "").casecmp?(name.to_s.strip) }
     matches.one? ? matches.first.last : nil
   end
   # Name of a Redmine text formatting, as in the administration settings.

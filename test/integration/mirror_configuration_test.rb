@@ -53,6 +53,19 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     assert_select "a[href='/projects/ecookbook/mirror']", text: "Mirror page"
   end
 
+  # Local users show their login, email and company, and the search covers them.
+  def test_user_choices_show_login_email_and_company
+    company = UserCustomField.create!(name: "Company", field_format: "string", visible: true)
+    User.find(2).update!(custom_field_values: { company.id.to_s => "Acme" })
+    log_user("admin", "admin")
+    settings("users")
+    assert_select "#mirror-table-user option", text: "John Smith (#2) — jsmith · jsmith@somenet.foo · Acme"
+    with_settings plugin_redmine_mirror: { "user_company_field_id" => "none" } do
+      settings("users")
+      assert_select "#mirror-table-user option", text: "John Smith (#2) — jsmith · jsmith@somenet.foo"
+    end
+  end
+
   # A source reference with a single local namesake is preselected, not saved.
   def test_module_tab_preselects_namesakes_and_shows_only_its_tables
     log_user("admin", "admin")

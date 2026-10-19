@@ -39,7 +39,7 @@ Redmine::Plugin.register :redmine_mirror do
       mirror_conflicts: [:update], mirror_settings: [:show, :update_connection, :update_mappings, :refresh] }, require: :member
   end
   # Administrators list the source Redmine URLs that project managers may connect to.
-  settings default: { "allowed_source_urls" => "" }, partial: "settings/redmine_mirror"
+  settings default: { "allowed_source_urls" => "", "user_company_field_id" => "" }, partial: "settings/redmine_mirror"
   menu :project_menu, :mirror, { controller: "mirror", action: "index" },
        caption: :label_mirror, param: :project_id
 end

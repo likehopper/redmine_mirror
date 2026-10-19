@@ -16,6 +16,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.16 — 2026-10-19
+
+- User mappings show the login, email and company of each local account, and the list
+  search covers them. The company is a user custom field chosen in the plugin settings
+  (by default Company, Société or Entreprise). Redmine's visibility rules apply: login
+  for administrators, hidden emails for administrators only.
+
 ## 1.0.0-beta.15 — 2026-10-19
 
 - New **Members** module: adds the source members (users, locked accounts, groups) to

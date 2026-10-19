@@ -272,3 +272,13 @@ attend la fin de l'exécution, que le worker de l'environnement peut prendre en 
 `versions.sh` source 4.2.10 → destinations 5.1.13 et 6.1.4 : onze smokes d'écriture
 réussis chacun ; sur une source 4.2, la modification d'une note par l'API (Redmine 5.0+)
 est sautée.
+
+1.0.0-beta.16 (19 octobre 2026) : correspondances d'utilisateurs avec identifiant,
+email et société (champ personnalisé utilisateur choisi dans la configuration du plugin,
+par défaut Company, Société ou Entreprise), recherche sur ces champs, règles de
+visibilité de Redmine. Runner CI : 141 tests Redmine / 637 assertions. Parcours de
+documentation : 15 étapes / 85 assertions, captures régénérées ; une première exécution
+avait échoué à l'import (clic pendant le rechargement automatique de la page), la
+seconde a réussi sans changement. `ui_smoke.rb` et le parcours retrouvent les
+utilisateurs malgré le libellé enrichi. `versions.sh` source 4.2.10 → destination
+5.1.13 : onze smokes d'écriture réussis.

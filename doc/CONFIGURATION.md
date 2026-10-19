@@ -75,7 +75,8 @@ format compatibility checks and the complete lists of possible values.
 
 `Administration → Plugins → Redmine Mirror → Configure`: list the source Redmine URLs,
 one per line. Project members can connect only to these sources; administrators can
-enter any URL.
+enter any URL. **User company field** picks the user custom field shown as the company
+in the user mappings (by default, a field named Company, Société or Entreprise).
 
 ![Allowed sources](screenshots/configuration/03-allowed-sources.png)
 
@@ -139,7 +140,9 @@ A red counter on a module tab gives the number of references it still has to map
 
 **Users** lists the users found in the source data. Map each one to a member of the
 project, locked accounts of people who left included, or **Anonymize** them. With the
-**Members** module, members managers can choose any account of this Redmine. Time
+**Members** module, members managers can choose any account of this Redmine. Each local
+account shows its login (to administrators), email (unless hidden, except to
+administrators) and company; typing in the list searches all of them. Time
 logged by an anonymized user goes to the **local user for anonymized time**: here the
 source administrator is anonymized and a dedicated *Mirror Archive* member receives
 that time.
