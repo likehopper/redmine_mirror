@@ -116,6 +116,15 @@ module RedmineMirror
         issue.update_columns(values)
       end
 
+      def source_state(client, source_id, _destination_id, source_project_id:, project_id:)
+        remote_state(client, "issues/#{Integer(source_id)}.json", source_project_id: source_project_id)
+      end
+
+      # Redmine also deletes the issue's history, files, time entries, relations and subtasks.
+      def delete_local(destination_id, project_id)
+        Issue.where(project_id: project_id).find_by(id: destination_id)&.destroy
+      end
+
       def destination_attributes(record)
         result = super
         %w[tracker status priority assigned_to author category fixed_version].each do |kind|

@@ -25,6 +25,10 @@ Automatic synchronization schedule and the behaviour when an object fails.
     <p><%= label_tag "schedule-on-error", l(:label_mirror_on_error) %>
       <%= select_tag "schedule[on_error]", options_for_select(MirrorProjectSetting::ON_ERROR.map { |mode| [l("label_mirror_on_error_#{mode}"), mode] }, @setting.on_error), id: "schedule-on-error" %>
       <em class="info"><%= l(:text_mirror_on_error) %></em></p>
+    <p><%= label_tag "schedule-source-wins", l(:label_mirror_source_wins) %>
+      <%= hidden_field_tag "schedule[source_wins]", "0" %>
+      <%= check_box_tag "schedule[source_wins]", "1", @setting.source_wins?, id: "schedule-source-wins" %>
+      <em class="info"><%= l(:text_mirror_source_wins) %></em></p>
     <p><label><%= l(:label_mirror_next_sync) %></label><%= @setting.next_sync_at ? format_time(@setting.next_sync_at) : "—" %></p>
   </div>
   <%= submit_tag l(:button_save) %>

@@ -257,3 +257,18 @@ moteur 32 / 112. Environnement à deux instances 6.1.4 : onze smokes réussis, d
 6.1.4 et source 4.2.10 → destination 5.1.13 : neuf smokes d'écriture réussis chacun.
 Après le redémarrage de la source ou de la destination, la passerelle nginx gardait leur
 ancienne adresse (HTTP 401, échecs Chromium) : redémarrer aussi `gateway`.
+
+1.0.0-beta.15 (19 octobre 2026) : module Membres, mode miroir (« La source fait foi »,
+migration 013) et détection du Textile. Sur la préprod, le wiki du projet
+`vygon-tma-sites-internet-mirror` s'affichait en Textile brut : le format source
+« Auto » avait calculé un format dominant Markdown, et 382 descriptions sur 383 et
+1863 notes sur 1865 avaient été lues en Markdown (mesure en lecture seule). La source
+étant en Textile, le format source doit y être réglé sur Textile ; une note convertie
+différemment est désormais mise à jour sur place. Nouveaux smokes `members_smoke.rb`
+(avec `members_seed.rb`) et `mirror_mode_smoke.rb`, ajoutés à `versions.sh`.
+Runner CI : 140 tests Redmine / 630 assertions, moteur 34 / 130. Environnement à deux
+instances 6.1.4 : douze smokes réussis, `mirror_mode_smoke.rb` deux fois de suite (il
+attend la fin de l'exécution, que le worker de l'environnement peut prendre en premier).
+`versions.sh` source 4.2.10 → destinations 5.1.13 et 6.1.4 : onze smokes d'écriture
+réussis chacun ; sur une source 4.2, la modification d'une note par l'API (Redmine 5.0+)
+est sautée.

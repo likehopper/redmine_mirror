@@ -21,12 +21,13 @@ module RedmineMirror
   class Synchronization
     # Lock the project configuration so concurrent manual requests cannot queue
     # two imports before either worker has acquired the execution lease.
-    def self.enqueue(setting, apply:, trigger:, user: nil)
+    def self.enqueue(setting, apply:, trigger:, user: nil, confirm_deletions: false)
       setting.with_lock do
         raise Error, "Mirror module is disabled" unless setting.project.module_enabled?(:mirror)
         raise Error, "Synchronization already queued or running" if setting.running_run_id || setting.project.mirror_sync_runs.where(status: %w[queued running]).exists?
         raise Error, "Unavailable modules: #{setting.unavailable_modules.join(', ')}" if setting.unavailable_modules.any?
-        setting.project.mirror_sync_runs.create!(apply: apply, trigger: trigger, requested_by: user, module_totals: JSON.generate(setting.selected_modules.to_h { |key| [key, 0] }))
+        setting.project.mirror_sync_runs.create!(apply: apply, trigger: trigger, requested_by: user, confirm_deletions: apply && confirm_deletions,
+          module_totals: JSON.generate(setting.selected_modules.to_h { |key| [key, 0] }))
       end
     end
 
@@ -111,7 +112,7 @@ module RedmineMirror
         # A removed or unavailable adapter must not silently shrink a scheduled run.
         raise Error, "Unavailable modules: #{setting.unavailable_modules.join(', ')}" if setting.unavailable_modules.any?
         destination_url = ENV.fetch("MIRROR_DESTINATION_URL") { raise Error, "MIRROR_DESTINATION_URL is not configured for the worker" }
-        config = setting.synchronization_config(destination_url: destination_url)
+        config = setting.synchronization_config(destination_url: destination_url).merge("confirm_deletions" => run.confirm_deletions?)
         source_url = config.fetch("source_url").sub(%r{/+\z}, "")
         destination_url = destination_url.sub(%r{/+\z}, "")
         raise Error, "Cannot mirror a project onto itself" if source_url == destination_url && setting.source_project_id == setting.project_id

@@ -112,7 +112,8 @@ module MirrorHelper
   end
 
   MAPPING_TABS = { "status" => "issue_tracking", "tracker" => "issue_tracking", "priority" => "issue_tracking",
-    "user" => "users", "activity" => "time_tracking", "custom_field" => "issue_custom_fields" }.freeze
+    "user" => "users", "activity" => "time_tracking", "custom_field" => "issue_custom_fields",
+    "role" => "project_members", "group" => "project_members" }.freeze
 
   # An error or warning with, when known, the source reference name and a link to the
   # page that fixes it.

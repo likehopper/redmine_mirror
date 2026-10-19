@@ -40,7 +40,10 @@ references.
 
 Mappings belong to the project. The user table is shared by all its modules.
 Local choices are the project's members, locked ones included, and existing local
-references. A local reference that disappears stays flagged in the form until replaced.
+references. With the *Members* module, members managers (*Manage members*, or
+administrators) choose among every active or locked account, as Redmine offers them
+when adding a member; other users see the members and the accounts already mapped.
+A local reference that disappears stays flagged in the form until replaced.
 
 ## Users and anonymization
 
@@ -60,8 +63,8 @@ imported object count is always zero.
 Anonymization covers user references only, not text content or names written in it.
 
 **Locked users** keep the history of people who left: map a source user to their
-locked local account, which must still be a project member (Redmine keeps memberships
-when an account is locked; to add one, unlock the account, add it, lock it again).
+locked local account. Without the *Members* module, it must still be a project member
+(Redmine keeps memberships when an account is locked); *Members* can add it.
 
 | Data | Locked user |
 | --- | --- |
@@ -69,6 +72,22 @@ when an account is locked; to add one, unlock the account, add it, lock it again
 | Issue assignee, time entries | Kept, restored through local models (the REST API refuses them) |
 | Watchers | Not subscribed (a locked user receives no notification) |
 | User custom field values | Not imported, with a warning (Redmine refuses them) |
+
+## Members
+
+Adds the source project's members to the destination project, with their own roles.
+Runs before issues, so that assignees are members when issues are written. Requires
+the source permission *View members* (public by default).
+
+- Users go through *Users*; groups and roles have their own tables. Map each source
+  group to an existing local group, or **Do not add this group**; map each role to a
+  local role, or **Do not give this role**. Mirror creates no account, group or role.
+- Additive: missing members and roles are added, local members and roles are kept,
+  nothing is removed. A role Mirror gave and that was removed locally while the source
+  still lists it is a conflict.
+- Locked accounts can be added. Anonymized users are not added.
+- Roles inherited from a group or a parent project are not copied: they come with that
+  group or project.
 
 ## Issues
 
@@ -117,9 +136,10 @@ description, author and date. Downloads use a path built from the source URL: Mi
 never follows redirects or sends the key to a URL supplied by the source.
 
 Both write through local models, so the worker must share the destination's database
-and attachment storage. New source journals and files are added on later runs. A
-changed journal or file, on either side, blocks the run. Deletions are not propagated.
-REST updates also create local journals; they are kept.
+and attachment storage. New source journals and files are added on later runs. A journal
+or file changed on the source (an edited note, a text converted differently) is updated
+locally when it was not changed locally. A local change is a conflict, or overwritten in
+[mirror mode](#mirror-mode). REST updates also create local journals; they are kept.
 
 ## Issue relations
 
@@ -295,8 +315,30 @@ value differs, the run stops at the first conflict, preview included, and record
 
 Both require *Run Mirror synchronizations and resolve conflicts* and are refused while a run
 is queued or running.
-There is no field merge or forced overwrite. This tracking applies to project runs (UI,
+There is no field merge. [Mirror mode](#mirror-mode) overwrites local changes instead of
+reporting them. This tracking applies to project runs (UI,
 worker or `MIRROR_PROJECT_ID`), not to the standalone JSON mode.
+
+## Mirror mode
+
+**Settings → Mirror → Schedule → The source wins (mirror mode)** makes the destination a
+copy of the source, for every selected module:
+
+- A local change is overwritten by the source instead of being a conflict. A wiki page
+  edited locally gets its source versions again; watchers and member roles become exactly
+  the source ones (inherited roles excepted).
+- An object deleted locally is created again.
+- An object Mirror imported and the source no longer lists is deleted locally, once the
+  source answers *not found* (404) for that very object. An object that moved to another
+  source project, or that the source key can no longer see, is kept and logged.
+- Up to 10% of a module's objects (at least 2) are deleted in a run. Beyond that, nothing
+  is deleted: the run ends with errors, and **Overview** offers to synchronize again and
+  confirm the deletions. The preview lists the deletions too.
+- A version still used by local issues is not deleted; the log says so.
+
+Deleting an issue also deletes its history, files, time entries, relations and subtasks,
+as in Redmine. Local objects Mirror did not import are never deleted. Without mirror
+mode, Mirror adds and updates only.
 
 ## Command-line runs
 
@@ -332,7 +374,7 @@ development environments.
 
 ## Limits
 
-- One way only, from source to destination. Deletions are not propagated.
+- One way only, from source to destination. Deletions are propagated in mirror mode only.
 - Not a backup: data hidden from the source API key, instance configuration, accounts,
   roles and custom field definitions are not copied.
 - Project files, SLA and Reporting adapters are not implemented yet.

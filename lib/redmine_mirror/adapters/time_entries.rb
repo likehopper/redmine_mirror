@@ -63,6 +63,14 @@ module RedmineMirror
         TimeEntry.where(project_id: project_id).find(target_id).update_columns(user_id: payload.fetch("user_id")) if locked_user?(payload)
       end
 
+      def source_state(client, source_id, _destination_id, source_project_id:, project_id:)
+        remote_state(client, "time_entries/#{Integer(source_id)}.json", source_project_id: source_project_id)
+      end
+
+      def delete_local(destination_id, project_id)
+        TimeEntry.where(project_id: project_id).find_by(id: destination_id)&.destroy
+      end
+
       def locked_user?(payload)
         payload["user_id"].is_a?(Integer) && User.find_by(id: payload["user_id"])&.locked?
       end

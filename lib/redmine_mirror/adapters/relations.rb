@@ -100,11 +100,32 @@ module RedmineMirror
         # Reuse a relation imported from its other endpoint instead of duplicating
         # it when independently synchronized projects are eventually both available.
         row = store.find(key, record.fetch("id")) || store.find_related_mapping(key, record.fetch("id"))
+        relation = row && IssueRelation.find_by(id: row.fetch("destination_id"))
+        if row && !relation
+          Policy.local_change!("Local modification detected for #{key} source ID #{record.fetch('id')}: the destination relation was deleted")
+          TextFormat.note("recreated")
+          row = nil
+        end
         if row
-          relation = IssueRelation.find_by(id: row.fetch("destination_id"))
-          raise Error, "Destination relation missing" unless relation
-          raise Error, "Local relation modified" unless digest(relation.attributes.slice(*relation_attributes.keys)) == row.fetch("destination_fingerprint")
-          raise Error, "Source relation modified; manual resolution required" unless digest(relation_attributes) == row.fetch("source_fingerprint")
+          local_changed = digest(relation.attributes.slice(*relation_attributes.keys)) != row.fetch("destination_fingerprint")
+          if local_changed
+            Policy.local_change!("Local relation modified")
+            TextFormat.note("local_overwritten")
+          end
+          # A source change, or a local one the source overwrites.
+          if local_changed || digest(relation_attributes) != row.fetch("source_fingerprint")
+            relation.assign_attributes(relation_attributes)
+            raise Error, "Destination rejected relation: #{relation.errors.full_messages.join(', ')}" unless relation.valid?
+            if apply
+              MirrorMapping.transaction do
+                relation.save!
+                store.save(key, record.fetch("id"), "destination_id" => relation.id,
+                  "source_fingerprint" => digest(relation_attributes), "destination_fingerprint" => digest(relation.attributes.slice(*relation_attributes.keys)))
+              end
+              store.resolve_pending_relation(record.fetch("id"))
+            end
+            return event.merge(destination_id: relation.id, action: "update")
+          end
           if apply && !store.find(key, record.fetch("id"))
             store.save(key, record.fetch("id"), "destination_id" => relation.id,
               "source_fingerprint" => digest(relation_attributes), "destination_fingerprint" => digest(relation.attributes.slice(*relation_attributes.keys)))
@@ -131,6 +152,15 @@ module RedmineMirror
             status: "blocked", reason: error.message)
         end
         raise
+      end
+
+      def source_state(client, source_id, _destination_id, source_project_id:, project_id:)
+        remote_state(client, "relations/#{Integer(source_id)}.json")
+      end
+
+      def delete_local(destination_id, project_id)
+        relation = IssueRelation.find_by(id: destination_id)
+        relation.destroy if relation && [relation.issue_from&.project_id, relation.issue_to&.project_id].include?(project_id)
       end
     end
   end

@@ -18,7 +18,7 @@
 class MirrorProjectSetting < ActiveRecord::Base
   SYNC_INTERVALS = [5, 15, 30, 60, 360, 1440].freeze
   # Columns of the latest migrations; extend this list with each new migration.
-  LATEST_COLUMNS = %w[source_project_identifier source_text_format on_error catalog_status].freeze
+  LATEST_COLUMNS = %w[source_project_identifier source_text_format on_error catalog_status source_wins].freeze
   ON_ERROR = %w[skip stop].freeze
 
   def self.schema_current?
@@ -119,6 +119,7 @@ class MirrorProjectSetting < ActiveRecord::Base
       "destination_url" => destination_url, "destination_project_id" => project_id,
       "allow_http" => ENV["MIRROR_TEST_ENVIRONMENT"] == "disposable",
       "modules" => selected_modules, "mappings" => tables, "module_options" => module_options,
+      "source_wins" => source_wins?,
       "text_format" => { "source" => source_text_format, "target" => RedmineMirror::TextFormat.destination_format(project), "source_url" => source_url,
         "destination_url" => destination_url,
         "fallback" => RedmineMirror::TextFormat.dominant(source_catalog["text_formats"]) } }

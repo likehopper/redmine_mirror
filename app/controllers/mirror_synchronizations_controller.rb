@@ -25,12 +25,12 @@ class MirrorSynchronizationsController < ApplicationController
   before_action :load_setting
 
   def update
-    input = params.require(:schedule).permit(:enabled, :interval_minutes, :on_error)
+    input = params.require(:schedule).permit(:enabled, :interval_minutes, :on_error, :source_wins)
     interval = Integer(input.fetch(:interval_minutes))
     raise RedmineMirror::Error, "Invalid synchronization interval" unless MirrorProjectSetting::SYNC_INTERVALS.include?(interval)
     @setting.update!(auto_sync_enabled: input[:enabled] == "1", sync_interval_minutes: interval,
       next_sync_at: input[:enabled] == "1" ? Time.current + interval.minutes : nil,
-      on_error: input[:on_error].presence || @setting.on_error)
+      on_error: input[:on_error].presence || @setting.on_error, source_wins: input[:source_wins] == "1")
     flash[:notice] = l(:notice_successful_update)
     redirect_to settings_project_path(@project, tab: "mirror", mirror_tab: "schedule")
   rescue RedmineMirror::Error, ActiveRecord::RecordInvalid, ArgumentError, KeyError
@@ -40,7 +40,8 @@ class MirrorSynchronizationsController < ApplicationController
 
   def create
     raise RedmineMirror::Error, "Invalid synchronization mode" unless %w[preview apply].include?(params[:mode])
-    run = RedmineMirror::Synchronization.enqueue(@setting, apply: params[:mode] == "apply", trigger: "manual", user: User.current)
+    run = RedmineMirror::Synchronization.enqueue(@setting, apply: params[:mode] == "apply", trigger: "manual", user: User.current,
+      confirm_deletions: params[:confirm_deletions] == "1")
     flash[:notice] = l(:text_mirror_sync_queued)
     redirect_to project_mirror_run_path(@project, run)
   rescue RedmineMirror::Error => error

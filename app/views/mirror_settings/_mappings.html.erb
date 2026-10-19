@@ -22,7 +22,7 @@ reference. Unmapped references with a single local namesake are preselected.
   <p><%= link_to l(:label_mirror_pending_links), mirror_page_path(@project, "pending") %></p>
 <% end %>
 <%= render adapter.settings_partial, adapter: adapter if adapter.settings_partial %>
-<% if %w[issue_hierarchy issue_watchers wiki].include?(adapter.key) %>
+<% if %w[issue_hierarchy issue_watchers wiki project_members].include?(adapter.key) %>
   <p><%= l("text_mirror_#{adapter.key}".to_sym) %></p>
   <p><%= link_to l(:label_mirror_module_users), mirror_configuration_path(@project, "users") %></p>
 <% end %>
@@ -35,7 +35,7 @@ reference. Unmapped references with a single local namesake are preselected.
       <thead><tr><th><%= l(:label_mirror_source) %></th><th><%= l(:label_mirror_destination) %></th></tr></thead>
       <tbody>
       <% local_choices = [[l(:label_mirror_unmapped), ""]] + table.local_records(@project).map { |record| ["#{record.name} (##{record.id})#{" - #{l(:status_locked)}" if record.is_a?(User) && record.locked?}", record.id.to_s] } %>
-      <% local_choices << [l(:label_mirror_ignore_field), "ignore"] if table.ignore_allowed? %>
+      <% local_choices << [l(table.ignore_label), "ignore"] if table.ignore_allowed? %>
       <% local_choices << [l(:label_mirror_anonymous), "anonymous"] if table.anonymous_allowed? %>
       <%# Only references used by the source project (and those already mapped), unless all are requested. %>
       <% used = @setting.source_catalog["#{table.key}_used"] %>

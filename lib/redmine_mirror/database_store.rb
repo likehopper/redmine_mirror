@@ -34,6 +34,15 @@ module RedmineMirror
       row.save!
     end
 
+    def delete(module_key, source_id)
+      scope(module_key, source_id).delete_all
+    end
+
+    # Correspondences of a module, as [source ID, destination ID] pairs.
+    def mappings(module_key)
+      MirrorMapping.where(connection_key: @connection_key, module_key: module_key).pluck(:source_id, :destination_id)
+    end
+
     def excluded?(module_key, source_id)
       return false unless @project_id
       MirrorConflict.exists?(project_id: @project_id, connection_key: @connection_key, module_key: module_key, source_id: source_id, status: "ignored")

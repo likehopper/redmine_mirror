@@ -60,6 +60,18 @@ module RedmineMirror
         mapped = mapped_watchers(record, mappings, issue)
         return event unless issue
         current = local_state(issue)
+        # Mirror mode: exactly the source watchers, local subscriptions included.
+        if Policy.source_wins?
+          event[:action] = current == mapped ? "unchanged" : "update"
+          if apply
+            MirrorMapping.transaction do
+              write_state(issue, mapped) unless current == mapped
+              store.save(key, record.fetch("id"), "destination_id" => issue.id,
+                "source_fingerprint" => digest(mapped), "destination_fingerprint" => digest(mapped & local_state(issue.reload)))
+            end
+          end
+          return event
+        end
         previous = store.find(key, record.fetch("id"))
         if previous && previous.fetch("source_fingerprint") == digest(mapped) && digest(mapped & current) != previous.fetch("destination_fingerprint")
           raise Error, "Local modification detected for #{key}: a watcher added from the source was removed locally"

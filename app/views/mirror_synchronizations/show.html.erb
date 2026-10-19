@@ -28,7 +28,7 @@ Render project-scoped Mirror controls and diagnostics using native Redmine helpe
 <%= label_tag :module_key, l(:label_mirror_modules) %>
 <%= select_tag :module_key, options_for_select([[l(:label_all), ""]] + @run.log_events.map { |event| event["module"] }.uniq.map { |key| [mirror_module_label(key), key] }, params[:module_key]) %>
 <%= label_tag :action_filter, l(:label_mirror_action) %>
-<%= select_tag :action_filter, options_for_select([[l(:label_all), ""]] + %w[create update unchanged ignored note error].map { |key| [mirror_module_label(key), key] }, params[:action_filter]) %>
+<%= select_tag :action_filter, options_for_select([[l(:label_all), ""]] + %w[create update delete unchanged ignored note error].map { |key| [mirror_module_label(key), key] }, params[:action_filter]) %>
 <%= label_tag :source_id, l(:label_mirror_source) %><%= number_field_tag :source_id, params[:source_id], min: 1 %>
 <%= label_tag :flag, l(:label_mirror_special_cases) %>
 <%= select_tag :flag, options_for_select([[l(:label_all), ""], [l(:label_mirror_flag_any), "any"]] + @flag_counts.keys.sort.map { |flag| [mirror_flag_label(flag), flag] }, params[:flag]) %>
@@ -40,10 +40,10 @@ Render project-scoped Mirror controls and diagnostics using native Redmine helpe
 <% if @action_counts.any? %>
 <div class="box" id="mirror-run-summary">
   <h3><%= l(:label_mirror_run_summary) %></h3>
-  <table class="list"><thead><tr><th><%= l(:label_mirror_modules) %></th><% %w[create update unchanged ignored note error].each do |action| %><th><%= action %></th><% end %></tr></thead><tbody>
+  <table class="list"><thead><tr><th><%= l(:label_mirror_modules) %></th><% %w[create update delete unchanged ignored note error].each do |action| %><th><%= action %></th><% end %></tr></thead><tbody>
   <% @action_counts.each do |module_key, counts| %>
     <tr><td><%= link_to mirror_module_label(module_key), project_mirror_run_path(@project, @run, module_key: module_key) %></td>
-    <% %w[create update unchanged ignored note error].each do |action| %><td><%= counts[action] || "" %></td><% end %></tr>
+    <% %w[create update delete unchanged ignored note error].each do |action| %><td><%= counts[action] || "" %></td><% end %></tr>
   <% end %>
   </tbody></table>
   <% if @error_counts.any? %>

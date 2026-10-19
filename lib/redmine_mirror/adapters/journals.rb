@@ -107,6 +107,35 @@ module RedmineMirror
           "details" => journal.details.order(:id).map { |detail| [detail.property, detail.prop_key, detail.old_value, detail.value] } }
       end
 
+      # The API has no journal endpoint: the source issue of the local journal tells.
+      def source_state(client, source_id, destination_id, source_project_id:, project_id:)
+        journal = Journal.find_by(id: destination_id)
+        return "deleted" unless journal # Already gone locally, with its issue.
+        source_issue = MirrorMapping.find_by(project_id: project_id, module_key: "issue_tracking", destination_id: journal.journalized_id)&.source_id
+        return "hidden" unless source_issue
+        detail = client.get("issues/#{Integer(source_issue)}.json", "include" => "journals").fetch("issue")
+        detail.fetch("journals", []).any? { |row| row["id"].to_i == source_id.to_i } ? "present" : "deleted"
+      rescue Error => error
+        return "deleted" if error.message.include?("HTTP 404")
+        return "hidden" if error.message.include?("HTTP 403")
+        raise
+      end
+
+      def delete_local(destination_id, project_id)
+        journal = Journal.find_by(id: destination_id)
+        journal.destroy if journal && journal.journalized.respond_to?(:project_id) && journal.journalized.project_id == project_id
+      end
+
+      # Rewritten in place, without notification: the journal keeps its ID and position.
+      def overwrite(journal, _record, attributes, _issue, _source)
+        journal.update_columns(attributes.except("details").merge("created_on" => Time.iso8601(attributes.fetch("created_on"))))
+        journal.details.delete_all
+        attributes.fetch("details").each do |property, name, old_value, value|
+          journal.details.create!(property: property, prop_key: name, old_value: old_value, value: value)
+        end
+        journal.reload
+      end
+
       def import(_record, attributes, issue, _source)
         journal = issue.journals.new(attributes.except("details"))
         journal.notify = false

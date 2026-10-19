@@ -17,13 +17,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 # Compatibility and publication checks
 
 Minimum declared Redmine version: **5.0**. This is not a compatibility certification.
-Current plugin version: **1.0.0-beta.14**.
+Current plugin version: **1.0.0-beta.15**.
 
 Destination (Redmine running Mirror):
 
 | Redmine | Database | Evidence |
 | --- | --- | --- |
-| 6.1.4 | SQLite 3 | Official-image CI runner, locally and on GitHub: Ruby 3.4.11 / Rails 7.2.3.2, 127 Redmine tests / 589 assertions, symlinked install, `zeitwerk:check`, fresh install and uninstall/reinstall. All two-instance smokes in production mode. |
+| 6.1.4 | SQLite 3 | Official-image CI runner, locally and on GitHub: Ruby 3.4.11 / Rails 7.2.3.2, 140 Redmine tests / 630 assertions, symlinked install, `zeitwerk:check`, fresh install and uninstall/reinstall. All two-instance smokes in production mode. |
 | 5.1.13 | SQLite 3 | Two-instance write smokes in production mode (`versions.sh`). The Redmine test suite is not run on 5.1. |
 | 5.0 / 6.0 / 7.x | Not validated | No compatibility claim |
 | Any version | PostgreSQL / MariaDB / MySQL | Not validated |
@@ -38,7 +38,7 @@ Source (read through its REST API only, Mirror not installed):
 
 The write smokes cover issues, time entries, categories and versions, history and
 attachments, relations, hierarchy and watchers, custom fields, conflicts, locked users
-and closed versions, and the wiki. See the
+and closed versions, the wiki, members and mirror mode. See the
 [validation record](../environment/VALIDATION.md).
 
 ## Standalone CI runner
