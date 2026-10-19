@@ -53,6 +53,7 @@ module MirrorHelper
       mapped = project.mirror_reference_mappings.pluck(:reference_type, :source_id).map { |kind, id| [kind, id.to_s] }.to_set
       setting.adapters.each_with_object({}) do |adapter, counts|
         count = adapter.mapping_tables.sum do |table|
+          next 0 if table.respond_to?(:unmapped_allowed?) && table.unmapped_allowed?(setting)
           ids = catalog.fetch(table.key, {}).keys
           used = catalog["#{table.key}_used"]
           ids &= used if used

@@ -21,6 +21,10 @@ reference. Unmapped references with a single local namesake are preselected.
 <% if %w[issue_hierarchy issue_relations].include?(adapter.key) %>
   <p><%= link_to l(:label_mirror_pending_links), mirror_page_path(@project, "pending") %></p>
 <% end %>
+<% if adapter.project_module && !@project.module_enabled?(adapter.project_module) %>
+  <p class="warning" id="mirror-project-module-disabled"><%= l(:text_mirror_project_module_disabled, module: l_or_humanize(adapter.project_module, prefix: "project_module_")) %>
+    <% if User.current.allowed_to?(:select_project_modules, @project) %><%= link_to l(:label_mirror_enable_project_module), settings_project_path(@project, tab: "modules") %><% end %></p>
+<% end %>
 <%= render adapter.settings_partial, adapter: adapter if adapter.settings_partial %>
 <% if %w[issue_hierarchy issue_watchers wiki project_members].include?(adapter.key) %>
   <p><%= l("text_mirror_#{adapter.key}".to_sym) %></p>
@@ -35,9 +39,11 @@ reference. Unmapped references with a single local namesake are preselected.
     <table class="list mirror-mapping-table" id="mirror-table-<%= table.key %>">
       <thead><tr><th><%= l(:label_mirror_source) %></th><th><%= l(:label_mirror_destination) %></th></tr></thead>
       <tbody>
-      <% local_choices = [[l(:label_mirror_unmapped), ""]] + table.local_records(@project).map { |record| [record.is_a?(User) ? mirror_user_label(record, company_field) : "#{record.name} (##{record.id})", record.id.to_s] } %>
-      <% local_choices << [l(table.ignore_label), "ignore"] if table.ignore_allowed? %>
+      <%# Special choices (anonymize, do not give, ignore) come first, before the local records. %>
+      <% local_choices = [[l(:label_mirror_unmapped), ""]] %>
       <% local_choices << [l(:label_mirror_anonymous), "anonymous"] if table.anonymous_allowed? %>
+      <% local_choices << [l(table.ignore_label), "ignore"] if table.ignore_allowed? %>
+      <% local_choices += table.local_records(@project).map { |record| [record.is_a?(User) ? mirror_user_label(record, company_field) : "#{record.name} (##{record.id})", record.id.to_s] } %>
       <%# Only references used by the source project (and those already mapped), unless all are requested. %>
       <% used = @setting.source_catalog["#{table.key}_used"] %>
       <% rows = @setting.source_catalog.fetch(table.key, {}).sort_by { |id, name| [name.downcase, id.to_i] } %>
@@ -69,6 +75,13 @@ reference. Unmapped references with a single local namesake are preselected.
     <p><%= label_tag :missing_target, l(:label_mirror_missing_relation) %>
     <%= select_tag "module_options[missing_target]", options_for_select([[l(:label_mirror_relation_ignore), "ignore"], [l(:label_mirror_relation_note), "note"]], @setting.module_options.dig(adapter.key, "missing_target") || "ignore"), id: "missing_target" %></p>
   <% end %>
+  <% if adapter.key == "project_members" %>
+    <div class="box tabular"><p>
+      <%= label_tag "members-unmapped", l(:label_mirror_members_unmapped) %>
+      <%= select_tag "module_options[unmapped]", options_for_select(RedmineMirror::Adapters::Members::UNMAPPED.map { |value| [l("label_mirror_members_unmapped_#{value}"), value] }, @setting.module_options.dig(adapter.key, "unmapped") || "block"), id: "members-unmapped" %>
+      <em class="info"><%= l(:text_mirror_members_unmapped) %></em>
+    </p></div>
+  <% end %>
   <% if adapter.anonymous_time_user_required? %>
     <div class="box tabular"><p>
       <%= label_tag "anonymous-time-user", l(:label_mirror_anonymous_time_user) %>
@@ -76,5 +89,6 @@ reference. Unmapped references with a single local namesake are preselected.
       <em class="info"><%= l(:text_mirror_anonymous_time_user) %></em>
     </p></div>
   <% end %>
-  <%= submit_tag l(:button_save) %>
+  <%# Modules without references or options (hierarchy, watchers, wiki) have nothing to save. %>
+  <%= submit_tag l(:button_save) if adapter.mapping_tables.any? || adapter.anonymous_time_user_required? || adapter.key == "issue_relations" %>
 <% end %>

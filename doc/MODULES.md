@@ -82,6 +82,9 @@ the source permission *View members* (public by default).
 - Users go through *Users*; groups and roles have their own tables. Map each source
   group to an existing local group, or **Do not add this group**; map each role to a
   local role, or **Do not give this role**. Mirror creates no account, group or role.
+- **Roles and groups without a mapping: Do not give them** lets you map only the roles
+  that matter: the others are not given and are not counted as to map.
+- The module is optional: unselect it in *Connection* to add members by hand.
 - Additive: missing members and roles are added, local members and roles are kept,
   nothing is removed. A role Mirror gave and that was removed locally while the source
   still lists it is a conflict.

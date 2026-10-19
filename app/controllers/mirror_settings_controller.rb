@@ -113,7 +113,7 @@ class MirrorSettingsController < ApplicationController
           end
         end
       end
-      options = adapter.configuration_options(params.fetch(:module_options, ActionController::Parameters.new).permit(:anonymous_user_id, :missing_target, value_mappings: {}).to_h, @project)
+      options = adapter.configuration_options(params.fetch(:module_options, ActionController::Parameters.new).permit(:anonymous_user_id, :missing_target, :unmapped, value_mappings: {}).to_h, @project)
       @setting.update!(module_options: @setting.module_options.merge(adapter.key => options))
     end
     flash[:notice] = l(:notice_successful_update)

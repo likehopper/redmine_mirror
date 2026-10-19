@@ -16,8 +16,17 @@
 # Add source project members and their roles to existing local users and groups.
 
 module RedmineMirror
+  # With the Members option "unmapped: skip", roles and groups left without a mapping are
+  # not given instead of blocking their members, and the tab counter leaves them out.
+  module MembersOptionalMapping
+    def unmapped_allowed?(setting)
+      setting.module_options.dig("project_members", "unmapped") == "skip"
+    end
+  end
+
   # Source roles map to local givable roles; an ignored role is not given.
   class RoleMappingTable < MappingTable
+    include MembersOptionalMapping
     def initialize; super("role", reference_fields: []); end
     def ignore_allowed?; true; end
     def ignore_label; :label_mirror_ignore_role; end
@@ -29,6 +38,7 @@ module RedmineMirror
 
   # Source groups map to existing local groups; Mirror never creates a group.
   class GroupMappingTable < MappingTable
+    include MembersOptionalMapping
     def initialize; super("group"); end
     def ignore_allowed?; true; end
     def ignore_label; :label_mirror_ignore_group; end
@@ -67,6 +77,14 @@ module RedmineMirror
         end
       end
 
+      UNMAPPED = %w[block skip].freeze
+
+      def configuration_options(input, _project)
+        value = input.fetch("unmapped", "block")
+        raise Error, "Invalid unmapped roles policy" unless UNMAPPED.include?(value)
+        { "unmapped" => value }
+      end
+
       def local_path(_id, project); "/projects/#{project.identifier}/settings/members"; end
 
       def remote_path(_id, setting)
@@ -75,6 +93,7 @@ module RedmineMirror
 
       def synchronize(record, project_id:, mappings:, lookup:, store:, source:, apply:)
         project = Project.find(project_id)
+        @skip_unmapped = project.mirror_project_setting&.module_options&.dig(key, "unmapped") == "skip"
         event = { module: key, source_id: record.fetch("id"), destination_id: nil, action: "update" }
         principal_id = record["user"] ? Users.new.resolve(mappings, record["user"].fetch("id")) : optional_map(mappings, "group", record.fetch("group").fetch("id"))
         return event.merge(action: "ignored", reason: "Anonymized user or ignored group") unless principal_id
@@ -123,9 +142,10 @@ module RedmineMirror
         member ? member.member_roles.select { |row| row.inherited_from.nil? }.map(&:role_id).uniq.sort : []
       end
 
-      # nil when the reference is ignored.
+      # nil when the reference is ignored, or left unmapped with the "skip" option.
       def optional_map(mappings, kind, source_id)
-        return nil if mappings.fetch(kind, {})[source_id.to_s] == "ignore"
+        value = mappings.fetch(kind, {})[source_id.to_s]
+        return nil if value == "ignore" || (value.nil? && @skip_unmapped)
         map(mappings, kind, source_id)
       end
     end

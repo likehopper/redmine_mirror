@@ -74,6 +74,21 @@ class MirrorMembersTest < ActiveSupport::TestCase
     assert_raises(RedmineMirror::Error) { sync(membership(7, { "user" => { "id" => 99 } }, [[41, false]])) }
   end
 
+  def test_unmapped_roles_block_or_are_not_given_with_the_option
+    @project.enable_module!(:mirror)
+    setting = MirrorProjectSetting.new(project: @project, source_url: "https://source.example/redmine", source_project_id: 12)
+    setting.selected_modules = %w[project_members]
+    setting.api_key = "private-api-key"
+    setting.save!
+    record = membership(8, { "user" => { "id" => 70 } }, [[41, false], [99, false]])
+    assert_raises(RedmineMirror::Error) { sync(record) }
+    setting.update!(module_options: setting.module_options.merge("project_members" => { "unmapped" => "skip" }))
+    sync(record)
+    assert_equal [3], @project.memberships.find_by!(user_id: 8).role_ids
+    assert_equal "ignored", sync(membership(9, { "user" => { "id" => 71 } }, [[99, false]]))[:action]
+    assert_raises(RedmineMirror::Error) { @adapter.configuration_options({ "unmapped" => "maybe" }, @project) }
+  end
+
   def test_role_removed_locally_is_a_conflict
     record = membership(1, { "user" => { "id" => 70 } }, [[41, false]])
     sync(record)

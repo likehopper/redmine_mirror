@@ -25,6 +25,7 @@ module RedmineMirror
     # Local versions keep the source numbers, authors, comments and dates.
     class Wiki < Base
       def key; "wiki"; end
+      def project_module; :wiki; end
       def phase; :history; end
       def dependencies; ["users"]; end
       def text_samples(record); [record["text"]]; end
