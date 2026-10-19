@@ -13,9 +13,18 @@ This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
-Plugin settings: the source Redmine URLs that project managers may connect to.
+Plugin settings: the source Redmine URLs that project managers may connect to, and the
+user field shown as the company in the user mappings.
 %><p>
   <%= label_tag "settings_allowed_source_urls", l(:label_mirror_allowed_source_urls) %>
   <%= text_area_tag "settings[allowed_source_urls]", @settings["allowed_source_urls"], rows: 5, cols: 60, id: "settings_allowed_source_urls", placeholder: "https://redmine.example.com" %>
   <em class="info"><%= l(:text_mirror_allowed_source_urls) %></em>
+</p>
+<p>
+  <%= label_tag "settings_user_company_field_id", l(:label_mirror_user_company_field) %>
+  <%= select_tag "settings[user_company_field_id]",
+        options_for_select([[l(:label_mirror_user_company_field_auto), ""], [l(:label_mirror_user_company_field_none), "none"]] +
+          UserCustomField.sorted.map { |field| [field.name, field.id.to_s] }, @settings["user_company_field_id"].to_s),
+        id: "settings_user_company_field_id" %>
+  <em class="info"><%= l(:text_mirror_user_company_field) %></em>
 </p>

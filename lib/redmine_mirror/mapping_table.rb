@@ -52,7 +52,8 @@ module RedmineMirror
     # With the Members module, members managers choose among all accounts, as Redmine
     # offers them when adding a member; others see the members and the users mapped.
     def local_users(project)
-      users = User.where(status: [User::STATUS_ACTIVE, User::STATUS_LOCKED])
+      # Labels show the login, email and company (MirrorHelper#mirror_user_label).
+      users = User.where(status: [User::STATUS_ACTIVE, User::STATUS_LOCKED]).preload(:email_address, :preference, :custom_values)
       return users.sorted if RedmineMirror.members_manager?(project)
       mapped = project.mirror_reference_mappings.where(reference_type: "user", mode: "existing").select(:destination_id)
       users.where(id: project.memberships.select(:user_id)).or(users.where(id: mapped)).sorted

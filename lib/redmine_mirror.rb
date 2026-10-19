@@ -19,7 +19,7 @@
 # lives here, not in lib/redmine_mirror/version.rb: Zeitwerk would require that file to
 # define RedmineMirror::Version, which would hide Redmine's Version model in this namespace.
 module RedmineMirror
-  VERSION = "1.0.0-beta.15"
+  VERSION = "1.0.0-beta.16"
   # Contract between Mirror and external adapters. Increase only on incompatible
   # changes to Adapters::Base, MappingTable or the registration rules.
   ADAPTER_API_VERSION = 1
@@ -48,6 +48,17 @@ module RedmineMirror
   def self.allowed_source_urls
     settings = Setting.plugin_redmine_mirror rescue {}
     settings.to_h.fetch("allowed_source_urls", "").to_s.lines.map { |line| line.strip.sub(%r{/+\z}, "") }.reject(&:empty?).uniq
+  end
+
+  # User custom field shown as the company next to local users: the one chosen in the
+  # plugin settings, else a field named Company, Société, Entreprise or Organization.
+  COMPANY_FIELD_NAMES = /\A(?:company|soci[ée]t[ée]|entreprise|organi[sz]ation)\z/i
+
+  def self.user_company_field
+    id = (Setting.plugin_redmine_mirror rescue {}).to_h["user_company_field_id"].to_s
+    return nil if id == "none"
+    return UserCustomField.find_by(id: id) if id.present?
+    UserCustomField.sorted.detect { |field| field.name.to_s.strip.match?(COMPANY_FIELD_NAMES) }
   end
 
   def self.allowed_source_url?(url)

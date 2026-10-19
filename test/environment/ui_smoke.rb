@@ -41,7 +41,7 @@ choose = lambda do |select, value|
   menu = Selenium::WebDriver::Support::Select.new(select)
   next menu.select_by(:value, value) if menu.options.any? { |option| option.attribute("value") == value }
   name = select.find_element(xpath: "ancestor::tr/td[1]").text.sub(/ \(#\d+\)\z/, "")
-  option = menu.options.find { |entry| entry.text.sub(/ \(#\d+\)\z/, "") == name }
+  option = menu.options.find { |entry| entry.text.sub(/ \(#\d+\)(?: .*)?\z/, "") == name }
   # A source account without a local member (the administrator, in a fresh stack) is anonymized.
   option ||= menu.options.find { |entry| entry.attribute("value") == "anonymous" }
   abort "No local match for #{select.attribute('name')} (#{name})" unless option

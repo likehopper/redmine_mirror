@@ -268,7 +268,7 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
       all("tbody tr").each do |row|
         name = row.find("td", match: :first).text.sub(/ \(#\d+\)\z/, "")
         field = row.find("select")
-        choice = overrides.fetch(name) { field.all("option").map(&:text).find { |text| text.sub(/ \(#\d+\)\z/, "") == name } }
+        choice = overrides.fetch(name) { field.all("option").map(&:text).find { |text| text.sub(/ \(#\d+\)(?: .*)?\z/, "") == name } }
         assert choice, "No local #{table} named #{name}"
         field.select(choice)
       end

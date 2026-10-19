@@ -28,13 +28,14 @@ reference. Unmapped references with a single local namesake are preselected.
 <% end %>
 <% if adapter.mapping_tables.any? %><p><%= l(:text_mirror_mapping_help) %></p><% end %>
 <% suggested = 0 %>
+<% company_field = RedmineMirror.user_company_field %>
 <%= form_tag project_mirror_mappings_path(@project, module_key: adapter.key), method: :patch, id: "mirror-mappings-form" do %>
   <% adapter.mapping_tables.each do |table| %>
     <h3><%= l(table.label) %></h3>
     <table class="list mirror-mapping-table" id="mirror-table-<%= table.key %>">
       <thead><tr><th><%= l(:label_mirror_source) %></th><th><%= l(:label_mirror_destination) %></th></tr></thead>
       <tbody>
-      <% local_choices = [[l(:label_mirror_unmapped), ""]] + table.local_records(@project).map { |record| ["#{record.name} (##{record.id})#{" - #{l(:status_locked)}" if record.is_a?(User) && record.locked?}", record.id.to_s] } %>
+      <% local_choices = [[l(:label_mirror_unmapped), ""]] + table.local_records(@project).map { |record| [record.is_a?(User) ? mirror_user_label(record, company_field) : "#{record.name} (##{record.id})", record.id.to_s] } %>
       <% local_choices << [l(table.ignore_label), "ignore"] if table.ignore_allowed? %>
       <% local_choices << [l(:label_mirror_anonymous), "anonymous"] if table.anonymous_allowed? %>
       <%# Only references used by the source project (and those already mapped), unless all are requested. %>
@@ -71,7 +72,7 @@ reference. Unmapped references with a single local namesake are preselected.
   <% if adapter.anonymous_time_user_required? %>
     <div class="box tabular"><p>
       <%= label_tag "anonymous-time-user", l(:label_mirror_anonymous_time_user) %>
-      <%= select_tag "module_options[anonymous_user_id]", options_for_select([[l(:label_mirror_unmapped), ""]] + @project.users.active.sorted.map { |user| [user.name, user.id] }, @setting.module_options.dig(adapter.key, "anonymous_user_id")), id: "anonymous-time-user" %>
+      <%= select_tag "module_options[anonymous_user_id]", options_for_select([[l(:label_mirror_unmapped), ""]] + @project.users.active.sorted.preload(:email_address, :preference, :custom_values).map { |user| [mirror_user_label(user, company_field), user.id] }, @setting.module_options.dig(adapter.key, "anonymous_user_id")), id: "anonymous-time-user" %>
       <em class="info"><%= l(:text_mirror_anonymous_time_user) %></em>
     </p></div>
   <% end %>
