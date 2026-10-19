@@ -36,17 +36,24 @@ $(function () {
       delay: 0,
       source: function (request, response) {
         var term = request.term.toLowerCase();
+        // The empty choice ("To configure") is not suggested: clearing the field selects it.
         response(select.find("option").map(function () {
           var text = $(this).text();
-          return text.toLowerCase().indexOf(term) >= 0 ? { label: text, value: text, option: this.value } : null;
+          return this.value && text.toLowerCase().indexOf(term) >= 0 ? { label: text, value: text, option: this.value } : null;
         }).get());
       },
       select: function (event, ui) {
         select.val(ui.item.option).trigger("change");
       },
       change: function (event, ui) {
-        // Free text that matches no choice reverts to the current selection.
-        if (!ui.item) input.val(selectedText());
+        if (ui.item) return;
+        // An emptied field leaves the reference unmapped; other free text that matches
+        // no choice reverts to the current selection.
+        if ($.trim(input.val()) === "") {
+          select.val("").trigger("change");
+        } else {
+          input.val(selectedText());
+        }
       }
     }).on("focus", function () {
       input.autocomplete("search", "");

@@ -16,6 +16,18 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.17 — 2026-10-20
+
+- Long choice lists no longer suggest *To configure*: clearing the field leaves the
+  reference unmapped. Before, clearing it restored the previous choice.
+- *Anonymize*, *Do not give this role*, *Do not add this group* and *Ignore this field*
+  come first in the choice lists, before the local records.
+- Members: *Roles and groups without a mapping* can be *not given* instead of blocking
+  their members; they then leave the tab counter.
+- A module tab warns when the Redmine module it needs (Issue tracking, Time tracking,
+  Wiki) is disabled on the project, with a link to enable it. Tabs with nothing to
+  save (Wiki, hierarchy, watchers) no longer show a Save button.
+
 ## 1.0.0-beta.16 — 2026-10-19
 
 - User mappings show the login, email and company of each local account, and the list

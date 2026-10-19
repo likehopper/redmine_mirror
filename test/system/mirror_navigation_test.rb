@@ -288,5 +288,15 @@ class MirrorReferenceChoicesSystemTest < ApplicationSystemTestCase
     click_button "Save"
     assert_selector "#flash_notice"
     assert_equal members[10].id, @project.mirror_reference_mappings.find_by!(reference_type: "user", source_id: 7).destination_id
+    # The empty choice is not suggested; clearing the field unmaps the reference.
+    visit "/projects/ecookbook/settings/mirror?mirror_tab=users"
+    find("#mirror-user-7-search").click
+    assert_selector ".ui-menu-item", text: "Mirror Member 1"
+    assert_no_selector ".ui-menu-item", text: "To configure"
+    find("#mirror-user-7-search").fill_in(with: "")
+    find("h3", text: "Users").click
+    click_button "Save"
+    assert_selector "#flash_notice"
+    assert_nil @project.mirror_reference_mappings.find_by(reference_type: "user", source_id: 7)
   end
 end

@@ -42,6 +42,7 @@ module RedmineMirror
       end
 
       def key; "issue_tracking"; end
+      def project_module; :issue_tracking; end
       def text_samples(record); [record["description"]]; end
       def collection; "issues"; end
       def entity; "issue"; end

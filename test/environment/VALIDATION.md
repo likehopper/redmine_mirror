@@ -282,3 +282,12 @@ avait échoué à l'import (clic pendant le rechargement automatique de la page)
 seconde a réussi sans changement. `ui_smoke.rb` et le parcours retrouvent les
 utilisateurs malgré le libellé enrichi. `versions.sh` source 4.2.10 → destination
 5.1.13 : onze smokes d'écriture réussis.
+
+1.0.0-beta.17 (20 octobre 2026) : listes à autocomplétion sans « À configurer » (vider
+le champ retire la correspondance), choix spéciaux en tête de liste, réglage Membres
+« Rôles et groupes sans correspondance : ne pas les donner » (certaines sources
+utilisent de nombreux rôles fins), avertissement quand le module Redmine requis (Wiki, demandes,
+temps passé) est désactivé, plus de bouton Enregistrer dans les onglets sans rien à
+enregistrer. Runner CI : 143 tests Redmine / 657 assertions. Parcours de documentation :
+15 étapes / 85 assertions. `versions.sh` source 4.2.10 → destination 5.1.13 : onze
+smokes d'écriture réussis.

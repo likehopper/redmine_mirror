@@ -60,10 +60,28 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     log_user("admin", "admin")
     settings("users")
     assert_select "#mirror-table-user option", text: "John Smith (#2) — jsmith · jsmith@somenet.foo · Acme"
+    # Special choices come first, right after the empty one.
+    assert_equal ["", "anonymous"], css_select("#mirror-user-7 option").first(2).map { |option| option["value"] }
     with_settings plugin_redmine_mirror: { "user_company_field_id" => "none" } do
       settings("users")
       assert_select "#mirror-table-user option", text: "John Smith (#2) — jsmith · jsmith@somenet.foo"
     end
+  end
+
+  # Tabs without references have no Save button; a disabled project module is reported.
+  def test_wiki_tab_warns_about_the_disabled_module_and_members_option_clears_the_counter
+    @setting.update!(selected_modules: %w[wiki project_members], source_catalog: { "user" => {}, "role" => { "41" => "Remote reviewer" } })
+    @project.disable_module!(:wiki)
+    log_user("admin", "admin")
+    settings("wiki")
+    assert_select "#mirror-project-module-disabled a[href='/projects/ecookbook/settings/modules']"
+    assert_select "#mirror-mappings-form input[type=submit]", count: 0
+    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=project_members'] .mirror-badge", text: "1"
+    patch "/projects/ecookbook/mirror/settings/modules/project_members", params: { module_options: { unmapped: "skip" } }
+    assert_equal "skip", @setting.reload.module_options.dig("project_members", "unmapped")
+    settings("project_members")
+    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=project_members'] .mirror-badge", count: 0
+    assert_select "#members-unmapped option[selected]", text: "Do not give them"
   end
 
   # A source reference with a single local namesake is preselected, not saved.

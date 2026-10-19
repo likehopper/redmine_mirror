@@ -202,6 +202,8 @@ Mirror exposes this contract:
 | `available?` | Return false when a prerequisite is missing on this destination; the module is then hidden and cannot run |
 | `local_path(id, project)` / `remote_path(id, setting)` | Native destination path and source path relative to the source URL, or nil to show the bare ID. `MappingTable` subclasses provide the same two methods for their references |
 | `settings_partial` | Optional partial, from your plugin's views, rendered in the module tab with the local `adapter` |
+| `project_module` | Redmine project module the destination project needs (e.g. `:wiki`), or nil; the module tab warns when it is disabled |
+| `source_state` / `delete_local` | Mirror mode: whether an object the source no longer lists is `"deleted"`, `"moved"`, `"hidden"` or `"present"` (`remote_state` helps), and how to delete its local copy. Without them, source deletions are not propagated for the module |
 
 Redmine runs each plugin's `init.rb` in alphabetical order, at boot and after each code
 reload. A plugin sorting after `redmine_mirror` registers its adapters at the end of

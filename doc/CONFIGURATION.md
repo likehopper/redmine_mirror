@@ -169,7 +169,8 @@ the same name, it is preselected and marked in yellow: check it, then save.
 
 ![Time tracking mappings](screenshots/configuration/12-time-tracking.png)
 
-Save each tab. A reference left on **To configure** stops the objects that use it.
+Save each tab. A reference left unmapped (an empty field, or **To configure** in short
+lists) stops the objects that use it.
 
 **Issue relations** also chooses what to do when the other end of a relation is not
 imported yet: log it, or add a private note with the remote link.

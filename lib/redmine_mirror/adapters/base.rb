@@ -47,6 +47,12 @@ module RedmineMirror
         nil
       end
 
+      # Redmine project module the destination project needs (e.g. :wiki), or nil. The
+      # module tab warns when it is disabled.
+      def project_module
+        nil
+      end
+
       # Optional partial rendered in the module tab, above the mapping tables.
       def settings_partial
         nil
