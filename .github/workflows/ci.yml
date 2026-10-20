@@ -18,19 +18,19 @@ permissions:
   contents: read
 jobs:
   redmine:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       TMPDIR: /tmp
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Redmine 6.1.4 / SQLite / Chromium
         run: bash test/compatibility/run.sh
       - name: Package committed candidate
         run: bash scripts/package.sh HEAD
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mirror-validation
