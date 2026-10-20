@@ -28,6 +28,8 @@ services:
     image: ${MIRROR_SOURCE_IMAGE:?Set MIRROR_SOURCE_IMAGE, for example redmine:4.2}
     build: !reset null
     healthcheck: *health
+    environment:
+      MIRROR_SOURCE_PLUGIN: "0"
   destination:
     image: redmine-mirror-test:${MIRROR_DESTINATION_VERSION:?Set MIRROR_DESTINATION_VERSION, for example 6.1.4}
     build:

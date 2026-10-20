@@ -84,6 +84,21 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     assert_select "#members-unmapped option[selected]", text: "Do not give them"
   end
 
+  # Document categories are mapped to local ones, namesakes preselected; saving clears the counter.
+  def test_documents_tab_maps_categories
+    @setting.update!(selected_modules: %w[documents], source_catalog: { "user" => {}, "document_category" => { "71" => "Technical documentation", "72" => "Remote specs" } })
+    log_user("admin", "admin")
+    settings("documents")
+    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=documents'] .mirror-badge", text: "2"
+    assert_select "#mirror-table-document_category tr.mirror-suggested select option[selected]", text: "Technical documentation (#3)"
+    assert_select "#mirror-table-document_category option", text: /Inactive Document Category/, count: 0
+    assert_select "p", text: /must run Redmine Mirror.*share Documents/
+    patch "/projects/ecookbook/mirror/settings/modules/documents", params: { mappings: { "document_category" => { "71" => "3", "72" => "2" } } }
+    assert_equal({ "71" => 3, "72" => 2 }, @project.mirror_reference_mappings.where(reference_type: "document_category").to_h { |row| [row.source_id.to_s, row.destination_id] })
+    settings("documents")
+    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=documents'] .mirror-badge", count: 0
+  end
+
   # A source reference with a single local namesake is preselected, not saved.
   def test_module_tab_preselects_namesakes_and_shows_only_its_tables
     log_user("admin", "admin")

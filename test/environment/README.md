@@ -19,7 +19,8 @@ Document Mirror setup, operation, extension points or validation evidence.
 # Two-instance test environment
 
 Two Redmine 6.1.4 instances with SQLite, their own volumes and an isolated Docker
-network, plus a worker. It is meant for manual trials and real API checks between
+network, plus a worker. Mirror runs on both, the source only for the Documents module;
+the older sources of `versions.sh` and the formats stack run without it. It is meant for manual trials and real API checks between
 instances. Its network cannot reach a production API.
 
 The local base image `reporting-compat-ready:6.1.4` provides Chromium and its driver.
@@ -130,6 +131,7 @@ Redmine's own fixtures remain the basis of the automated suites.
 | `issue_state_seed.rb` | `mirror-state-demo`, two subprojects, an independent and an unmapped project; internal, cross-project and unmirrored parents; watcher `mirror-observer` outside the project |
 | `custom_fields_seed.rb` | `mirror-custom-fields-demo`: two issues (one private) and seven fields (required text, multiple list, integer, date, boolean, user, version), with history |
 | `wiki_seed.rb` | `mirror-wiki-demo`: start page with versions 1 and 3 (2 deleted) by two authors at fixed dates, child page with an attachment |
+| `documents_seed.rb` | `mirror-documents-demo`: two documents in two categories at fixed dates, one with two files by two authors, shared through Mirror source (allowed globally, module enabled). Needs Mirror on the source (6.1 stack only) |
 | `members_seed.rb` | `mirror-members-demo`: Alice (Manager), `mirror-leaver` (Reporter) and the group *Mirror team* (Developer) |
 | `locked_seed.rb` | `mirror-locked-demo`: an issue authored by and assigned to `mirror-leaver`, on a version closed afterwards, with a note, a watcher and a time entry by that user |
 
@@ -169,6 +171,7 @@ Unless stated otherwise, it imports into temporary projects and deletes them aft
 | `custom_fields_smoke.rb` | Seven formats, required field without local default, history, privacy, preview, idempotence, local change refused; temporary fields deleted |
 | `conflicts_smoke.rb` | Conflict recorded, local object kept with its correspondence, recheck, correction and resolution |
 | `wiki_smoke.rb` | Needs `wiki_seed.rb`. Preview, version numbers and gaps, authors, dates, parent, attachment, idempotence, new source version (edits the source page), local conflict |
+| `documents_smoke.rb` | Needs `documents_seed.rb`. Mirror source API, preview, categories mapped by name, dates, description, files with authors and content, idempotence, source state, local conflict. Then run `documents_source_check.rb` on the source: sessions by purpose, file transfers and account logged |
 | `members_smoke.rb` | Needs `members_seed.rb`. Accounts outside the project offered to a members manager, preview, user, locked account and group added with mapped roles, idempotence |
 | `mirror_mode_smoke.rb` | Mirror mode on `mirror-demo`: local edits overwritten, local deletion recreated, source note edit (Redmine 5.0+ source), source deletions within the limit, beyond it and confirmed, idempotence. Creates and deletes its own source issues |
 | `locked_smoke.rb` | Needs `locked_seed.rb`. `mirror-leaver` locked on the destination: author, assignee, note and time entry kept, closed version set, locked watcher skipped, idempotent rerun |

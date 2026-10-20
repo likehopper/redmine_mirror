@@ -16,6 +16,26 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.19 — 2026-10-20
+
+- **Documents** module: title, description, category, creation date and files with their
+  authors and dates, without notifications. Categories are mapped to local document
+  categories. Conflicts, mirror mode and deletions work as for the wiki.
+- **Mirror source**, for a Redmine that is the source of a Mirror destination: Redmine has
+  no documents REST API, so Mirror installed on the source serves them, read-only. Three
+  locks, closed by default: the administrator allows Mirror source (plugin settings),
+  the project enables the **Mirror source** module, and its **Settings → Mirror source**
+  tab checks what it shares (Documents; Files later). The API key needs an account with
+  *View documents*; anonymous requests are refused. Document files go through Mirror
+  source too, not the attachments API.
+- Every access is logged on the source, grouped by session (one per destination run or
+  reference refresh, with its purpose): account, address, documents listed, files sent
+  and refusals, in the project's tab and, for all projects, in the plugin settings.
+  Retention defaults to 180 days (migration 015).
+- The destination shows the requirement next to the Documents module and reports which
+  lock to open when the source refuses. The other modules still need nothing on the
+  source.
+
 ## 1.0.0-beta.18 — 2026-10-20
 
 - With *Skip it and synchronize the rest* (the default), a preview with errors ends

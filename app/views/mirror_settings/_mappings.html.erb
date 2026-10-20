@@ -26,7 +26,7 @@ reference. Unmapped references with a single local namesake are preselected.
     <% if User.current.allowed_to?(:select_project_modules, @project) %><%= link_to l(:label_mirror_enable_project_module), settings_project_path(@project, tab: "modules") %><% end %></p>
 <% end %>
 <%= render adapter.settings_partial, adapter: adapter if adapter.settings_partial %>
-<% if %w[issue_hierarchy issue_watchers wiki project_members].include?(adapter.key) %>
+<% if %w[issue_hierarchy issue_watchers wiki project_members documents].include?(adapter.key) %>
   <p><%= l("text_mirror_#{adapter.key}".to_sym) %></p>
   <p><%= link_to l(:label_mirror_module_users), mirror_configuration_path(@project, "users") %></p>
 <% end %>

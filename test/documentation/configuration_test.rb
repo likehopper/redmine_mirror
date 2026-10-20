@@ -238,6 +238,51 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     screenshot "26-admin-overview", "#content", max_height: 620
   end
 
+  # The same Redmine plays a source here: it shares the documents of a project. The log
+  # entries stand for two destination runs (fictitious account and address).
+  def test_17_mirror_source
+    visit "/settings/plugin/redmine_mirror"
+    check "settings_source_enabled"
+    screenshot "27-source-allowed", "#mirror-source-settings"
+    click_button "Apply"
+    assert_selector "#flash_notice"
+    assert RedmineMirror::Source.enabled?
+
+    handbook = Project.create!(name: "Handbook", identifier: "handbook", is_public: false, enabled_module_names: %w[documents mirror_source])
+    category = DocumentCategory.find_by!(name: "Technical documentation")
+    documents = ["Architecture", "Operations guide"].map { |title| handbook.documents.create!(title: title, category: category, description: "#{title} of the platform.") }
+    visit "/projects/handbook/settings/mirror_source"
+    check "mirror-source-share-documents"
+    screenshot "28-source-sharing", "#mirror-source-form"
+    click_button "Save"
+    assert_selector "#flash_notice"
+    assert_equal %w[documents], handbook.reload.mirror_source_setting.shared_modules
+
+    reader = User.find_by!(login: "alice")
+    log = lambda do |session, minutes, action, **attributes|
+      MirrorSourceAccess.create!({ project: handbook, user: reader, session_key: session, remote_ip: "203.0.113.10",
+        action: action, created_at: Time.current - minutes.minutes }.merge(attributes))
+    end
+    refused, synchronized = "1" * 32, "2" * 32
+    log.call(refused, 30, "refused", purpose: "references", reason: "not_shared", details: JSON.generate("path" => "/projects/handbook/mirror/source/documents.json"))
+    log.call(synchronized, 12, "list", purpose: "synchronization", object_count: 2,
+      details: JSON.generate("documents" => documents.map { |document| { "id" => document.id, "title" => document.title, "files" => 1 } }))
+    [["architecture.pdf", 482_304], ["operations.pdf", 215_040]].each_with_index do |(filename, bytes), index|
+      log.call(synchronized, 11 - index, "download", purpose: "synchronization", object_count: 1, bytes: bytes,
+        details: JSON.generate("attachment" => { "id" => 900 + index, "filename" => filename, "document_id" => documents[index].id }))
+    end
+    visit "/projects/handbook/settings/mirror_source"
+    assert_selector "table.mirror-source-sessions tbody tr", count: 2
+    screenshot "29-source-log", "#tab-content-mirror_source"
+    within("table.mirror-source-sessions tbody tr:first-child") { click_link "Details" }
+    assert_selector "table.mirror-source-accesses tbody tr", count: 3
+    screenshot "30-source-session", "table.mirror-source-accesses"
+
+    visit "/settings/plugin/redmine_mirror"
+    assert_selector "table.mirror-source-sessions tbody tr", count: 2
+    screenshot "31-source-activity", "#content", max_height: 900
+  end
+
   private
 
   # Default data plus what an administrator prepares before using Mirror: the

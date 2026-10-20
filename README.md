@@ -18,7 +18,7 @@ Document Mirror setup, operation, extension points or validation evidence.
 
 # <img src="assets/images/synchronisation-des-donnees-64.png" width="64" height="64" alt=""> Redmine Mirror
 
-![Version](https://img.shields.io/badge/Version-1.0.0--beta.18-orange)
+![Version](https://img.shields.io/badge/Version-1.0.0--beta.19-orange)
 ![Destination tested](https://img.shields.io/badge/Destination_tested-5.1_%7C_6.1-blue)
 ![Source tested](https://img.shields.io/badge/Source_tested-4.2_%7C_5.0_%7C_6.1-blue)
 ![Database tested](https://img.shields.io/badge/Database_tested-SQLite_3-blue)
@@ -32,7 +32,7 @@ existing destination project, through the destination REST API and native models
 
 Use it to migrate projects to a new instance, or to keep a regularly updated secondary
 copy. Each project has its own connection, mappings, schedule, history and conflicts.
-Version **1.0.0-beta.18** is a pre-release for testing before 1.0.0, not a stable release.
+Version **1.0.0-beta.19** is a pre-release for testing before 1.0.0, not a stable release.
 
 ## Features
 
@@ -50,6 +50,7 @@ Version **1.0.0-beta.18** is a pre-release for testing before 1.0.0, not a stabl
 | Users | Identity mappings and anonymization; no account is created |
 | Wiki | Pages with every version, authors, dates, parents and attachments |
 | Members | Users, locked accounts and groups with mapped roles; additive |
+| Documents | Title, description, category, date and files; the source shares them (Mirror source) |
 
 - Preview before writing, manual runs and automatic schedules.
 - Logs with remote and local IDs, links, filters and progress.
@@ -58,6 +59,8 @@ Version **1.0.0-beta.18** is a pre-release for testing before 1.0.0, not a stabl
   limited per run.
 - Pending cross-project relations and parents listed for follow-up.
 - Source API keys encrypted, never displayed or logged.
+- On a source running Mirror, nothing is shared until the administrator allows Mirror
+  source and a project chooses what it shares; every access is logged.
 - Text formats converted to the destination's: Textile or Markdown to HTML for CKEditor,
   detected per text.
 - Execution log with a summary, errors grouped by cause and the special cases to check
@@ -68,8 +71,11 @@ Version **1.0.0-beta.18** is a pre-release for testing before 1.0.0, not a stabl
 
 - Destination: Redmine with this plugin, the REST API enabled, a `database_cipher_key`,
   and a worker sharing its database, attachment storage and cipher key.
-- Source: any Redmine with the REST API enabled; Mirror is not needed there. Use the key
-  of a dedicated, read-only account member of the source projects
+- Source: any Redmine with the REST API enabled; Mirror is not needed there, except for
+  the Documents module, which Redmine's API does not cover: install Mirror 1.0.0-beta.19
+  or later on the source too, then share the documents through its **Mirror source**
+  module (see [Mirror source](doc/CONFIGURATION.md#mirror-source-on-the-source-redmine)).
+  Use the key of a dedicated, read-only account member of the source projects
   (see [source permissions](doc/CONFIGURATION.md#2-enable-the-rest-api)).
 - HTTPS URLs on both sides.
 - With SQLite, keep the `timeout: 5000` of Redmine's sample `database.yml`: the worker and
@@ -149,7 +155,7 @@ Mirror keeps a secondary copy of the selected modules the source API key can rea
 configuration, accounts, roles or hidden data. Deletions are propagated in mirror mode
 only.
 
-- Project files and SLA modules are not implemented yet. Reporting settings and
+- Project files (the Files module) and SLA modules are not implemented yet. Reporting settings and
   credit policies come with redmine_reporting when it is installed on the destination.
 - Some historical change types are not supported and fail explicitly.
 - Destination workflows and validations apply: a preview cannot guarantee every write.

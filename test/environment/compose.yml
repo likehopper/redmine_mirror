@@ -37,8 +37,10 @@ services:
     environment:
       <<: *environment
       MIRROR_ROLE: source
+      MIRROR_SOURCE_PLUGIN: "1"
     volumes:
       - .:/mirror-environment:ro
+      - ../..:/mirror-plugin:ro
       - source-data:/mirror-data
   destination:
     <<: *redmine

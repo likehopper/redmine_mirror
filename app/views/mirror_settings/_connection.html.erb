@@ -48,7 +48,7 @@ Connection: source Redmine and project, API key, source text format and modules.
       <%= hidden_field_tag "connection[modules][]", "" %>
       <% RedmineMirror::REGISTRY.resolve(RedmineMirror::REGISTRY.keys).select(&:selectable?).each do |adapter| %>
         <% next unless adapter.available? || @setting.selected_modules.include?(adapter.key) %>
-        <label class="block"><%= check_box_tag "connection[modules][]", adapter.key, @setting.selected_modules.include?(adapter.key), id: "connection_modules_#{adapter.key}" %> <%= l(adapter.label) %></label>
+        <label class="block"><%= check_box_tag "connection[modules][]", adapter.key, @setting.selected_modules.include?(adapter.key), id: "connection_modules_#{adapter.key}" %> <%= l(adapter.label) %><% if adapter.respond_to?(:selection_hint) && adapter.selection_hint %> <em class="info mirror-module-hint"><%= l(adapter.selection_hint) %></em><% end %></label>
       <% end %>
       <em class="info"><%= l(:text_mirror_modules_help) %></em></p>
     <% if @setting.unavailable_modules.any? %>

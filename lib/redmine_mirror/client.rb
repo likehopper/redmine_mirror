@@ -16,13 +16,18 @@
 # Read and write trusted Redmine REST endpoints without leaking credentials or private responses.
 
 require "net/http"
+require "securerandom"
 require "uri"
 module RedmineMirror
   class Error < StandardError; end
   class Client
     # Credentials belong to one trusted base URL. Reject userinfo, queries and
     # fragments so they cannot alter the authenticated request destination.
-    def initialize(url:, api_key:, allow_http: false)
+    # Sources running Mirror log their accesses by session: one per client (a run or a
+    # reference refresh), with what it is for (Source::PURPOSES).
+    attr_reader :session
+
+    def initialize(url:, api_key:, allow_http: false, purpose: nil)
       @base_uri = URI(url.to_s.end_with?("/") ? url : "#{url}/")
       unless @base_uri.host && (@base_uri.scheme == "https" || (allow_http && @base_uri.scheme == "http")) &&
              !@base_uri.userinfo && !@base_uri.query && !@base_uri.fragment
@@ -30,6 +35,8 @@ module RedmineMirror
       end
       raise Error, "Missing API key" if api_key.to_s.empty?
       @api_key = api_key
+      @session = SecureRandom.hex(16)
+      @purpose = purpose
     rescue URI::InvalidURIError
       raise Error, "A trusted HTTPS Redmine URL is required"
     end
@@ -61,8 +68,9 @@ module RedmineMirror
 
     # Construct a source-relative download path instead of trusting API-supplied
     # content URLs that could send the key to another host.
-    def download_attachment(id, max_bytes: 32 * 1024 * 1024)
-      request(:get, "attachments/download/#{Integer(id)}", binary: true, max_bytes: max_bytes)
+    # A Mirror source serves shared files through its own path (Adapters::Documents).
+    def download_attachment(id, max_bytes: 32 * 1024 * 1024, path: nil)
+      request(:get, path || "attachments/download/#{Integer(id)}", binary: true, max_bytes: max_bytes)
     end
 
     # Redmine paginates collections. Reject empty intermediate pages rather than
@@ -89,6 +97,8 @@ module RedmineMirror
       uri.query = URI.encode_www_form(params) unless params.empty?
       request = { get: Net::HTTP::Get, post: Net::HTTP::Post, put: Net::HTTP::Put }.fetch(method).new(uri)
       request["X-Redmine-API-Key"] = @api_key
+      request["X-Mirror-Session"] = @session
+      request["X-Mirror-Purpose"] = @purpose if @purpose
       request["Content-Type"] = "application/json"
       request.body = JSON.generate(payload) if payload
       http_client = Net::HTTP.new(uri.host, uri.port, nil)
@@ -102,7 +112,7 @@ module RedmineMirror
         attachment_bytes = +"".b
         http_client.start do |connection|
           connection.request(request) do |response|
-            raise Error, "Redmine API returned HTTP #{response.code} for GET #{path}" unless response.is_a?(Net::HTTPSuccess)
+            raise Error, "Redmine API returned HTTP #{response.code} for GET #{path}#{refusal(response)}" unless response.is_a?(Net::HTTPSuccess)
             response.read_body do |chunk|
               raise Error, "Attachment exceeds the import limit of #{max_bytes / 1024} KB" if attachment_bytes.bytesize + chunk.bytesize > max_bytes
               attachment_bytes << chunk
@@ -114,12 +124,18 @@ module RedmineMirror
       response = http_client.start { |connection| connection.request(request) }
       # Never follow redirects or expose response bodies (which can contain private data).
       # The path names the refused resource, typically a missing source permission.
-      raise Error, "Redmine API returned HTTP #{response.code} for #{method.to_s.upcase} #{path}" unless response.is_a?(Net::HTTPSuccess)
+      raise Error, "Redmine API returned HTTP #{response.code} for #{method.to_s.upcase} #{path}#{refusal(response)}" unless response.is_a?(Net::HTTPSuccess)
       response.body.to_s.empty? ? {} : JSON.parse(response.body)
     rescue JSON::ParserError, KeyError, ArgumentError
       raise Error, "Invalid Redmine API response"
     rescue IOError, SystemCallError, Timeout::Error, OpenSSL::SSL::SSLError
       raise Error, "Redmine API connection failed; a write may have succeeded, inspect before retrying"
+    end
+
+    # The lock a Mirror source names when it refuses (Source.refusal): a known word only.
+    def refusal(response)
+      reason = response["X-Mirror-Source-Refusal"].to_s
+      reason.match?(/\A[a-z_]{1,20}\z/) ? " (Mirror source: #{reason})" : ""
     end
   end
 end

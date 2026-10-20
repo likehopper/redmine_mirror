@@ -62,6 +62,7 @@ projects with a read-only role:
 | View watchers list | Watchers |
 | View wiki, View wiki history | Wiki |
 | View members (public by default) | Members |
+| View documents | Documents ([Mirror source](#mirror-source-on-the-source-redmine) on the source) |
 | Manage issue categories (optional) | Category default assignees; without it, categories come from the issues that use them |
 
 Projects the account is not a member of are not visible. **Issue custom fields** also
@@ -272,6 +273,39 @@ recent runs, total and average duration, objects processed, mappings, conflicts)
 
 ![Administration overview](screenshots/configuration/26-admin-overview.png)
 
+## Mirror source (on the source Redmine)
+
+Only for the **Documents** module, which Redmine's REST API does not provide. On the
+source Redmine:
+
+1. Install Redmine Mirror 1.0.0-beta.19 or later and run its migration (see the README).
+   Nothing else of Mirror needs configuring there.
+2. `Administration → Plugins → Redmine Mirror → Configure`: check **Allow Mirror
+   source**. Off, nothing is shared, whatever the projects check. The same page shows the
+   projects sharing data and the latest sessions across projects.
+
+   ![Mirror source allowed](screenshots/configuration/27-source-allowed.png)
+3. In the project: `Settings → Modules`, enable **Mirror source** (the **Mirror** module
+   is not needed), then in `Settings → Mirror source` check **Documents** and save.
+
+   ![Shared data](screenshots/configuration/28-source-sharing.png)
+4. Give the source API account *View documents* in that project. Anonymous access is
+   refused, even on public projects.
+
+The **Access log** below the sharing lists one session per destination run or reference
+refresh: account, address, purpose, documents listed, files sent and refusals. **Details**
+lists each request and what it sent. Refused requests name the lock that refused them.
+
+![Access log](screenshots/configuration/29-source-log.png)
+
+![Session details](screenshots/configuration/30-source-session.png)
+
+Entries are kept 180 days by default (plugin settings). Configuring the sharing and
+reading the log need the permission *Configure Mirror source and read its access log*.
+The plugin settings list the latest sessions of every project:
+
+![Mirror source activity](screenshots/configuration/31-source-activity.png)
+
 ## Run the worker
 
 Runs are processed by the worker, a command scheduled every minute on the destination
@@ -301,6 +335,8 @@ and **Cancel this execution** withdraws a queued run.
 | A local user is missing from the choices | Add them to the project, or select **Members** and map them as a user with *Manage members*. |
 | Run stays **Queued**, "already queued or running" | The worker is not running: schedule `redmine_mirror:tick`, or cancel the run in **Overview**. |
 | "HTTP 403 for GET …" | The source account lacks the permission for that request (step 2). |
+| "The source Redmine does not list documents" | Install Redmine Mirror 1.0.0-beta.19 or later on the source and restart it. |
+| "Mirror source is disabled…", "Enable the Mirror source module…", "Share Documents…" | Open that lock on the source: [Mirror source](#mirror-source-on-the-source-redmine). |
 | "MIRROR_DESTINATION_URL is not configured" | Set both variables in the worker's environment. |
 | Preview ends Partial or Failed on a mapping | Complete the module tabs with a red counter (steps 7 and 8); with *Skip it*, the rest is synchronized meanwhile. |
 | Run reports a conflict | Step 12. |

@@ -1,0 +1,51 @@
+<%#
+File: redmine_mirror/app/views/mirror_source_settings/_accesses.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+One Mirror source session: each request, served or refused, and what it sent.
+%><% if accesses.empty? %>
+  <p class="nodata"><%= l(:label_no_data) %></p>
+<% else %>
+  <table class="list mirror-source-accesses">
+    <thead><tr>
+      <th><%= l(:label_mirror_source_time) %></th>
+      <th><%= l(:label_mirror_source_account) %></th>
+      <th><%= l(:label_mirror_source_address) %></th>
+      <th><%= l(:label_mirror_source_request) %></th>
+      <th><%= l(:label_mirror_source_sent) %></th>
+    </tr></thead>
+    <tbody>
+      <% accesses.each do |access| %>
+        <% details = access.details %>
+        <tr class="<%= 'mirror-source-refused' if access.action == 'refused' %>">
+          <td><%= format_time(access.created_at) %></td>
+          <td><%= access.user ? link_to_user(access.user) : l(:label_user_anonymous) %></td>
+          <td><%= access.remote_ip %></td>
+          <td><%= l("label_mirror_source_action_#{access.action}".to_sym) %></td>
+          <td>
+            <% case access.action %>
+            <% when "refused" %>
+              <%= l("text_mirror_source_refusal_#{access.reason}".to_sym, default: access.reason.to_s) %>
+            <% when "download" %>
+              <% file = details.fetch("attachment", {}) %>
+              <%= file["filename"] %> (<%= number_to_human_size(access.bytes) %>)
+            <% else %>
+              <%= safe_join(details.fetch("documents", []).map { |document| "#{document['title']} (##{document['id']})" }, ", ") %>
+            <% end %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% end %>

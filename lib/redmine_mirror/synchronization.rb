@@ -53,7 +53,7 @@ module RedmineMirror
         end
         next unless claimed
         begin
-          client = setting.source_client
+          client = setting.source_client(purpose: "references")
           # Progress is saved at most every 2 seconds, for the configuration page.
           saved_at = nil
           progress = lambda do |step, steps, key, records|
@@ -120,7 +120,7 @@ module RedmineMirror
         run.update!(source_url: source_url, connection_key: key)
         destination_key = ENV.fetch("MIRROR_DESTINATION_API_KEY") { raise Error, "MIRROR_DESTINATION_API_KEY is not configured for the worker" }
         destination = Client.new(url: destination_url, api_key: destination_key, allow_http: config.fetch("allow_http"))
-        runner = Runner.new(source: setting.source_client, destination: destination, store: DatabaseStore.new(key, project_id: setting.project_id))
+        runner = Runner.new(source: setting.source_client(purpose: run.apply? ? "synchronization" : "preview"), destination: destination, store: DatabaseStore.new(key, project_id: setting.project_id))
         # Also share the legacy operator task's local lock on this host.
         FileUtils.mkdir_p(Rails.root.join("tmp"))
         File.open(Rails.root.join("tmp", "mirror-#{key}.lock"), "a", 0600) do |lock|
