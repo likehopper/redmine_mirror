@@ -23,7 +23,7 @@ Destination (Redmine running Mirror):
 
 | Redmine | Database | Evidence |
 | --- | --- | --- |
-| 6.1.4 | SQLite 3 | Official-image CI runner, locally and on GitHub: Ruby 3.4.11 / Rails 7.2.3.2, 165 Redmine tests / 828 assertions, symlinked install, `zeitwerk:check`, fresh install and uninstall/reinstall. All two-instance smokes in production mode. |
+| 6.1.4 | SQLite 3 | Official-image CI runner, locally and on GitHub: Ruby 3.4.11 / Rails 7.2.3.2, 167 Redmine tests / 846 assertions, symlinked install, `zeitwerk:check`, fresh install and uninstall/reinstall. All two-instance smokes in production mode. |
 | 5.1.13 | SQLite 3 | Two-instance write smokes in production mode (`versions.sh`). Full Redmine plugin suite run once locally on the `reporting-compat-ready:5.1.13` image (1.0.0-beta.18); not part of the CI runner. |
 | 5.0 / 6.0 / 7.x | Not validated | No compatibility claim |
 | Any version | PostgreSQL / MariaDB / MySQL | Not validated |

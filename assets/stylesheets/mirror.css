@@ -90,3 +90,8 @@
 /* Mirror source: refused accesses stand out in the access log. */
 tr.mirror-source-refused td { color: #c22; }
 .mirror-module-hint { display: inline; }
+
+/* Administration > Mirror sidebar and source page. */
+.mirror-admin-sidebar a.selected { font-weight: bold; }
+#mirror-admin-source-filters fieldset label { margin-right: 1em; }
+p.mirror-source-on { color: #2a7a2a; }
