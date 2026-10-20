@@ -24,6 +24,8 @@ module RedmineMirror
       base.has_many :mirror_sync_runs, dependent: :destroy
       base.has_one :mirror_project_setting, dependent: :destroy
       base.has_many :mirror_reference_mappings, dependent: :destroy
+      base.has_one :mirror_source_setting, dependent: :destroy
+      base.has_many :mirror_source_accesses, dependent: :delete_all
     end
   end
 end

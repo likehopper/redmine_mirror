@@ -43,6 +43,7 @@ module RedmineMirror
       when "status" then project.rolled_up_statuses.presence || IssueStatus.sorted
       when "priority" then IssuePriority.active.sorted
       when "activity" then project.activities
+      when "document_category" then DocumentCategory.shared.active.sorted
       when "user" then local_users(project)
       else raise Error, "Unknown mapping table #{key}"
       end

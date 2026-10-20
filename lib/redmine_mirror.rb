@@ -19,7 +19,7 @@
 # lives here, not in lib/redmine_mirror/version.rb: Zeitwerk would require that file to
 # define RedmineMirror::Version, which would hide Redmine's Version model in this namespace.
 module RedmineMirror
-  VERSION = "1.0.0-beta.18"
+  VERSION = "1.0.0-beta.19"
   # Contract between Mirror and external adapters. Increase only on incompatible
   # changes to Adapters::Base, MappingTable or the registration rules.
   ADAPTER_API_VERSION = 1
@@ -41,6 +41,7 @@ require File.join(File.dirname(__FILE__), "redmine_mirror/policy")
 require File.join(File.dirname(__FILE__), "redmine_mirror/runner")
 require File.join(File.dirname(__FILE__), "redmine_mirror/database_store")
 require File.join(File.dirname(__FILE__), "redmine_mirror/synchronization")
+require File.join(File.dirname(__FILE__), "redmine_mirror/source")
 module RedmineMirror
   REGISTRY = Registry.new
 
@@ -101,4 +102,5 @@ module RedmineMirror
   REGISTRY.register(Adapters::CustomFields.new)
   REGISTRY.register(Adapters::Wiki.new)
   REGISTRY.register(Adapters::Members.new)
+  REGISTRY.register(Adapters::Documents.new)
 end

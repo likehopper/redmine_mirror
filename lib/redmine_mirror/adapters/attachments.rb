@@ -55,13 +55,14 @@ module RedmineMirror
         attachment.destroy if attachment && attachment.project&.id == project_id
       end
 
-      def import(record, attributes, issue, source)
+      # path: where a Mirror source serves the file, instead of the attachments API.
+      def import(record, attributes, issue, source, path: nil)
         # The destination's own limit (Administration > Files) is the one that matters.
         limit = Setting.attachment_max_size.to_i * 1024
         if attributes.fetch("filesize") > limit
           raise Error, "Attachment #{attributes['filename']} (#{attributes.fetch('filesize') / 1024} KB) exceeds the destination's maximum attachment size (#{limit / 1024} KB)"
         end
-        bytes = source.download_attachment(record.fetch("id"), max_bytes: limit)
+        bytes = path ? source.download_attachment(record.fetch("id"), max_bytes: limit, path: path) : source.download_attachment(record.fetch("id"), max_bytes: limit)
         raise Error, "Attachment size mismatch" unless bytes.bytesize == attributes.fetch("filesize")
         Tempfile.create("mirror-attachment") do |file|
           file.binmode

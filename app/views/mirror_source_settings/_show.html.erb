@@ -1,0 +1,50 @@
+<%#
+File: redmine_mirror/app/views/mirror_source_settings/_show.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Mirror source tab of the project settings: the data shared with Mirror destinations,
+then the access log, by session, or one session's requests.
+%><% content_for :header_tags do %>
+  <%= stylesheet_link_tag "mirror", plugin: "redmine_mirror" %>
+<% end %>
+<% source_setting = @project.mirror_source_setting %>
+<% shared = source_setting&.shared_modules.to_a %>
+<% unless RedmineMirror::Source.enabled? %>
+  <p class="warning" id="mirror-source-disabled"><%= l(:text_mirror_source_disabled) %></p>
+<% end %>
+<p><%= l(:text_mirror_source_help) %></p>
+<%= form_tag project_mirror_source_path(@project), method: :patch, id: "mirror-source-form" do %>
+  <%= hidden_field_tag "shared_modules[]", "" %>
+  <div class="box tabular">
+    <p><label><%= l(:label_mirror_source_shared) %></label>
+      <% RedmineMirror::Source::KINDS.each do |kind| %>
+        <label class="block"><%= check_box_tag "shared_modules[]", kind, shared.include?(kind), id: "mirror-source-share-#{kind}" %> <%= l("label_mirror_module_#{kind}".to_sym) %>
+          <em class="info"><%= l("text_mirror_source_share_#{kind}".to_sym) %></em></label>
+      <% end %>
+    </p>
+  </div>
+  <%= submit_tag l(:button_save) %>
+<% end %>
+
+<h3 id="mirror-source-log"><%= l(:label_mirror_source_log) %></h3>
+<% session_key = params[:mirror_source_session].to_s %>
+<% if session_key.match?(RedmineMirror::Source::SESSION) %>
+  <% accesses = @project.mirror_source_accesses.where(session_key: session_key).order(:created_at, :id).preload(:user).to_a %>
+  <p><%= link_to l(:label_mirror_source_all_sessions), settings_project_path(@project, tab: "mirror_source", anchor: "mirror-source-log") %></p>
+  <%= render "mirror_source_settings/accesses", accesses: accesses %>
+<% else %>
+  <% sessions = @project.mirror_source_accesses.sessions.limit(50).to_a %>
+  <%= render "mirror_source_settings/sessions", sessions: sessions, show_project: false %>
+<% end %>
+<p><em class="info"><%= l(:text_mirror_source_retention, days: RedmineMirror::Source.retention_days) %></em></p>

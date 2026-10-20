@@ -29,3 +29,9 @@ get "projects/:project_id/mirror/synchronizations/:id", to: "mirror_synchronizat
 patch "projects/:project_id/mirror/synchronizations/:id/cancel", to: "mirror_synchronizations#cancel", as: "project_mirror_run_cancel"
 
 patch "projects/:project_id/mirror/conflicts/:id", to: "mirror_conflicts#update", as: "project_mirror_conflict"
+
+# Mirror source: what this Redmine shares with Mirror destinations, and its access log.
+patch "projects/:project_id/mirror_source", to: "mirror_source_settings#update", as: "project_mirror_source"
+get "projects/:project_id/mirror/source/documents", to: "mirror_source_api#documents", as: "mirror_source_documents"
+get "mirror/source/documents/:id", to: "mirror_source_api#document", as: "mirror_source_document"
+get "mirror/source/attachments/:id/download", to: "mirror_source_api#download", as: "mirror_source_download"

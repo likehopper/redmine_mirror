@@ -38,8 +38,17 @@ Redmine::Plugin.register :redmine_mirror do
     permission :manage_mirror, { projects: [:settings], mirror: [:index], mirror_synchronizations: [:show, :create, :cancel, :update],
       mirror_conflicts: [:update], mirror_settings: [:show, :update_connection, :update_mappings, :refresh] }, require: :member
   end
-  # Administrators list the source Redmine URLs that project managers may connect to.
-  settings default: { "allowed_source_urls" => "", "user_company_field_id" => "" }, partial: "settings/redmine_mirror"
+  # Mirror source, when this Redmine is a source: a project shares chosen data with Mirror
+  # destinations (Documents), if an administrator allows it. Configuring the sharing
+  # and reading its access log are one permission; the API account needs only the
+  # native permission of the data (View documents).
+  project_module :mirror_source do
+    permission :manage_mirror_source, { projects: [:settings], mirror_source_settings: [:update] }, require: :member
+  end
+  # Administrators list the source Redmine URLs that project managers may connect to,
+  # and allow Mirror source globally (off by default).
+  settings default: { "allowed_source_urls" => "", "user_company_field_id" => "", "source_enabled" => "", "source_log_days" => "180" },
+    partial: "settings/redmine_mirror"
   menu :project_menu, :mirror, { controller: "mirror", action: "index" },
        caption: :label_mirror, param: :project_id
   # Administration overview of the projects Mirror is configured in.

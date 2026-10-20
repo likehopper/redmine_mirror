@@ -20,7 +20,8 @@ set -euo pipefail
 case "${MIRROR_ROLE:-}" in source|destination) ;; *) exit 1 ;; esac
 cd /usr/src/redmine
 rm -rf plugins/redmine_sla plugins/redmine_reporting plugins/redmine_mirror
-if [ "$MIRROR_ROLE" = destination ]; then cp -a /mirror-plugin plugins/redmine_mirror; fi
+# A 6.1 source runs Mirror too, for the Documents module; older sources do not.
+if [ "$MIRROR_ROLE" = destination ] || [ "${MIRROR_SOURCE_PLUGIN:-}" = 1 ]; then cp -a /mirror-plugin plugins/redmine_mirror; fi
 # Optional, with compose.reporting.yml: the Reporting adapters need Reporting on both sides.
 if [ -d /reporting-plugin ]; then cp -a /reporting-plugin plugins/redmine_reporting; fi
 cat > config/database.yml <<'YAML'

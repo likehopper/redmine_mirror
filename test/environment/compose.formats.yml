@@ -36,6 +36,8 @@ services:
       context: ./formats
       dockerfile: Dockerfile
     healthcheck: *health
+    environment:
+      MIRROR_SOURCE_PLUGIN: "0"
   destination:
     image: redmine-mirror-formats-destination:${MIRROR_DESTINATION_VERSION:-5.1.13}
     build: !override

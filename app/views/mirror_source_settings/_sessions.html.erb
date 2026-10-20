@@ -1,0 +1,54 @@
+<%#
+File: redmine_mirror/app/views/mirror_source_settings/_sessions.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Mirror source sessions: one row per destination run or reference refresh. Shown in the
+project tab and, for every project, in the plugin settings.
+%><% if sessions.empty? %>
+  <p class="nodata"><%= l(:label_no_data) %></p>
+<% else %>
+  <% users = User.where(id: sessions.map(&:user_id).compact).index_by(&:id) %>
+  <% projects = show_project ? Project.where(id: sessions.map(&:project_id)).index_by(&:id) : {} %>
+  <table class="list mirror-source-sessions">
+    <thead><tr>
+      <th><%= l(:label_mirror_source_last_access) %></th>
+      <% if show_project %><th><%= l(:label_project) %></th><% end %>
+      <th><%= l(:label_mirror_source_account) %></th>
+      <th><%= l(:label_mirror_source_address) %></th>
+      <th><%= l(:label_mirror_source_purpose) %></th>
+      <th><%= l(:label_mirror_source_requests) %></th>
+      <th><%= l(:label_mirror_source_documents_listed) %></th>
+      <th><%= l(:label_mirror_source_files_sent) %></th>
+      <th><%= l(:label_mirror_source_refused) %></th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+      <% sessions.each do |row| %>
+        <% project = show_project ? projects[row.project_id] : @project %>
+        <tr class="<%= 'mirror-source-refused' if row.refused.to_i.positive? %>">
+          <td title="<%= l(:label_mirror_source_started, time: format_time(row.started_at)) %>"><%= format_time(row.ended_at) %></td>
+          <% if show_project %><td><%= project ? link_to_project(project) : row.project_id %></td><% end %>
+          <td><%= users[row.user_id] ? link_to_user(users[row.user_id]) : l(:label_user_anonymous) %></td>
+          <td><%= row.remote_ip %></td>
+          <td><%= row.purpose.present? ? l("label_mirror_source_purpose_#{row.purpose}".to_sym) : "—" %></td>
+          <td><%= row.requests %></td>
+          <td><%= row.documents %></td>
+          <td><%= row.files %><% if row.bytes.to_i.positive? %> (<%= number_to_human_size(row.bytes) %>)<% end %></td>
+          <td><%= row.refused %></td>
+          <td><%= link_to l(:label_mirror_source_details), settings_project_path(project || row.project_id, tab: "mirror_source", mirror_source_session: row.session_key, anchor: "mirror-source-log") if project %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% end %>

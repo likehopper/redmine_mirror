@@ -302,3 +302,17 @@ Suite Redmine complète exécutée une fois sur l'image `reporting-compat-ready:
 assertions, capture de la page d'administration. Environnement à deux instances 6.1.4 :
 douze smokes réussis, dont `conflicts_smoke.rb` adapté au statut partiel. `versions.sh`
 source 4.2.10 → destination 5.1.13 : onze smokes d'écriture réussis.
+
+1.0.0-beta.19 (20 octobre 2026) : module Documents (titre, description, catégorie, date
+de création, fichiers avec auteurs et dates, sans notification), lu sur la source par
+Mirror source, Redmine n'ayant pas d'API pour les documents. Trois verrous fermés par
+défaut : autorisation de l'administrateur, module projet Mirror source, données
+partagées (Documents) ; compte authentifié avec *Voir les documents* ; fichiers servis
+par Mirror source ; journal d'accès par session (projet et configuration du plugin,
+migration 015). Runner CI 6.1.4 : 165 tests Redmine / 828 assertions, désinstallation
+et réinstallation comprises, sur l'arbre exact du commit. Parcours de documentation :
+17 étapes / 97 assertions, captures 27 à 31 pour Mirror source. Environnement à deux instances 6.1.4 avec Mirror sur la
+source : `documents_smoke.rb`, `documents_source_check.rb` (6 sessions : références,
+prévisualisation, synchronisation ; fichiers et compte journalisés), `wiki_smoke.rb` et
+`smoke.rb` réussis ; refus « disabled », « not_shared » et « module » remontés à la
+destination avec leur consigne, puis journalisés sur la source.

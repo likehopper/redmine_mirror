@@ -1,0 +1,118 @@
+# frozen_string_literal: true
+# File: redmine_mirror/test/integration/mirror_source_api_test.rb
+#
+# Redmine Mirror - modular project import and asynchronous replication.
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 2 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+#
+# Verify the Mirror source API: its three locks, the account permission and the access log.
+
+require_relative "../test_helper"
+
+class MirrorSourceApiTest < Redmine::ApiTest::Base
+  fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules,
+    :documents, :enumerations, :attachments
+
+  SESSION = "0123456789abcdef0123456789abcdef"
+
+  def setup
+    super
+    set_tmp_attachments_directory
+    @project = Project.find(1)
+    @project.enable_module!(:mirror_source)
+    MirrorSourceSetting.create!(project: @project, shared_modules: %w[documents])
+  end
+
+  def mirror_headers(user = "jsmith", password = nil)
+    credentials(user, password).merge("X-Mirror-Session" => SESSION, "X-Mirror-Purpose" => "synchronization")
+  end
+
+  def enabled(&block)
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1" }, &block)
+  end
+
+  def test_lists_shows_and_downloads_shared_documents_and_logs_each_access
+    enabled do
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
+      assert_response :success
+      documents = JSON.parse(response.body)
+      assert_equal 3, documents.fetch("total_count")
+      first = documents.fetch("documents").first
+      assert_equal [1, "Test document", "Document description"], first.values_at("id", "title", "description")
+      assert_equal({ "id" => 1, "name" => "Uncategorized" }, first.fetch("category"))
+      assert_equal %w[document.txt picture.jpg], first.fetch("attachments").map { |attachment| attachment.fetch("filename") }
+      get "/mirror/source/documents/3.json", headers: mirror_headers
+      assert_equal({ "id" => 3, "name" => "Technical documentation" }, JSON.parse(response.body).dig("document", "category"))
+      # Fixture files are not on disk: attach a real one.
+      file = Attachment.create!(container: Document.find(1), file: uploaded_test_file("testfile.txt", "text/plain"), author: User.find(2))
+      get "/mirror/source/attachments/#{file.id}/download", headers: mirror_headers
+      assert_response :success
+      assert_equal File.binread(file.diskfile), response.body
+    end
+    accesses = MirrorSourceAccess.where(session_key: SESSION).order(:id).to_a
+    assert_equal %w[list show download], accesses.map(&:action)
+    assert_equal [@project.id], accesses.map(&:project_id).uniq
+    assert_equal [2], accesses.map(&:user_id).uniq
+    assert_equal ["synchronization"], accesses.map(&:purpose).uniq
+    assert_equal 3, accesses.first.object_count
+    assert_equal "testfile.txt", accesses.last.details.dig("attachment", "filename")
+    session = @project.mirror_source_accesses.sessions.to_a.sole
+    assert_equal [3, 3, 1, 0], [session.requests, session.documents, session.files, session.refused]
+  end
+
+  # Each lock refuses with its reason, logged; the destination reads the header.
+  def test_each_lock_refuses_and_names_itself
+    get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
+    assert_response :forbidden
+    assert_equal "disabled", response.headers["X-Mirror-Source-Refusal"]
+    enabled do
+      @project.mirror_source_setting.update!(shared_modules: [])
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
+      assert_equal "not_shared", response.headers["X-Mirror-Source-Refusal"]
+      @project.disable_module!(:mirror_source)
+      get "/mirror/source/documents/1.json", headers: mirror_headers
+      assert_equal "module", response.headers["X-Mirror-Source-Refusal"]
+      @project.reload.enable_module!(:mirror_source)
+      @project.mirror_source_setting.update!(shared_modules: %w[documents])
+      Role.find(1).remove_permission!(:view_documents)
+      get "/mirror/source/attachments/2/download", headers: mirror_headers
+      assert_response :forbidden
+      assert_equal "permission", response.headers["X-Mirror-Source-Refusal"]
+    end
+    assert_equal %w[disabled not_shared module permission], MirrorSourceAccess.where(action: "refused").order(:id).pluck(:reason)
+  end
+
+  # Projects the account cannot see, missing objects and other files reveal nothing.
+  def test_invisible_projects_missing_objects_and_other_files
+    enabled do
+      Project.find(2).enable_module!(:mirror_source)
+      get "/projects/onlinestore/mirror/source/documents.json", headers: mirror_headers("dlopper", "foo")
+      assert_response :forbidden
+      assert_nil response.headers["X-Mirror-Source-Refusal"]
+      get "/mirror/source/documents/999.json", headers: mirror_headers
+      assert_response :not_found
+      # Attachment 1 belongs to an issue: only document files are served.
+      get "/mirror/source/attachments/1/download", headers: mirror_headers
+      assert_response :not_found
+      get "/projects/ecookbook/mirror/source/documents.json"
+      assert_response :unauthorized
+    end
+    assert_equal 0, MirrorSourceAccess.where(project_id: 2).count
+  end
+
+  def test_sessions_without_header_are_grouped_per_account_address_and_day
+    enabled do
+      2.times { get "/projects/ecookbook/mirror/source/documents.json", headers: credentials("jsmith") }
+    end
+    assert_equal 1, MirrorSourceAccess.distinct.count(:session_key)
+    assert_nil MirrorSourceAccess.first.purpose
+  end
+end

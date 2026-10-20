@@ -96,9 +96,10 @@ class MirrorProjectSetting < ActiveRecord::Base
     self[:encrypted_api_key] = Redmine::Ciphering.encrypt_text(value)
   end
 
-  def source_client
+  # purpose: what a Mirror source logs this client's session for (Source::PURPOSES).
+  def source_client(purpose: nil)
     RedmineMirror::Client.new(url: source_url, api_key: api_key,
-      allow_http: ENV["MIRROR_TEST_ENVIRONMENT"] == "disposable")
+      allow_http: ENV["MIRROR_TEST_ENVIRONMENT"] == "disposable", purpose: purpose)
   end
 
   def adapters

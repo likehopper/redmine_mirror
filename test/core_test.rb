@@ -468,4 +468,14 @@ class MirrorCoreTest < Minitest::Test
     assert_equal 60, @destination.records["time_entries"].first["user"]["id"]
   end
 
+  # YAML keeps the last of two identical keys: a new key must never replace an older one.
+  def test_locale_keys_are_unique_and_shared_by_both_languages
+    keys = %w[en fr].to_h do |lang|
+      lines = File.readlines(File.expand_path("../config/locales/#{lang}.yml", __dir__)).grep(/\A  [a-z0-9_]+:/)
+      names = lines.map { |line| line[/\A  ([a-z0-9_]+):/, 1] }
+      assert_empty names.tally.select { |_, count| count > 1 }.keys, "Duplicate #{lang} keys"
+      [lang, names.sort]
+    end
+    assert_equal keys.fetch("en"), keys.fetch("fr")
+  end
 end

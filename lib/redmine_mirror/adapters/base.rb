@@ -53,6 +53,11 @@ module RedmineMirror
         nil
       end
 
+      # Locale key of a requirement shown next to the module in the connection form, or nil.
+      def selection_hint
+        nil
+      end
+
       # Optional partial rendered in the module tab, above the mapping tables.
       def settings_partial
         nil

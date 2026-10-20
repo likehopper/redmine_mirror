@@ -259,6 +259,27 @@ local models and send no notification.
 - The API identifies a page by its title: a page renamed on the source is imported as a
   new page, and the old one stays. The start page and page protection are not copied.
 
+## Documents
+
+Imports the source project's documents: title, description, category, creation date
+and files with their authors, descriptions and dates. Enable the Documents module on
+the destination project first. Writes go through local models and send no notification.
+
+- Redmine has no documents REST API: the source must run Redmine Mirror 1.0.0-beta.19
+  or later and share the project's documents through **Mirror source**
+  ([configuration](CONFIGURATION.md#mirror-source-on-the-source-redmine)). The source
+  API key needs *View documents*. Otherwise the refresh and the runs say which lock to
+  open: Mirror missing, Mirror source not allowed, module disabled, Documents not
+  shared, or permission missing.
+- Categories are mapped to existing local document categories (Administration →
+  Enumerations). **Refresh source references** lists them, and the file authors in
+  *Users*.
+- Descriptions follow the destination format and issue references are rewritten, as
+  for issues.
+- A local edit or deletion of an imported document is a conflict. New source files are
+  added on later runs; in mirror mode, files removed on the source are removed locally.
+- Custom field values are not copied.
+
 ## Synchronization and worker
 
 **Run preview** and **Synchronize now** queue a run; the worker processes it. Every run
@@ -381,7 +402,8 @@ development environments.
 - One way only, from source to destination. Deletions are propagated in mirror mode only.
 - Not a backup: data hidden from the source API key, instance configuration, accounts,
   roles and custom field definitions are not copied.
-- Project files, SLA and Reporting adapters are not implemented yet.
+- Project files (the Files module), SLA and Reporting adapters are not implemented yet.
+- Document custom field values are not copied.
 - HTTPS with certificate checks is required; HTTP redirects are never followed.
 - No transaction across API calls: an error keeps earlier writes, and an interruption
   between a creation and its correspondence can create a duplicate on resume. Inspect

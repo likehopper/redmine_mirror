@@ -151,13 +151,13 @@ module MirrorHelper
   end
 
   def mirror_module_label(key)
-    # Wiki attachments have their own correspondences, inside the Wiki module.
-    RedmineMirror::REGISTRY.keys.include?(key) || key == "wiki_attachments" ? l("label_mirror_module_#{key}".to_sym) : key
+    # Wiki and document attachments have their own correspondences, inside their module.
+    RedmineMirror::REGISTRY.keys.include?(key) || %w[wiki_attachments document_attachments].include?(key) ? l("label_mirror_module_#{key}".to_sym) : key
   end
 
   MAPPING_TABS = { "status" => "issue_tracking", "tracker" => "issue_tracking", "priority" => "issue_tracking",
     "user" => "users", "activity" => "time_tracking", "custom_field" => "issue_custom_fields",
-    "role" => "project_members", "group" => "project_members" }.freeze
+    "role" => "project_members", "group" => "project_members", "document_category" => "documents" }.freeze
 
   # An error or warning with, when known, the source reference name and a link to the
   # page that fixes it.
@@ -224,10 +224,10 @@ module MirrorHelper
            when "custom_field" then "/custom_fields/#{id}/edit"
            when "tracker" then "/trackers/#{id}/edit"
            when "status" then "/issue_statuses/#{id}/edit"
-           when "priority", "activity" then "/enumerations/#{id}/edit"
+           when "priority", "activity", "document_category" then "/enumerations/#{id}/edit"
            when "issue_tracking", "issue_hierarchy", "issue_watchers", "issue_custom_fields" then issue_path(id)
            when "time_tracking" then edit_time_entry_path(id)
-           when "issue_attachments", "wiki_attachments" then "/attachments/#{id}"
+           when "issue_attachments", "wiki_attachments", "document_attachments" then "/attachments/#{id}"
            when "project_versions" then version_path(id)
            when "issue_categories" then "/projects/#{@project.identifier}/issue_categories/#{id}/edit"
            when "issue_journals", "issue_relation_notes"
@@ -253,9 +253,9 @@ module MirrorHelper
                     when "custom_field" then "custom_fields/#{id}/edit"
                     when "tracker" then "trackers/#{id}/edit"
                     when "status" then "issue_statuses/#{id}/edit"
-                    when "priority", "activity" then "enumerations/#{id}/edit"
+                    when "priority", "activity", "document_category" then "enumerations/#{id}/edit"
                     when "issue_tracking", "issue_hierarchy", "issue_watchers", "issue_custom_fields" then "issues/#{id}"
-                    when "issue_attachments", "wiki_attachments" then "attachments/#{id}"
+                    when "issue_attachments", "wiki_attachments", "document_attachments" then "attachments/#{id}"
                     when "project_versions" then "versions/#{id}"
                     when "issue_categories"
                       setting = @setting || @project.mirror_project_setting
