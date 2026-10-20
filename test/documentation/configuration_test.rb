@@ -278,9 +278,9 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     assert_selector "table.mirror-source-accesses tbody tr", count: 3
     screenshot "30-source-session", "table.mirror-source-accesses"
 
-    visit "/settings/plugin/redmine_mirror"
+    visit "/admin/mirror/source"
     assert_selector "table.mirror-source-sessions tbody tr", count: 2
-    screenshot "31-source-activity", "#content", max_height: 900
+    screenshot "31-source-activity", "#main", max_height: 900
   end
 
   private

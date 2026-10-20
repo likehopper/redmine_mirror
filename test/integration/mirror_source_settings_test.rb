@@ -76,21 +76,53 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
     assert_select "table.mirror-source-accesses tr.mirror-source-refused td", text: "Documents not shared"
   end
 
-  def test_administrator_switches_mirror_source_and_sees_activity_across_projects
-    @project.enable_module!(:mirror_source)
-    MirrorSourceSetting.create!(project: @project, shared_modules: %w[documents])
-    log_access("list", object_count: 3)
+  def test_administrator_switches_mirror_source_in_the_plugin_settings
     log_user("admin", "admin")
     get "/settings/plugin/redmine_mirror"
     assert_select "#settings_source_enabled:not([checked])"
-    assert_select "#mirror-source-settings a[href='/projects/ecookbook/settings/mirror_source']", text: /eCookbook \(Documents\)/
-    assert_select "table.mirror-source-sessions tbody tr", count: 1 do
-      assert_select "td a[href='/projects/ecookbook']"
-    end
+    assert_select "#mirror-source-settings a[href='/admin/mirror/source']"
     post "/settings/plugin/redmine_mirror", params: { settings: { allowed_source_urls: "", user_company_field_id: "", source_enabled: "1", source_log_days: "30" } }
     assert RedmineMirror::Source.enabled?
     assert_equal 30, RedmineMirror::Source.retention_days
     post "/settings/plugin/redmine_mirror", params: { settings: { allowed_source_urls: "", user_company_field_id: "", source_enabled: "", source_log_days: "30" } }
     assert_not RedmineMirror::Source.enabled?
+  end
+
+  # Administration > Mirror > Source: projects, sessions of every project, filters, one session.
+  def test_administration_lists_sharing_projects_and_sessions_across_projects
+    @project.enable_module!(:mirror_source)
+    MirrorSourceSetting.create!(project: @project, shared_modules: %w[documents])
+    Project.find(2).enable_module!(:mirror_source)
+    log_access("list", object_count: 3)
+    log_access("refused", project: Project.find(2), session_key: "a" * 32, reason: "not_shared")
+    log_user("admin", "admin")
+    get "/admin/mirror/source"
+    assert_response :success
+    assert_select ".mirror-admin-sidebar a.selected[href='/admin/mirror/source']"
+    assert_select ".mirror-admin-sidebar a[href='/admin/mirror']"
+    assert_select "#mirror-admin-source-status.warning"
+    assert_select "table.mirror-admin-source-projects tbody tr", count: 2
+    assert_select "table.mirror-admin-source-projects td", text: "Documents"
+    assert_select "table.mirror-source-sessions tbody tr", count: 2
+    get "/admin/mirror/source", params: { refused: "1" }
+    assert_select "table.mirror-source-sessions tbody tr", count: 1 do
+      assert_select "td a[href='/projects/onlinestore']"
+    end
+    get "/admin/mirror/source", params: { project_id: @project.id }
+    assert_select "table.mirror-source-sessions tbody tr", count: 1 do
+      assert_select "a[href='/admin/mirror/source?project_id=#{@project.id}&session=#{SESSION}']", text: "Details"
+    end
+    get "/admin/mirror/source", params: { project_id: @project.id, session: SESSION }
+    assert_select "table.mirror-source-accesses tbody tr", count: 1
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1" }) do
+      get "/admin/mirror/source"
+      assert_select "#mirror-admin-source-status.mirror-source-on"
+    end
+  end
+
+  def test_only_administrators_see_the_source_page
+    log_user("jsmith", "jsmith")
+    get "/admin/mirror/source"
+    assert_response :forbidden
   end
 end

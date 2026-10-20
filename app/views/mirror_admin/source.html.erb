@@ -1,0 +1,69 @@
+<%#
+File: redmine_mirror/app/views/mirror_admin/source.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Administration > Mirror > Source: whether Mirror source is allowed, the projects that
+enabled it and what they share, then every session across projects, or one session.
+%><% content_for :header_tags do %>
+  <%= stylesheet_link_tag "mirror", plugin: "redmine_mirror" %>
+<% end %>
+<% html_title(l(:label_mirror_admin_source)) %>
+<%= render "mirror_admin/sidebar" %>
+<h2><%= link_to l(:label_mirror_admin), mirror_admin_path %> » <%= l(:label_mirror_admin_source) %></h2>
+<p class="info"><%= l(:text_mirror_admin_source) %></p>
+<p id="mirror-admin-source-status" class="<%= RedmineMirror::Source.enabled? ? 'mirror-source-on' : 'warning' %>">
+  <%= l(RedmineMirror::Source.enabled? ? :text_mirror_admin_source_enabled : :text_mirror_admin_source_disabled, days: RedmineMirror::Source.retention_days) %>
+  <%= link_to l(:label_mirror_admin_configuration), plugin_settings_path("redmine_mirror") %>
+</p>
+
+<% if @accesses %>
+  <h3><%= link_to_project(@session_project) %> — <%= l(:label_mirror_source_details) %></h3>
+  <p><%= link_to l(:label_mirror_source_all_sessions), mirror_admin_source_path %></p>
+  <%= render "mirror_source_settings/accesses", accesses: @accesses %>
+<% else %>
+  <h3><%= l(:label_mirror_admin_source_projects) %></h3>
+  <% if @module_projects.empty? %>
+    <p class="nodata"><%= l(:label_no_data) %></p>
+  <% else %>
+    <% shared = @sharing.to_h { |row| [row.project_id, row.shared_modules] } %>
+    <table class="list mirror-admin-source-projects">
+      <thead><tr><th><%= l(:label_project) %></th><th><%= l(:label_mirror_source_shared) %></th><th><%= l(:label_mirror_source_last_access) %></th><th><%= l(:label_mirror_admin_source_sessions) %></th><th></th></tr></thead>
+      <tbody>
+        <% @module_projects.each do |project| %>
+          <% kinds = shared.fetch(project.id, []) %>
+          <tr>
+            <td><%= link_to_project(project) %></td>
+            <td><%= kinds.any? ? kinds.map { |kind| l("label_mirror_module_#{kind}".to_sym) }.join(", ") : l(:label_none) %></td>
+            <td><%= @last_access[project.id] ? format_time(@last_access[project.id]) : "—" %></td>
+            <td><%= link_to_if @session_counts[project.id], @session_counts.fetch(project.id, 0), mirror_admin_source_path(project_id: project.id) %></td>
+            <td><%= link_to l(:label_mirror_admin_source_project_settings), settings_project_path(project, tab: "mirror_source") %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+
+  <h3 id="mirror-source-log"><%= l(:label_mirror_source_log) %></h3>
+  <%= form_tag(mirror_admin_source_path, method: :get, id: "mirror-admin-source-filters") do %>
+    <fieldset class="box"><legend><%= l(:label_filter_plural) %></legend>
+      <label for="mirror-admin-source-project"><%= l(:label_project) %></label>
+      <%= select_tag "project_id", options_for_select([[l(:label_all), ""]] + Project.where(id: MirrorSourceAccess.select(:project_id)).sorted.map { |project| [project.name, project.id] }, @filter_project&.id), id: "mirror-admin-source-project" %>
+      <label><%= check_box_tag "refused", "1", @refused_only, id: "mirror-admin-source-refused" %> <%= l(:label_mirror_admin_source_refused_only) %></label>
+      <%= submit_tag l(:button_apply), name: nil %>
+    </fieldset>
+  <% end %>
+  <%= render "mirror_source_settings/sessions", sessions: @sessions, show_project: true,
+        details_path: ->(row) { mirror_admin_source_path(project_id: row.project_id, session: row.session_key) } %>
+  <span class="pagination"><%= pagination_links_full @session_pages, @session_count %></span>
+<% end %>

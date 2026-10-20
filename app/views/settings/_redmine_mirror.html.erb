@@ -15,7 +15,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Plugin settings: the source Redmine URLs that project managers may connect to, the
 user field shown as the company in the user mappings, and Mirror source (this Redmine
-as a source): its global switch, log retention and activity across projects.
+as a source): its global switch and log retention. Its activity is in Administration >
+Mirror > Source.
 %><p>
   <%= label_tag "settings_allowed_source_urls", l(:label_mirror_allowed_source_urls) %>
   <%= text_area_tag "settings[allowed_source_urls]", @settings["allowed_source_urls"], rows: 5, cols: 60, id: "settings_allowed_source_urls", placeholder: "https://redmine.example.com" %>
@@ -40,14 +41,5 @@ as a source): its global switch, log retention and activity across projects.
     <%= label_tag "settings_source_log_days", l(:label_mirror_source_log_days) %>
     <%= number_field_tag "settings[source_log_days]", RedmineMirror::Source.retention_days, min: 1, max: 3650, id: "settings_source_log_days" %>
   </p>
-  <% if MirrorSourceAccess.table_exists? %>
-    <% sharing = MirrorSourceSetting.joins(:project).merge(Project.where(id: EnabledModule.where(name: "mirror_source").select(:project_id))).to_a.select { |row| row.shared_modules.any? } %>
-    <p><label><%= l(:label_mirror_source_sharing_projects) %></label>
-      <% if sharing.empty? %><%= l(:label_none) %><% else %><%= safe_join(sharing.map { |row| link_to("#{row.project.name} (#{row.shared_modules.map { |kind| l("label_mirror_module_#{kind}".to_sym) }.join(', ')})", settings_project_path(row.project, tab: "mirror_source")) }, ", ") %><% end %>
-    </p>
-  <% end %>
+  <p><label></label><%= link_to l(:label_mirror_admin_source_open), mirror_admin_source_path, class: "icon icon-arrow-right" %></p>
 </fieldset>
-<% if MirrorSourceAccess.table_exists? %>
-  <h3><%= l(:label_mirror_source_activity) %></h3>
-  <%= render "mirror_source_settings/sessions", sessions: MirrorSourceAccess.sessions.limit(30).to_a, show_project: true %>
-<% end %>

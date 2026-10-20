@@ -30,11 +30,17 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   source too, not the attachments API.
 - Every access is logged on the source, grouped by session (one per destination run or
   reference refresh, with its purpose): account, address, documents listed, files sent
-  and refusals, in the project's tab and, for all projects, in the plugin settings.
+  and refusals, in the project's tab and, for all projects, in Administration → Mirror.
   Retention defaults to 180 days (migration 015).
 - The destination shows the requirement next to the Documents module and reports which
   lock to open when the source refuses. The other modules still need nothing on the
   source.
+- **Administration → Mirror** gains a sidebar, as in Redmine SLA: **Destination:
+  mirrored projects** (the former overview) and **Source: shared resources**. The latter
+  shows whether Mirror source is allowed, the projects that enabled it with what they
+  share, their last access and sessions, and the sessions of every project, filtered by
+  project or to those with refusals, each with its details. The plugin settings keep
+  the switch and the retention, with a link to this page.
 
 ## 1.0.0-beta.18 — 2026-10-20
 

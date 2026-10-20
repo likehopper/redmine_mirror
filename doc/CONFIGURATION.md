@@ -264,7 +264,10 @@ issue's subject: the next run leaves it unchanged and reports it.
 
 ## 13. Follow usage and load
 
-`Administration → Mirror` lists the projects Mirror is configured in, as a Redmine query:
+`Administration → Mirror` has two pages in its sidebar: **Destination: mirrored
+projects** (below) and **Source: shared resources**
+([Mirror source](#mirror-source-on-the-source-redmine)). The first lists the projects
+Mirror is configured in, as a Redmine query:
 filters (module, mirror mode, activity, last status, last run date, conflicts…), columns,
 grouping (root or parent project, source Redmine, status…), sorting, totals and CSV
 export. Columns cover the configuration (modules, mirror mode, schedule), the activity
@@ -281,8 +284,7 @@ source Redmine:
 1. Install Redmine Mirror 1.0.0-beta.19 or later and run its migration (see the README).
    Nothing else of Mirror needs configuring there.
 2. `Administration → Plugins → Redmine Mirror → Configure`: check **Allow Mirror
-   source**. Off, nothing is shared, whatever the projects check. The same page shows the
-   projects sharing data and the latest sessions across projects.
+   source**. Off, nothing is shared, whatever the projects check.
 
    ![Mirror source allowed](screenshots/configuration/27-source-allowed.png)
 3. In the project: `Settings → Modules`, enable **Mirror source** (the **Mirror** module
@@ -302,7 +304,10 @@ lists each request and what it sent. Refused requests name the lock that refused
 
 Entries are kept 180 days by default (plugin settings). Configuring the sharing and
 reading the log need the permission *Configure Mirror source and read its access log*.
-The plugin settings list the latest sessions of every project:
+`Administration → Mirror → Source: shared resources` shows whether Mirror source is
+allowed, the projects that enabled the module with what they share, their last access
+and sessions, then the sessions of every project, filtered by project or to those with
+refusals, each with its details:
 
 ![Mirror source activity](screenshots/configuration/31-source-activity.png)
 

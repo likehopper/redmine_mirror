@@ -14,7 +14,8 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Mirror source sessions: one row per destination run or reference refresh. Shown in the
-project tab and, for every project, in the plugin settings.
+project tab and, for every project, in Administration > Mirror > Source, whose
+details_path leads to its own session page.
 %><% if sessions.empty? %>
   <p class="nodata"><%= l(:label_no_data) %></p>
 <% else %>
@@ -46,7 +47,7 @@ project tab and, for every project, in the plugin settings.
           <td><%= row.documents %></td>
           <td><%= row.files %><% if row.bytes.to_i.positive? %> (<%= number_to_human_size(row.bytes) %>)<% end %></td>
           <td><%= row.refused %></td>
-          <td><%= link_to l(:label_mirror_source_details), settings_project_path(project || row.project_id, tab: "mirror_source", mirror_source_session: row.session_key, anchor: "mirror-source-log") if project %></td>
+          <td><%= link_to l(:label_mirror_source_details), local_assigns[:details_path] ? details_path.call(row) : settings_project_path(project, tab: "mirror_source", mirror_source_session: row.session_key, anchor: "mirror-source-log") if project %></td>
         </tr>
       <% end %>
     </tbody>

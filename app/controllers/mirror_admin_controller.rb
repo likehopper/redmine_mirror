@@ -13,14 +13,16 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 #
-# Administration overview: the projects Mirror is configured in, their activity and load.
+# Administration > Mirror: as a destination, the projects Mirror is configured in, their
+# activity and load; as a source, the projects sharing data and every access to it.
 
 class MirrorAdminController < ApplicationController
   layout "admin"
   self.main_menu = false
   menu_item :mirror_admin
   before_action :require_admin
-  before_action :require_migrated_schema
+  before_action :require_migrated_schema, only: :index
+  before_action :require_source_schema, only: :source
 
   helper :queries
   include QueriesHelper
@@ -43,7 +45,37 @@ class MirrorAdminController < ApplicationController
     render_error status: 500
   end
 
+  SESSIONS_PER_PAGE = 50
+
+  # Mirror source: the switch, the projects that enabled the module and what they share,
+  # then the sessions of every project (filtered by project or refusals), or one session.
+  def source
+    @sharing = MirrorSourceSetting.preload(:project).where(project_id: EnabledModule.where(name: "mirror_source").select(:project_id)).to_a
+    @module_projects = Project.where(id: EnabledModule.where(name: "mirror_source").select(:project_id)).sorted.to_a
+    @last_access = MirrorSourceAccess.group(:project_id).maximum(:created_at)
+    @session_counts = MirrorSourceAccess.from(MirrorSourceAccess.select(:project_id, :session_key).distinct, :mirror_source_accesses).group(:project_id).count
+    @session_key = params[:session].to_s
+    if @session_key.match?(RedmineMirror::Source::SESSION) && (@session_project = Project.find_by(id: params[:project_id]))
+      @accesses = MirrorSourceAccess.where(project: @session_project, session_key: @session_key).order(:created_at, :id).preload(:user).to_a
+      return
+    end
+    scope = MirrorSourceAccess.all
+    @filter_project = Project.find_by(id: params[:project_id]) if params[:project_id].present?
+    scope = scope.where(project: @filter_project) if @filter_project
+    @refused_only = params[:refused] == "1"
+    sessions = scope.sessions
+    sessions = sessions.having("SUM(CASE WHEN action = 'refused' THEN 1 ELSE 0 END) > 0") if @refused_only
+    @session_count = MirrorSourceAccess.from(sessions.except(:order, :select).select(:project_id, :session_key), :mirror_source_accesses).count
+    @session_pages = Paginator.new(@session_count, SESSIONS_PER_PAGE, params["page"])
+    @sessions = sessions.offset(@session_pages.offset).limit(@session_pages.per_page).to_a
+  end
+
   private
+
+  def require_source_schema
+    return if MirrorSourceAccess.table_exists? && MirrorSourceSetting.table_exists?
+    render_error message: l(:text_mirror_pending_migrations), status: 503
+  end
 
   def require_migrated_schema
     return if MirrorProjectSetting.schema_current? && MirrorSyncRun.column_names.include?("duration_seconds")

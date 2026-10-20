@@ -18,6 +18,7 @@ Administration overview of the projects Mirror is configured in (Redmine query l
   <%= stylesheet_link_tag "mirror", plugin: "redmine_mirror" %>
 <% end %>
 <% html_title(l(:label_mirror_admin)) %>
+<%= render "mirror_admin/sidebar" %>
 <h2><%= l(:label_mirror_admin) %></h2>
 <p class="info"><%= l(:text_mirror_admin, days: MirrorProjectQuery::RECENT_DAYS) %></p>
 

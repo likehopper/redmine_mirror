@@ -309,7 +309,8 @@ Mirror source, Redmine n'ayant pas d'API pour les documents. Trois verrous ferm�
 défaut : autorisation de l'administrateur, module projet Mirror source, données
 partagées (Documents) ; compte authentifié avec *Voir les documents* ; fichiers servis
 par Mirror source ; journal d'accès par session (projet et configuration du plugin,
-migration 015). Runner CI 6.1.4 : 165 tests Redmine / 828 assertions, désinstallation
+migration 015). Menu latéral dans Administration → Mirror (Destination, Source : ressources partagées,
+configuration). Runner CI 6.1.4 : 167 tests Redmine / 846 assertions, désinstallation
 et réinstallation comprises, sur l'arbre exact du commit. Parcours de documentation :
 17 étapes / 97 assertions, captures 27 à 31 pour Mirror source. Environnement à deux instances 6.1.4 avec Mirror sur la
 source : `documents_smoke.rb`, `documents_source_check.rb` (6 sessions : références,
