@@ -23,11 +23,6 @@ the [changelog](CHANGELOG.md).
 
 ## In progress
 
-- **Ignore a source value.** A checkbox beside each mapping skips the dependent objects,
-  logged as *ignored*, never as errors. Trackers are done (see *Unreleased* in the
-  changelog). Still to do: statuses (issues), activities (time entries) and document
-  categories (documents), on the same mechanism. Custom fields, roles and groups can
-  already be ignored. Priorities stay mandatory. Users can be anonymized, not ignored.
 - **Remap instead of ignore.** Send the issues of an unwanted tracker to another tracker,
   optionally keeping the source tracker name in a custom field.
 

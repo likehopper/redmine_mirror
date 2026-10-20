@@ -64,7 +64,10 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     assert_equal ["synchronization"], accesses.map(&:purpose).uniq
     assert_equal 3, accesses.first.object_count
     assert_equal "testfile.txt", accesses.last.details.dig("attachment", "filename")
-    session = @project.mirror_source_accesses.sessions.to_a.sole
+    # One session (not `sole`: Redmine 5.1 runs Rails 6.1).
+    sessions = @project.mirror_source_accesses.sessions.to_a
+    assert_equal 1, sessions.size
+    session = sessions.first
     assert_equal [3, 3, 1, 0], [session.requests, session.documents, session.files, session.refused]
   end
 

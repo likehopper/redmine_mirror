@@ -43,16 +43,22 @@ begin
   end
   execute.call(setting, false)
   raise "Preview wrote files" if Attachment.where(container: [project] + project.versions.to_a).exists?
+  # Counts before the import: Redmine counts Mirror's download of each file on the source.
+  downloads = ->(files) { files.values.to_h { |file| [file.fetch("filename"), file.fetch("downloads").to_i] } }
+  before = downloads.call(client.get("projects/#{source_id}/files.json").fetch("files").index_by { |file| file.fetch("filename") })
   execute.call(setting, true)
   source_files = client.get("projects/#{source_id}/files.json").fetch("files").index_by { |file| file.fetch("filename") }
-  version = project.versions.reload.sole
-  installer = project.attachments.reload.sole
-  notes = version.attachments.sole
+  raise "Source counted more than one download per file" unless downloads.call(source_files) == before.transform_values { |count| count + 1 }
+  # Exactly one of each (not `sole`: Redmine 5.1 runs Rails 6.1).
+  only = ->(records) { records.to_a.tap { |list| raise "Expected one record, got #{list.size}" unless list.size == 1 }.first }
+  version = only.call(project.versions.reload)
+  installer = only.call(project.attachments.reload)
+  notes = only.call(version.attachments)
   raise "Containers lost" unless [installer.filename, notes.filename, version.name] == ["installer.txt", "release-notes.txt", "1.0"]
   raise "Authors lost" unless [installer.author_id, notes.author_id] == [alice.id, admin.id]
   raise "File content lost" unless File.read(installer.diskfile, encoding: "UTF-8") == "Installer été\n"
   raise "File date lost" unless installer.created_on == Time.iso8601(source_files.fetch("installer.txt").fetch("created_on"))
-  raise "Downloads lost" unless [installer.downloads, notes.downloads] == [12, 3]
+  raise "Downloads lost" unless [installer.downloads, notes.downloads] == before.values_at("installer.txt", "release-notes.txt")
   raise "Repeated file updates" unless execute.call(setting, true).log_events.all? { |event| event["action"] == "unchanged" }
   adapter = RedmineMirror::Adapters::Files.new
   state = adapter.source_state(client, source_files.fetch("installer.txt").fetch("id"), installer.id, source_project_id: source_id, project_id: project.id)

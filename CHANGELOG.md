@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.21 — 2026-10-21
 
 - **Files** module: the files of the source project's Files module are imported on the
   project or on their version, with their description, author, date, content and download
@@ -41,6 +41,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 - Long mapping tables, such as users, load and search much faster: the local choices
   are sent once per table, the search shows the first 50 matches, and same-name
   proposals no longer compare every row with every local reference.
+- Files: importing a file downloads it once through the API, which Redmine counts as one
+  download on the source (no other way through the API); documented.
 
 ## 1.0.0-beta.20 — 2026-10-20
 
