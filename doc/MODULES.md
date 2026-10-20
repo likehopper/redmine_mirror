@@ -304,7 +304,8 @@ send no notification.
   no local correspondence yet, because the destination refused that version, is logged
   as ignored and imported by the next run once the version exists.
 - The download count is copied when the file is imported; local downloads then add to
-  it and are not a modification.
+  it and are not a modification. Importing a file downloads it once through the API,
+  which Redmine counts as one download on the source: the API offers no other way.
 - A new description or version on the source updates the local file in place, without
   downloading it again. A local edit or deletion of an imported file is a conflict;
   deletions are propagated in mirror mode only.
@@ -431,7 +432,7 @@ development environments.
 - One way only, from source to destination. Deletions are propagated in mirror mode only.
 - Not a backup: data hidden from the source API key, instance configuration, accounts,
   roles and custom field definitions are not copied.
-- Project files (the Files module), SLA and Reporting adapters are not implemented yet.
+- SLA and Reporting adapters are not implemented yet.
 - Document custom field values are not copied.
 - HTTPS with certificate checks is required; HTTP redirects are never followed.
 - No transaction across API calls: an error keeps earlier writes, and an interruption

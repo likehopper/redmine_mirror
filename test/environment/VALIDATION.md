@@ -336,3 +336,18 @@ Environnement à deux instances 6.1.4 : `smoke.rb`, `history_smoke.rb`,
 Essai réel avec Google Gemini (`gemini-3.5-flash-lite`) : liste des modèles, demande
 traitée par le worker (une requête, environ 450 jetons), propositions justes, nom
 d'injection ignoré, aucune correspondance enregistrée.
+
+1.0.0-beta.21 (21 octobre 2026) : tout le travail non publié depuis la beta.20 (module
+Files, valeurs source ignorées pour les trackers, statuts, activités et catégories de
+documents, cases à cocher Anonymiser/Ignorer, filtre à mapper / mappés / tous, listes
+longues accélérées, sources choisies dans la liste autorisée), validé sur l'instantané
+exact publié. Runner CI 6.1.4 : 195 tests Redmine / 1031 assertions. Suite Redmine sur
+`reporting-compat-ready:5.1.13` : 195 / 1031 après remplacement de `sole` (Rails 7) dans
+deux tests. Moteur 38 / 154, client 5 / 22, exemple 5 / 18, IA 7 / 38, diagnostic 3 / 9.
+Parcours de documentation : 19 étapes / 112 assertions. Environnement à deux instances
+6.1.4, plugin aussi sur la source : quatorze smokes réussis, dont `files_smoke.rb` (deux
+fois) et `documents_smoke.rb`. Le smoke Files supposait des compteurs fixes : Redmine
+compte chaque téléchargement de fichier de projet ou de version, y compris celui de
+l'import par l'API ; il compare désormais aux compteurs lus avant l'import et vérifie un
+seul téléchargement de plus côté source. `versions.sh` source 4.2.10 → destinations
+5.1.13 et 6.1.4 : douze smokes d'écriture réussis chacun (Files ajouté ; `sole` retiré).

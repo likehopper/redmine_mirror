@@ -86,7 +86,9 @@ class MirrorDocumentsTest < ActiveSupport::TestCase
       document = imported
       assert_equal [@project.id, "Specification", 3], [document.project_id, document.title, document.category_id]
       assert_equal Time.utc(2026, 2, 3, 10), document.created_on
-      attachment = document.attachments.sole
+      # One attachment (not `sole`: Redmine 5.1 runs Rails 6.1).
+      assert_equal 1, document.attachments.size
+      attachment = document.attachments.first
       assert_equal ["notes.txt", "Notes", 2, Time.utc(2026, 2, 3, 10, 5)], [attachment.filename, attachment.description, attachment.author_id, attachment.created_on]
       assert_equal FILE, File.read(attachment.diskfile)
       assert_equal ["mirror/source/attachments/501/download"], @source.downloads
