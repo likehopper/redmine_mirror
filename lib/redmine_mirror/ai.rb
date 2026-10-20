@@ -56,10 +56,10 @@ module RedmineMirror
     # Source references worth asking about: used by the project, unmapped, without a
     # same-name proposal and not sent to the AI yet (with or without an answer).
     def self.pending_sources(setting, table, catalog: setting.source_catalog, locals: local_candidates(setting, table))
-      mapped = setting.project.mirror_reference_mappings.where(reference_type: table.key).pluck(:source_id).map(&:to_s)
-      used = catalog["#{table.key}_used"]
-      asked = (catalog.dig("ai_suggestions", "tables", table.key) || {}).keys | (catalog.dig("ai_suggestions", "asked", table.key) || [])
-      names = locals.map(&:reverse)
+      mapped = setting.project.mirror_reference_mappings.where(reference_type: table.key).pluck(:source_id).to_set(&:to_s)
+      used = catalog["#{table.key}_used"]&.to_set
+      asked = ((catalog.dig("ai_suggestions", "tables", table.key) || {}).keys | (catalog.dig("ai_suggestions", "asked", table.key) || [])).to_set
+      names = NameMatch.index(locals.map(&:reverse))
       catalog.fetch(table.key, {}).select do |id, name|
         (used.nil? || used.include?(id)) && !mapped.include?(id) && !asked.include?(id) && !NameMatch.suggest(name, names)
       end

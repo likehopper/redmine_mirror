@@ -53,6 +53,39 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     assert_select "a[href='/projects/ecookbook/mirror']", text: "Mirror page"
   end
 
+  # The references to map are shown first; the mapped ones and all of them on request.
+  def test_filter_shows_references_to_map_mapped_or_all
+    @project.mirror_reference_mappings.create!(reference_type: "tracker", source_id: 2, mode: "existing", destination_id: @project.trackers.first.id)
+    log_user("admin", "admin")
+    settings("issue_tracking")
+    assert_select "#mirror-mapping-filter strong", text: "to map (3)"
+    assert_select "#mirror-tracker-1"
+    assert_select "#mirror-tracker-2", count: 0
+    settings("issue_tracking", mirror_filter: "mapped")
+    assert_select "#mirror-mapping-filter strong", text: "mapped (1)"
+    assert_select "#mirror-tracker-1", count: 0
+    assert_select "#mirror-tracker-2"
+    settings("issue_tracking", mirror_filter: "all")
+    assert_select "#mirror-tracker-1"
+    assert_select "#mirror-tracker-2"
+    assert_select "input[type=hidden][name=mirror_filter][value=all]"
+  end
+
+  # Long lists are sent once per table: each row only holds the empty choice and its value.
+  def test_long_user_lists_are_shared_by_the_rows
+    role = Role.givable.first
+    users = (0..12).map { |number| User.create!(login: "mirror-long-#{number}", firstname: "Long", lastname: "List #{number}", mail: "mirror-long-#{number}@example.test") }
+    alice = User.create!(login: "remote-alice", firstname: "Remote", lastname: "Alice", mail: "remote-alice@example.test")
+    (users + [alice]).each { |user| Member.create!(project: @project, principal: user, roles: [role]) }
+    log_user("admin", "admin")
+    settings("users")
+    assert_equal ["", alice.id.to_s], css_select("#mirror-user-7 option").map { |option| option["value"] }
+    assert_select "#mirror-user-7[data-choices=mirror-choices-user]"
+    choices = JSON.parse(css_select("script#mirror-choices-user").first.text)
+    assert_includes choices.map(&:last), "2"
+    assert_not_includes choices.map(&:last), ""
+  end
+
   # Local users show their login, email and company, and the search covers them.
   def test_user_choices_show_login_email_and_company
     company = UserCustomField.create!(name: "Company", field_format: "string", visible: true)
@@ -60,8 +93,10 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     log_user("admin", "admin")
     settings("users")
     assert_select "#mirror-table-user option", text: "John Smith (#2) — jsmith · jsmith@somenet.foo · Acme"
-    # Special choices come first, right after the empty one.
-    assert_equal ["", "anonymous"], css_select("#mirror-user-7 option").first(2).map { |option| option["value"] }
+    # Anonymizing is a checkbox beside the field, not one of its choices.
+    assert_equal "", css_select("#mirror-user-7 option").first["value"]
+    assert_select "#mirror-user-7 option[value=anonymous]", count: 0
+    assert_select "input[type=checkbox][name='special_mappings[user][7]'][value=anonymous]"
     with_settings plugin_redmine_mirror: { "user_company_field_id" => "none" } do
       settings("users")
       assert_select "#mirror-table-user option", text: "John Smith (#2) — jsmith · jsmith@somenet.foo"
@@ -132,7 +167,8 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     settings("issue_custom_fields")
     assert_select "table.mirror-custom-field-values tbody tr", count: 1
     assert_select 'select[name^="module_options[value_mappings]"] option[selected]', text: "Local A"
-    assert_select '#mirror-custom_field-901 option[selected]', text: "Ignore this field"
+    assert_select "#mirror-custom_field-901-ignore[checked]"
+    assert_select "#mirror-custom_field-901 option[value=ignore]", count: 0
   end
 
   def test_catalog_refresh_progress_reloads_the_page
@@ -152,6 +188,23 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     with_settings(plugin_redmine_mirror: { "allowed_source_urls" => "https://source.example/redmine" }) do
       settings
       assert_select "select[name='connection[source_url]'] option", text: "https://source.example/redmine"
+    end
+  end
+
+  # Once sources are allowed, administrators choose among them too; while none is, they
+  # may enter any URL.
+  def test_administrators_choose_among_allowed_sources_once_listed
+    @setting.destroy
+    log_user("admin", "admin")
+    settings
+    assert_select "input[type=text][name='connection[source_url]']"
+    with_settings(plugin_redmine_mirror: { "allowed_source_urls" => "https://source.example/redmine" }) do
+      settings
+      assert_select "select[name='connection[source_url]'] option", text: "https://source.example/redmine"
+      assert_select "input[type=text][name='connection[source_url]']", count: 0
+      patch "/projects/ecookbook/mirror/settings/connection", params: { connection: { source_url: "https://other.example", source_project_id: "12", api_key: "key" } }
+      assert_equal I18n.t(:text_mirror_source_not_allowed), flash[:error]
+      assert_nil @project.reload.mirror_project_setting
     end
   end
 

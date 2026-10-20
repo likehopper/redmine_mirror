@@ -32,4 +32,25 @@ class MirrorHistoryDetailsTest < ActiveSupport::TestCase
     assert_nil journals.skip_reason(attributes)
     assert journals.skip_reason(attributes.merge("notes" => "", "details" => []))
   end
+
+  def test_history_skips_tracker_changes_from_an_ignored_tracker
+    journals = RedmineMirror::Adapters::Journals.new
+    record = { "id" => 6, "user" => { "id" => 1 }, "created_on" => "2026-01-02T03:04:05Z", "notes" => "", "details" => [
+      { "property" => "attr", "name" => "tracker_id", "old_value" => "7", "new_value" => "1" },
+      { "property" => "attr", "name" => "subject", "old_value" => "Old", "new_value" => "New" }] }
+    RedmineMirror::TextFormat.reset_flags
+    attributes = journals.imported_attributes(record, { "user" => { "1" => "1" }, "tracker" => { "7" => "ignore", "1" => 10 } }, lookup: ->(*) {})
+    assert_equal [["attr", "subject", "Old", "New"]], attributes.fetch("details")
+    assert_includes RedmineMirror::TextFormat.flags, "history_details_skipped"
+  end
+
+  def test_history_skips_status_changes_from_an_ignored_status
+    journals = RedmineMirror::Adapters::Journals.new
+    record = { "id" => 7, "user" => { "id" => 1 }, "created_on" => "2026-01-02T03:04:05Z", "notes" => "", "details" => [
+      { "property" => "attr", "name" => "status_id", "old_value" => "7", "new_value" => "1" },
+      { "property" => "attr", "name" => "subject", "old_value" => "Old", "new_value" => "New" }] }
+    RedmineMirror::TextFormat.reset_flags
+    attributes = journals.imported_attributes(record, { "user" => { "1" => "1" }, "status" => { "7" => "ignore", "1" => 10 } }, lookup: ->(*) {})
+    assert_equal [["attr", "subject", "Old", "New"]], attributes.fetch("details")
+  end
 end

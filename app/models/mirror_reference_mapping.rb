@@ -33,7 +33,7 @@ class MirrorReferenceMapping < ActiveRecord::Base
       return
     end
     if mode == "ignore"
-      errors.add(:base, "Ignoring is only supported for custom fields") unless table.ignore_allowed?
+      errors.add(:base, "Ignoring is not supported for #{reference_type} references") unless table.ignore_allowed?
       errors.add(:destination_id, :invalid) unless destination_id.nil?
     elsif mode == "anonymous"
       errors.add(:base, "Anonymization is only supported for users") unless table.anonymous_allowed?

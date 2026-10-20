@@ -78,6 +78,18 @@ module RedmineMirror
         {}
       end
 
+      # Source issue IDs a record belongs to. A record of an issue the run does not
+      # import (its tracker or status is ignored) is ignored with it instead of failing.
+      def source_issue_ids(_record)
+        []
+      end
+
+      # The mapping table key of a reference mapped to "ignore" that leaves this record out
+      # of the import (an issue's tracker, a time entry's activity...), else nil.
+      def ignored_reference(_record, _mappings)
+        nil
+      end
+
       def label
         "label_mirror_module_#{key}".to_sym
       end
@@ -123,6 +135,10 @@ module RedmineMirror
 
       # Required references must have an explicit positive destination ID. An
       # empty selection is not an implicit ignore or a name-based match.
+      def ignored_mapping?(mappings, kind, source_id)
+        !source_id.nil? && mappings.fetch(kind, {})[source_id.to_s] == "ignore"
+      end
+
       def map(mappings, kind, source_id)
         value = mappings.fetch(kind, {}).fetch(source_id.to_s) do
           raise Error, "Missing #{kind} mapping for source ID #{source_id}"

@@ -52,6 +52,10 @@
 
 /* Filterable mapping choices (assets/javascripts/mirror.js). */
 .mirror-autocomplete-input { min-width: 18em; }
+/* A checked special choice (anonymize, ignore) greys the row's field, which it overrides. */
+.mirror-special { margin-left: .6em; white-space: nowrap; }
+.mirror-special-on > :not(.mirror-special) { opacity: .45; pointer-events: none; }
+.mirror-mapping-filter strong, .mirror-mapping-filter a { margin-left: .6em; }
 
 /* Special cases to check in the execution log. */
 .mirror-flag { display: inline-block; margin: 0 .3em .2em 0; padding: 0 .4em; border-radius: 3px; background: #fff3cd; color: #664d03; white-space: nowrap; }

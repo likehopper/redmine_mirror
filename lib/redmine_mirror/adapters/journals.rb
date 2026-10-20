@@ -64,7 +64,10 @@ module RedmineMirror
           end
           values = %w[old_value new_value].map do |field|
             value = detail[field]
-            if value.present? && %w[status_id tracker_id priority_id assigned_to_id author_id].include?(name)
+            if value.present? && %w[tracker_id status_id].include?(name) && ignored_mapping?(mappings, name.delete_suffix("_id"), value)
+              # A tracker or status left out of the import has no local equivalent.
+              next :skip
+            elsif value.present? && %w[status_id tracker_id priority_id assigned_to_id author_id].include?(name)
               kind = name.sub(/_id\z/, "")
               value = %w[assigned_to author].include?(kind) ? (Users.new.resolve(mappings, value.to_i) || User.anonymous.id).to_s : map(mappings, kind, value.to_i).to_s
             elsif value.present? && %w[category_id fixed_version_id].include?(name)

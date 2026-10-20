@@ -25,12 +25,18 @@ module RedmineMirror
       name.to_s.unicode_normalize(:nfkd).gsub(/\p{Mn}/, "").downcase.scan(/[[:alnum:]]+/).sort.join(" ")
     end
 
-    # The ID of the only candidate ([name, id] pairs) with the same key, else nil.
+    # The ID of the only candidate ([name, id] pairs, or their index) with the same key, else nil.
     def suggest(name, candidates)
       wanted = key(name)
       return nil if wanted.empty?
-      matches = candidates.select { |label, _| key(label) == wanted }
-      matches.one? ? matches.first.last : nil
+      matches = (candidates.is_a?(Hash) ? candidates : index(candidates)).fetch(wanted, [])
+      matches.one? ? matches.first : nil
+    end
+
+    # Candidate IDs by key, to suggest for many names without normalizing the candidates
+    # again for each one.
+    def index(candidates)
+      candidates.group_by { |label, _| key(label) }.transform_values { |pairs| pairs.map(&:last) }
     end
 
     # Similarity between 0 and 1 (Dice coefficient of the keys' trigrams), used to send the

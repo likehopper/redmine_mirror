@@ -19,6 +19,9 @@ module RedmineMirror
   module Adapters
     # A separate pass runs only after all demands in this project have mappings.
     class IssueState < IssueChildren
+      # Records are the issues themselves.
+      def source_issue_ids(record); [record.fetch("id")]; end
+
       def records(client, project_id)
         Issues.new.records(client, project_id).lazy.map do |issue|
           issue_detail(client, issue.fetch("id"), "watchers")

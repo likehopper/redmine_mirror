@@ -25,12 +25,14 @@ Connection: source Redmine and project, API key, source text format and modules.
       <% if @setting.persisted? %>
         <%= text_field_tag "connection[source_url]", @setting.source_url, size: 60, readonly: true %>
         <em class="info"><%= l(:text_mirror_source_fixed) %></em>
-      <% elsif admin %>
-        <%= text_field_tag "connection[source_url]", @setting.source_url, size: 60, placeholder: "https://redmine.example.com", list: ("mirror-allowed-sources" if allowed.any?) %>
-        <% if allowed.any? %><datalist id="mirror-allowed-sources"><% allowed.each do |url| %><option value="<%= url %>"></option><% end %></datalist><% end %>
-        <em class="info"><%= l(:text_mirror_source_admin, link: link_to(l(:label_mirror_plugin_settings), plugin_settings_path(id: "redmine_mirror"))).html_safe %></em>
       <% elsif allowed.any? %>
+        <%# Once sources are allowed, everyone chooses among them, administrators included. %>
         <%= select_tag "connection[source_url]", options_for_select(allowed, @setting.source_url), id: "connection_source_url" %>
+        <% if admin %><em class="info"><%= l(:text_mirror_source_admin, link: link_to(l(:label_mirror_plugin_settings), plugin_settings_path(id: "redmine_mirror"))).html_safe %></em><% end %>
+      <% elsif admin %>
+        <%# No allowed list yet: an administrator may still try any source. %>
+        <%= text_field_tag "connection[source_url]", @setting.source_url, size: 60, placeholder: "https://redmine.example.com" %>
+        <em class="info"><%= l(:text_mirror_source_admin_free, link: link_to(l(:label_mirror_plugin_settings), plugin_settings_path(id: "redmine_mirror"))).html_safe %></em>
       <% else %>
         <span class="warning" id="mirror-no-allowed-source"><%= l(:text_mirror_no_allowed_source) %></span>
       <% end %></p>

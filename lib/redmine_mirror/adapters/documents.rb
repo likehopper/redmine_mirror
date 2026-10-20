@@ -32,6 +32,7 @@ module RedmineMirror
       def dependencies; ["users"]; end
       def text_samples(record); [record["description"]]; end
       def mapping_tables; [MappingTable.new("document_category", reference_fields: ["category"])]; end
+      def ignored_reference(record, mappings); "document_category" if ignored_mapping?(mappings, "document_category", record.dig("category", "id")); end
 
       def referenced_users(record)
         record.fetch("attachments", []).filter_map { |attachment| attachment["author"] }

@@ -163,7 +163,7 @@ Unless stated otherwise, it imports into temporary projects and deletes them aft
 
 | Script | Checks |
 | --- | --- |
-| `smoke.rb` | Preview without writes, import, persisted correspondences (27 with categories and versions), idempotent rerun, local conflict. `MIRROR_PROJECT_CONFIG_SMOKE=1` uses the UI mappings |
+| `smoke.rb` | Preview without writes, import, persisted correspondences (27 with categories and versions), idempotent rerun, local conflict; then ignored activities (time entries left out) and statuses (issues and their time left out), logged as ignored. `MIRROR_PROJECT_CONFIG_SMOKE=1` uses the UI mappings |
 | `synchronization_smoke.rb` | Browser preview and import, worker logs, simulated automatic deadline, no duplicates, next deadline |
 | `history_smoke.rb` | 36 dated journals (12 private), 12 files, authors and dates against the source API, private issue visibility, rerun, local change refused |
 | `relations_smoke.rb` | Missing targets, private notes without duplicates, late target import, reuse from the other side, delays, categories and versions, translated journal changes, blocked/resolved tracking, native cross-project setting refusal (restored afterwards) |
@@ -171,7 +171,7 @@ Unless stated otherwise, it imports into temporary projects and deletes them aft
 | `custom_fields_smoke.rb` | Seven formats, required field without local default, history, privacy, preview, idempotence, local change refused; temporary fields deleted |
 | `conflicts_smoke.rb` | Conflict recorded, local object kept with its correspondence, recheck, correction and resolution |
 | `wiki_smoke.rb` | Needs `wiki_seed.rb`. Preview, version numbers and gaps, authors, dates, parent, attachment, idempotence, new source version (edits the source page), local conflict |
-| `documents_smoke.rb` | Needs `documents_seed.rb`. Mirror source API, preview, categories mapped by name, dates, description, files with authors and content, idempotence, source state, local conflict. Then run `documents_source_check.rb` on the source: sessions by purpose, file transfers and account logged |
+| `documents_smoke.rb` | Needs `documents_seed.rb`. Mirror source API, ignored categories logged as ignored, preview, categories mapped by name, dates, description, files with authors and content, idempotence, source state, local conflict. Then run `documents_source_check.rb` on the source: sessions by purpose, file transfers and account logged |
 | `members_smoke.rb` | Needs `members_seed.rb`. Accounts outside the project offered to a members manager, preview, user, locked account and group added with mapped roles, idempotence |
 | `mirror_mode_smoke.rb` | Mirror mode on `mirror-demo`: local edits overwritten, local deletion recreated, source note edit (Redmine 5.0+ source), source deletions within the limit, beyond it and confirmed, idempotence. Creates and deletes its own source issues |
 | `locked_smoke.rb` | Needs `locked_seed.rb`. `mirror-leaver` locked on the destination: author, assignee, note and time entry kept, closed version set, locked watcher skipped, idempotent rerun |

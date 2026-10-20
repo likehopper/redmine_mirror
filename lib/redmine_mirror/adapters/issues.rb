@@ -56,6 +56,12 @@ module RedmineMirror
         super.merge("status_id" => "*", "subproject_id" => "!*", "sort" => "id:asc")
       end
 
+      # A tracker or status mapped to "ignore": its issues, and what belongs to them, are
+      # not imported.
+      def ignored_reference(record, mappings)
+        %w[tracker status].find { |kind| ignored_mapping?(mappings, kind, record.dig(kind, "id")) }
+      end
+
       def payload(record, project_id, mappings, lookup, options: {})
         result = record.slice("subject", "description", "start_date", "due_date", "done_ratio", "estimated_hours")
         result["description"] = TextFormat.convert(result["description"]) if result.key?("description")

@@ -42,8 +42,10 @@ class MirrorSettingsController < ApplicationController
     # The source project is entered by identifier or numeric ID.
     reference = input.fetch(:source_project_id).to_s.strip
     raise RedmineMirror::Error, l(:text_mirror_invalid_source_project) unless reference.match?(SOURCE_PROJECT)
-    # Other members connect only to a source an administrator allowed (plugin settings).
-    if !User.current.admin? && !@setting.persisted? && !RedmineMirror.allowed_source_url?(url)
+    # A source must be allowed in the plugin settings; while none is, administrators
+    # may still connect to any source.
+    free = User.current.admin? && RedmineMirror.allowed_source_urls.empty?
+    if !free && !@setting.persisted? && !RedmineMirror.allowed_source_url?(url)
       raise RedmineMirror::Error, l(:text_mirror_source_not_allowed)
     end
     if @setting.persisted? && @setting.source_url != url
@@ -94,11 +96,19 @@ class MirrorSettingsController < ApplicationController
     return render_404 unless adapter
     allowed = adapter.mapping_tables.to_h { |table| [table.key, table] }
     input = params.fetch(:mappings, ActionController::Parameters.new).to_unsafe_h
+    # A checked special choice (anonymize, ignore) wins over the row's field.
+    special = params.fetch(:special_mappings, ActionController::Parameters.new).to_unsafe_h
     MirrorReferenceMapping.transaction do
       input.each do |kind, entries|
         table = allowed.fetch(kind) { raise RedmineMirror::Error, "Unknown mapping table" }
         raise RedmineMirror::Error, "Invalid mappings" unless entries.is_a?(Hash)
         entries.each do |source_id, selection|
+          if (choice = special.dig(kind, source_id).presence)
+            unless (choice == "anonymous" && table.anonymous_allowed?) || (choice == "ignore" && table.ignore_allowed?)
+              raise RedmineMirror::Error, "Invalid special choice"
+            end
+            selection = choice
+          end
           unless @setting.source_catalog.fetch(kind, {}).key?(source_id)
             raise RedmineMirror::Error, "Unknown source reference"
           end
@@ -117,7 +127,7 @@ class MirrorSettingsController < ApplicationController
       @setting.update!(module_options: @setting.module_options.merge(adapter.key => options))
     end
     flash[:notice] = l(:notice_successful_update)
-    redirect_to configuration_path(adapter.key)
+    redirect_to configuration_path(adapter.key, mirror_filter: params[:mirror_filter].presence_in(%w[unmapped mapped all]))
   rescue RedmineMirror::Error, ActiveRecord::RecordInvalid, ArgumentError, TypeError
     flash[:error] = l(:text_mirror_invalid_mapping)
     redirect_to configuration_path(params[:module_key])
@@ -169,7 +179,7 @@ class MirrorSettingsController < ApplicationController
     @setting = @project.mirror_project_setting || @project.build_mirror_project_setting
   end
 
-  def configuration_path(mirror_tab = nil)
-    settings_project_path(@project, { tab: "mirror", mirror_tab: mirror_tab }.compact)
+  def configuration_path(mirror_tab = nil, **options)
+    settings_project_path(@project, { tab: "mirror", mirror_tab: mirror_tab }.merge(options).compact)
   end
 end

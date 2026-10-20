@@ -20,6 +20,7 @@ module RedmineMirror
     class Relations < IssueChildren
       def key; "issue_relations"; end
       def association; "relations"; end
+      def source_issue_ids(record); record.values_at("issue_id", "issue_to_id").compact; end
       def configuration_options(input, _project)
         value = input.fetch("missing_target", "ignore")
         raise Error, "Invalid missing relation target policy" unless %w[ignore note].include?(value)

@@ -51,6 +51,7 @@ Version **1.0.0-beta.20** is a pre-release for testing before 1.0.0, not a stabl
 | Wiki | Pages with every version, authors, dates, parents and attachments |
 | Members | Users, locked accounts and groups with mapped roles; additive |
 | Documents | Title, description, category, date and files; the source shares them (Mirror source) |
+| Files | Files of the Files module with their version, author, date and download count |
 
 - Preview before writing, manual runs and automatic schedules.
 - Logs with remote and local IDs, links, filters and progress.
@@ -213,7 +214,8 @@ ruby test/diagnosis_test.rb
 
 Read the [contribution guide](CONTRIBUTING.md) and [code of conduct](CODE_OF_CONDUCT.md).
 Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
-See the [changelog](CHANGELOG.md) and the [release procedure](RELEASING.md).
+See the [changelog](CHANGELOG.md), the [roadmap](ROADMAP.md) and the
+[release procedure](RELEASING.md).
 
 ## License
 

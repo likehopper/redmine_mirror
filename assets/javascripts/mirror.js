@@ -16,10 +16,32 @@
  * Filter long mapping choice lists as the user types (jQuery UI ships with Redmine).
  */
 $(function () {
+  // Choices as [label, value, lowercase label], read once per list: a table's shared list
+  // (data-choices) or the select's own options. The empty choice ("To configure") is not
+  // suggested: clearing the field selects it.
+  var lists = {};
+  var choicesOf = function (select) {
+    var shared = select.data("choices");
+    if (shared) {
+      if (!lists[shared]) {
+        lists[shared] = $.map(JSON.parse($("#" + shared).text()), function (choice) {
+          return [[choice[0], choice[1], choice[0].toLowerCase()]];
+        });
+      }
+      return lists[shared];
+    }
+    return select.find("option").map(function () {
+      return this.value ? [[$(this).text(), this.value, $(this).text().toLowerCase()]] : null;
+    }).get();
+  };
+  // Long menus are slow to draw and to read: the first matches, then a narrower search.
+  var LIMIT = 50;
+
   $("select.mirror-autocomplete").each(function () {
     var select = $(this);
     var minimum = parseInt(select.data("autocomplete-min"), 10) || 12;
-    if (select.find("option").length < minimum) return;
+    if (!select.data("choices") && select.find("option").length < minimum) return;
+    var choices = null;
     var selectedText = function () {
       var option = select.find("option:selected");
       return option.length && option.val() ? option.text() : "";
@@ -33,16 +55,29 @@ $(function () {
     select.hide().after(input);
     input.autocomplete({
       minLength: 0,
-      delay: 0,
+      delay: 100,
       source: function (request, response) {
         var term = request.term.toLowerCase();
-        // The empty choice ("To configure") is not suggested: clearing the field selects it.
-        response(select.find("option").map(function () {
-          var text = $(this).text();
-          return this.value && text.toLowerCase().indexOf(term) >= 0 ? { label: text, value: text, option: this.value } : null;
-        }).get());
+        var matches = [];
+        choices = choices || choicesOf(select);
+        for (var i = 0; i < choices.length && matches.length <= LIMIT; i++) {
+          if (choices[i][2].indexOf(term) >= 0) matches.push({ label: choices[i][0], value: choices[i][0], option: choices[i][1] });
+        }
+        if (matches.length > LIMIT) {
+          matches.length = LIMIT;
+          matches.push({ label: select.data("more") || "…", value: "", option: null, more: true });
+        }
+        response(matches);
+      },
+      focus: function (event, ui) {
+        if (ui.item.more) event.preventDefault();
       },
       select: function (event, ui) {
+        if (ui.item.more) return false;
+        // A shared list's choice is added to the select when first picked.
+        if (!select.find("option").filter(function () { return this.value === ui.item.option; }).length) {
+          select.append($("<option>").val(ui.item.option).text(ui.item.label));
+        }
         select.val(ui.item.option).trigger("change");
       },
       change: function (event, ui) {
@@ -59,6 +94,15 @@ $(function () {
       input.autocomplete("search", "");
     });
   });
+
+  // The select stays enabled so that it is still submitted; the checkbox wins on save.
+  var special = function (checkbox) {
+    var cell = $(checkbox).closest("td").toggleClass("mirror-special-on", checkbox.checked);
+    cell.find("select.mirror-autocomplete").attr("tabindex", checkbox.checked ? -1 : null);
+    cell.find(".mirror-autocomplete-input").prop("disabled", checkbox.checked);
+  };
+  $("input.mirror-special-choice:checked").each(function () { special(this); });
+  $(document).on("change", "input.mirror-special-choice", function () { special(this); });
 
   // Catalog refresh or execution in progress: reload while the Mirror content is visible,
   // unless a form field has been edited.

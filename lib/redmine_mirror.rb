@@ -106,4 +106,5 @@ module RedmineMirror
   REGISTRY.register(Adapters::Wiki.new)
   REGISTRY.register(Adapters::Members.new)
   REGISTRY.register(Adapters::Documents.new)
+  REGISTRY.register(Adapters::Files.new)
 end

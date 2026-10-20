@@ -102,6 +102,13 @@ local models: the destination must be the Redmine the worker runs on
 (`MIRROR_DESTINATION_URL`). Invalid dates or unmapped authors are reported as errors in the preview; with *Skip it*,
 the other issues are still synchronized.
 
+A source tracker or status mapped to **Do not import its issues** leaves those issues
+out. They are logged as ignored, not as errors, and so is everything that belongs to
+them in the other modules: history, time entries, attachments, watchers, custom values,
+relations and parent links. A tracker or status change to or from it is left out of the
+history. An issue imported earlier is kept. To keep the issues under another name, map
+the tracker or status to a local one instead. Priorities must be mapped.
+
 A locked assignee or a version that is not open (closed or locked), which the REST API
 refuses, is left out of the API write and restored through local models, without a
 journal. A version must belong to the project or be shared with it.
@@ -112,6 +119,8 @@ Copies hours, activity, date, comments, user and issue, through the REST API. Th
 destination API account must be allowed to log time for the mapped users. Time
 logged on the project without an issue is imported too. Issues run first. Time of a
 locked user is logged by the API account, then given back to that user locally.
+An activity mapped to **Do not import its time entries** leaves them out, logged as
+ignored.
 
 ## Categories and versions
 
@@ -273,12 +282,32 @@ the destination project first. Writes go through local models and send no notifi
   shared, or permission missing.
 - Categories are mapped to existing local document categories (Administration →
   Enumerations). **Refresh source references** lists them, and the file authors in
-  *Users*.
+  *Users*. A category mapped to **Do not import its documents** leaves them out,
+  logged as ignored.
 - Descriptions follow the destination format and issue references are rewritten, as
   for issues.
 - A local edit or deletion of an imported document is a conflict. New source files are
   added on later runs; in mirror mode, files removed on the source are removed locally.
 - Custom field values are not copied.
+
+## Files
+
+Imports the files of the source project's Files module: name, description, author,
+creation date, content and download count, on the project or on their version. Enable
+the Files module on the destination project first. Writes go through local models and
+send no notification.
+
+- Uses Redmine's REST API: the source API key needs *View files*, and the Files module
+  must be enabled on the source project. **Refresh source references** lists the file
+  authors in *Users*.
+- Versions are synchronized first (*Categories and versions*). A file whose version has
+  no local correspondence yet, because the destination refused that version, is logged
+  as ignored and imported by the next run once the version exists.
+- The download count is copied when the file is imported; local downloads then add to
+  it and are not a modification.
+- A new description or version on the source updates the local file in place, without
+  downloading it again. A local edit or deletion of an imported file is a conflict;
+  deletions are propagated in mirror mode only.
 
 ## Synchronization and worker
 

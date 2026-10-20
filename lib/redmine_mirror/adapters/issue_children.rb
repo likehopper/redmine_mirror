@@ -21,6 +21,7 @@ module RedmineMirror
     class IssueChildren < Base
       def dependencies; %w[users issue_tracking]; end
       def referenced_users(record); [record["user"] || record["author"]].compact; end
+      def source_issue_ids(record); [record.fetch("issue_id")]; end
 
       def records(client, project_id)
         Enumerator.new do |output|

@@ -39,6 +39,8 @@ module RedmineMirror
       def collection; "time_entries"; end
       def entity; "time_entry"; end
       def dependencies; ["users", "issue_tracking"]; end
+      def source_issue_ids(record); [record.dig("issue", "id")].compact; end
+      def ignored_reference(record, mappings); "activity" if ignored_mapping?(mappings, "activity", record.dig("activity", "id")); end
       def fields; %w[hours comments spent_on activity_id user_id issue_id]; end
 
       def payload(record, project_id, mappings, lookup, options: {})

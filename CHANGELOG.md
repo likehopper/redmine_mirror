@@ -16,6 +16,32 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+- **Files** module: the files of the source project's Files module are imported on the
+  project or on their version, with their description, author, date, content and download
+  count, through Redmine's REST API (*View files*; no Mirror source needed). A file whose
+  version is not imported yet waits for the next run, logged as ignored. A description or
+  version changed on the source updates the local file in place; mirror mode propagates
+  deletions.
+- Once source URLs are allowed in the plugin settings, every project chooses its source
+  from that list, administrators included; another URL is refused. While the list is
+  empty, administrators can still enter any URL.
+- **Ignore a tracker**: in the tracker mappings, **Do not import its issues** leaves the
+  source issues of that tracker out of the import. They are logged as ignored, not as
+  errors, and so are their history, time entries, attachments, watchers, custom values,
+  relations and parent links; a waiting relation or parent link to them is dropped.
+  Statuses can be ignored the same way, activities (**Do not import its time entries**)
+  and document categories (**Do not import its documents**) too. Priorities must be
+  mapped.
+- In the mapping tabs, *Anonymize* and the ignore choices are a checkbox beside the
+  field, which it greys, instead of an entry of the list.
+- **Show: to map / mapped / all** filters the mapping tables; the references to map
+  are shown first.
+- Long mapping tables, such as users, load and search much faster: the local choices
+  are sent once per table, the search shows the first 50 matches, and same-name
+  proposals no longer compare every row with every local reference.
+
 ## 1.0.0-beta.20 — 2026-10-20
 
 - **Guidance** through the migration. The Mirror page lists what to settle before the
