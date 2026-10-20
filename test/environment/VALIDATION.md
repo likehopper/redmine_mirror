@@ -291,3 +291,14 @@ temps passé) est désactivé, plus de bouton Enregistrer dans les onglets sans 
 enregistrer. Runner CI : 143 tests Redmine / 657 assertions. Parcours de documentation :
 15 étapes / 85 assertions. `versions.sh` source 4.2.10 → destination 5.1.13 : onze
 smokes d'écriture réussis.
+
+1.0.0-beta.18 (20 octobre 2026) : page Administration → Mirror (requête Redmine : filtres,
+colonnes, regroupements, tri, totaux et export CSV sur la configuration, l'activité et la
+charge des projets), durée des exécutions enregistrée (migration 014), et prévisualisation
+« Partielle » au lieu de « Échouée » en mode « ignorer » : quelques objets impossibles à
+mapper ne bloquent plus le reste. Runner CI 6.1.4 : 149 tests Redmine / 710 assertions.
+Suite Redmine complète exécutée une fois sur l'image `reporting-compat-ready:5.1.13` :
+149 tests / 710 assertions, sans échec. Parcours de documentation : 16 étapes / 88
+assertions, capture de la page d'administration. Environnement à deux instances 6.1.4 :
+douze smokes réussis, dont `conflicts_smoke.rb` adapté au statut partiel. `versions.sh`
+source 4.2.10 → destination 5.1.13 : onze smokes d'écriture réussis.

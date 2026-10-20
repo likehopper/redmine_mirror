@@ -147,17 +147,18 @@ module RedmineMirror
         end
         errors = run.log_events.select { |event| event["action"] == "error" }
         if errors.empty?
-          run.update!(status: "succeeded", finished_at: Time.current)
+          run.finish!(status: "succeeded")
         else
-          # Partial: other objects were written; failed: nothing was (preview or "stop").
-          partial = run.apply? && setting.on_error == "skip"
-          run.update!(status: partial ? "partial" : "failed", finished_at: Time.current,
+          # Partial ("skip"): the other objects were written, or would be for a preview,
+          # so a few failing objects do not block the rest. Failed ("stop"): nothing is.
+          partial = setting.on_error == "skip"
+          run.finish!(status: partial ? "partial" : "failed",
             error_message: "#{errors.size} object(s) not synchronized; first: #{errors.first['reason']}")
         end
       rescue StandardError => error
         # Unexpected exception text can contain URLs, credentials or private records.
         message = error.is_a?(Error) ? error.message : "Internal synchronization error (#{error.class.name})"
-        run.update!(status: "failed", finished_at: Time.current, error_message: message)
+        run.finish!(status: "failed", error_message: message)
       # Release only our own lease. A process crash cannot run this cleanup, so
       # recovery requires checking whether a write succeeded before another run.
       ensure

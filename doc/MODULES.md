@@ -56,7 +56,7 @@ imported object count is always zero.
 | --- | --- |
 | Issue assignee | Unassigned |
 | Issue author, history, attachments | Redmine's built-in anonymous user |
-| Time entries | The **local user for anonymized time** chosen in *Time tracking*; without it, the preview fails |
+| Time entries | The **local user for anonymized time** chosen in *Time tracking*; without it, those time entries are reported as errors |
 | Watchers | Not subscribed |
 | User custom field values | Empty |
 
@@ -99,7 +99,8 @@ version, author and dates (`created_on`, `updated_on`, `closed_on`, at the API's
 precision). Issues are created and updated through the destination REST API, so
 native workflows and validations apply. Author and dates are then restored through
 local models: the destination must be the Redmine the worker runs on
-(`MIRROR_DESTINATION_URL`). Invalid dates or unmapped authors block the preview.
+(`MIRROR_DESTINATION_URL`). Invalid dates or unmapped authors are reported as errors in the preview; with *Skip it*,
+the other issues are still synchronized.
 
 A locked assignee or a version that is not open (closed or locked), which the REST API
 refuses, is left out of the API write and restored through local models, without a

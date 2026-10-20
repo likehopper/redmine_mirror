@@ -16,6 +16,17 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.18 — 2026-10-20
+
+- With *Skip it and synchronize the rest* (the default), a preview with errors ends
+  **Partial** instead of **Failed**: a few objects that cannot be mapped no longer block
+  the synchronization of the rest. *Stop: write nothing* keeps the former behavior.
+- **Administration → Mirror**: the projects Mirror is configured in, as a Redmine query
+  with filters, columns, grouping (root or parent project, source Redmine, mirror mode,
+  status…), sorting, totals and CSV export: configuration, activity (running, last run,
+  duration, message) and load (runs, recent runs, durations, objects, mappings,
+  conflicts, pending links). Run durations are now stored (migration 014).
+
 ## 1.0.0-beta.17 — 2026-10-20
 
 - Long choice lists no longer suggest *To configure*: clearing the field leaves the

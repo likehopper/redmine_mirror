@@ -42,6 +42,9 @@ Redmine::Plugin.register :redmine_mirror do
   settings default: { "allowed_source_urls" => "", "user_company_field_id" => "" }, partial: "settings/redmine_mirror"
   menu :project_menu, :mirror, { controller: "mirror", action: "index" },
        caption: :label_mirror, param: :project_id
+  # Administration overview of the projects Mirror is configured in.
+  menu :admin_menu, :mirror_admin, { controller: "mirror_admin", action: "index" },
+       caption: :label_mirror_admin, html: { class: "icon icon-mirror-admin" }
 end
 
 Project.include(RedmineMirror::ProjectPatch) unless Project < RedmineMirror::ProjectPatch

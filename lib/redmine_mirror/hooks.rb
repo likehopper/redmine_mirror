@@ -18,5 +18,11 @@
 module RedmineMirror
   class Hooks < Redmine::Hook::ViewListener
     render_on :view_issues_show_details_bottom, partial: "mirror/issue_origin"
+
+    # The administration menu entry's icon, on every page that may show that menu.
+    def view_layouts_base_html_head(context = {})
+      return "" unless User.current.admin?
+      stylesheet_link_tag("mirror_menu", plugin: "redmine_mirror")
+    end
   end
 end
