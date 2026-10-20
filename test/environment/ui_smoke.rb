@@ -38,12 +38,27 @@ end
 # Same-version instances are seeded with identical IDs. Across Redmine versions the IDs
 # differ, so fall back to the local object named like the source one.
 choose = lambda do |select, value|
+  # Long lists are shared by the table (data-choices): the chosen one is added to the select.
+  if (shared = select.attribute("data-choices").presence)
+    choices = JSON.parse(select.find_element(xpath: "//script[@id='#{shared}']").attribute("textContent"))
+    name = select.find_element(xpath: "ancestor::tr/td[1]").text.sub(/ \(#\d+\)\z/, "")
+    choice = choices.find { |_, id| id == value } || choices.find { |label, _| label.sub(/ \(#\d+\)(?: .*)?\z/, "") == name }
+    if choice
+      driver.execute_script("var s = arguments[0], v = arguments[1]; if (![].some.call(s.options, function (o) { return o.value === v; })) s.add(new Option(arguments[2], v)); s.value = v;",
+        select, choice.last, choice.first)
+      next
+    end
+  end
   menu = Selenium::WebDriver::Support::Select.new(select)
   next menu.select_by(:value, value) if menu.options.any? { |option| option.attribute("value") == value }
   name = select.find_element(xpath: "ancestor::tr/td[1]").text.sub(/ \(#\d+\)\z/, "")
   option = menu.options.find { |entry| entry.text.sub(/ \(#\d+\)(?: .*)?\z/, "") == name }
   # A source account without a local member (the administrator, in a fresh stack) is anonymized.
-  option ||= menu.options.find { |entry| entry.attribute("value") == "anonymous" }
+  unless option
+    special = select.find_elements(xpath: "ancestor::tr//input[@value='anonymous']").first
+    next special.click if special && !special.selected?
+    next if special
+  end
   abort "No local match for #{select.attribute('name')} (#{name})" unless option
   menu.select_by(:value, option.attribute("value"))
 end
@@ -58,8 +73,15 @@ begin
   driver.find_element(name: "login").click
   wait.until { driver.find_elements(id: "loggedas").any? }
   driver.navigate.to(settings)
-  if driver.find_element(name: "connection[source_url]").attribute("value").empty?
-    driver.find_element(name: "connection[source_url]").send_keys(config.fetch("source_url"))
+  # A configured project shows its source read-only; otherwise choose it among the
+  # allowed URLs, or type it while none is allowed.
+  source_field = driver.find_element(name: "connection[source_url]")
+  unless source_field.attribute("readonly")
+    if source_field.tag_name == "select"
+      Selenium::WebDriver::Support::Select.new(source_field).select_by(:value, config.fetch("source_url"))
+    else
+      source_field.send_keys(config.fetch("source_url"))
+    end
     driver.find_element(name: "connection[source_project_id]").send_keys(config.fetch("source_project_id").to_s)
     driver.find_element(name: "connection[api_key]").send_keys(ENV.fetch("MIRROR_SOURCE_API_KEY"))
     in_tab.call('input[value="time_tracking"]').click
@@ -87,7 +109,8 @@ begin
     wait_catalog.call
     driver.navigate.to("#{settings}?mirror_tab=users")
     # The source administrator is intentionally anonymized in this demo project.
-    Selenium::WebDriver::Support::Select.new(driver.find_element(id: "mirror-user-1")).select_by(:value, "anonymous")
+    special = driver.find_element(id: "mirror-user-1-anonymous")
+    special.click unless special.selected?
     in_tab.call("[name=commit]").click
     wait.until { driver.find_elements(id: "flash_notice").any? }
   end

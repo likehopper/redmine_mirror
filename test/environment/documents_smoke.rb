@@ -41,9 +41,15 @@ begin
   setting.source_catalog.fetch("user").each do |id, name|
     project.mirror_reference_mappings.create!(reference_type: "user", source_id: id, destination_id: (name.include?("Alice") ? alice : admin).id, mode: "existing")
   end
-  # Both instances load the same default categories: map them by name.
+  # Both instances load the same default categories: map them by name. An ignored category
+  # leaves its documents out, logged as ignored.
+  categories = setting.source_catalog.fetch("document_category").map do |id, name|
+    project.mirror_reference_mappings.create!(reference_type: "document_category", source_id: id, mode: "ignore")
+  end
+  events = execute.call(setting, false).log_events
+  raise "Ignored category: #{events.map { |event| event['action'] }}" unless events.size == 2 && events.all? { |event| event["action"] == "ignored" && event["reason"] == "Document category ignored by the mapping" }
   setting.source_catalog.fetch("document_category").each do |id, name|
-    project.mirror_reference_mappings.create!(reference_type: "document_category", source_id: id, destination_id: DocumentCategory.find_by!(name: name).id, mode: "existing")
+    categories.find { |row| row.source_id == Integer(id) }.update!(mode: "existing", destination_id: DocumentCategory.find_by!(name: name).id)
   end
   execute.call(setting, false)
   raise "Preview wrote documents" if project.documents.exists?
@@ -69,7 +75,7 @@ begin
   execute.call(setting, true, setting.on_error == "skip" ? "partial" : "failed")
   raise "Local edit overwritten" unless architecture.reload.title == "Local title"
   raise "Conflict not recorded" unless MirrorConflict.where(project_id: project.id, module_key: "documents", status: "open").count == 1
-  puts "Documents smoke passed: preview, categories, dates, description, files with authors, idempotence, source state, local conflict"
+  puts "Documents smoke passed: ignored category, preview, categories, dates, description, files with authors, idempotence, source state, local conflict"
 ensure
   MirrorMapping.where(project_id: project.id).delete_all
   MirrorConflict.where(project_id: project.id).delete_all

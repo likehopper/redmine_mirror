@@ -63,6 +63,7 @@ projects with a read-only role:
 | View wiki, View wiki history | Wiki |
 | View members (public by default) | Members |
 | View documents | Documents ([Mirror source](#mirror-source-on-the-source-redmine) on the source) |
+| View files | Files |
 | Manage issue categories (optional) | Category default assignees; without it, categories come from the issues that use them |
 
 Projects the account is not a member of are not visible. **Issue custom fields** also
@@ -75,8 +76,9 @@ format compatibility checks and the complete lists of possible values.
 ## 3. Allow the source Redmine
 
 `Administration → Plugins → Redmine Mirror → Configure`: list the source Redmine URLs,
-one per line. Project members can connect only to these sources; administrators can
-enter any URL. **User company field** picks the user custom field shown as the company
+one per line. Every project then chooses its source from this list, administrators
+included; while the list is empty, only administrators can connect, to any URL.
+**User company field** picks the user custom field shown as the company
 in the user mappings (by default, a field named Company, Société or Entreprise).
 Optional AI proposals for long mapping lists are set in **Administration → Mirror → AI**:
 see [AI usage](AI.md).
@@ -118,7 +120,7 @@ a link to the page of the next one.
 
 **Connect the source project** opens **Settings → Mirror → Connection**:
 
-- **Source Redmine URL**: one of the allowed sources;
+- **Source Redmine URL**: chosen from the allowed sources;
 - **Source project**: its identifier, as in `<source>/projects/<identifier>`, or its numeric ID;
 - **Source API key**: stored encrypted and never displayed again;
 - **Source text format**: *Auto* detects Textile, Markdown or HTML (CKEditor) for each
@@ -161,7 +163,14 @@ Each module tab lists the source references it needs. **Issues** maps trackers,
 statuses and priorities. Only the references used by the source project's issues and
 their history are listed, plus those already mapped; a link shows the others. Local
 statuses are limited to those of the project's tracker workflows. Long lists, such as
-users, can be filtered by typing.
+users, can be filtered by typing. **Show** lists the references to map first, then the
+mapped ones or all of them.
+
+A checkbox beside the field replaces a local reference: **Anonymize** a user, or leave
+a tracker, status, activity or document category out of the import (**Do not import
+its issues**, *its time entries*, *its documents*). Custom fields, roles and groups
+have their own (*Ignore this field*, *Do not give this role*, *Do not add this group*).
+The checked box greys the field.
 
 A reference without correspondence is marked in red. When a single local reference has
 the same name (ignoring case, accents, punctuation and word order), it is preselected and
@@ -379,6 +388,7 @@ and **Cancel this execution** withdraws a queued run.
 | "HTTP 403 for GET …" | The source account lacks the permission for that request (step 2). |
 | "The source Redmine does not list documents" | Install Redmine Mirror 1.0.0-beta.19 or later on the source and restart it. |
 | "Mirror source is disabled…", "Enable the Mirror source module…", "Share Documents…" | Open that lock on the source: [Mirror source](#mirror-source-on-the-source-redmine). |
+| "The source project does not list its files" | Enable the Files module on the source project and give the source account *View files*. |
 | "MIRROR_DESTINATION_URL is not configured" | Set both variables in the worker's environment. |
 | Preview ends Partial or Failed on a mapping | Complete the module tabs with a red counter (steps 7 and 8); with *Skip it*, the rest is synchronized meanwhile. |
 | Run reports a conflict | Step 12. |

@@ -29,8 +29,12 @@ module RedmineMirror
       "label_mirror_mapping_#{key}".to_sym
     end
 
-    def ignore_allowed?; false; end
-    def ignore_label; :label_mirror_ignore_field; end
+    # Ignoring a tracker or status leaves its issues out of the import, an activity its time
+    # entries, a document category its documents. Priorities must be mapped.
+    IGNORE_LABELS = { "tracker" => :label_mirror_ignore_tracker, "status" => :label_mirror_ignore_tracker,
+      "activity" => :label_mirror_ignore_activity, "document_category" => :label_mirror_ignore_document_category }.freeze
+    def ignore_allowed?; IGNORE_LABELS.key?(key); end
+    def ignore_label; IGNORE_LABELS.fetch(key, :label_mirror_ignore_field); end
 
     def anonymous_allowed?
       key == "user"

@@ -62,10 +62,32 @@ module RedmineMirror
       # One source record through its adapter. A record whose texts cite issues not
       # imported yet is processed again at the end of an applying run (deferred).
       deferred = []
+      # Source issues left out by an ignored tracker or status, with that table key. Their
+      # records in later modules (history, time, watchers, relations...) are ignored with
+      # them, not errors.
+      ignored_issues = {}
       process = lambda do |adapter, record|
         TextFormat.reset_flags
         if @mapping_store.respond_to?(:excluded?) && @mapping_store.excluded?(adapter.key, record.fetch("id"))
           event = { module: adapter.key, source_id: record.fetch("id"), destination_id: @mapping_store.find(adapter.key, record.fetch("id"))&.fetch("destination_id"), action: "ignored", reason: "Local object retained by project conflict resolution" }
+          results << event
+          yield event if block_given?
+          next
+        end
+        reason = nil
+        if adapter.respond_to?(:ignored_reference) && (kind = adapter.ignored_reference(record, config.fetch("mappings", {})))
+          ignored_issues[record.fetch("id")] = kind if adapter.is_a?(Adapters::Issues)
+          reason = "#{kind.tr('_', ' ').capitalize} ignored by the mapping"
+        elsif !ignored_issues.empty? && adapter.respond_to?(:source_issue_ids) && (issue_id = adapter.source_issue_ids(record).find { |id| ignored_issues[id] })
+          reason = "Issue ##{issue_id} not imported: its #{ignored_issues[issue_id]} is ignored by the mapping"
+        end
+        if reason
+          # A relation or parent link once waiting for this issue no longer waits.
+          if apply
+            @mapping_store.resolve_pending_relation(record.fetch("id")) if adapter.is_a?(Adapters::Relations) && @mapping_store.respond_to?(:resolve_pending_relation)
+            @mapping_store.resolve_pending_parent(record.fetch("id")) if adapter.is_a?(Adapters::Hierarchy) && @mapping_store.respond_to?(:resolve_pending_parent)
+          end
+          event = { module: adapter.key, source_id: record.fetch("id"), destination_id: @mapping_store.find(adapter.key, record.fetch("id"))&.fetch("destination_id"), action: "ignored", reason: reason }
           results << event
           yield event if block_given?
           next

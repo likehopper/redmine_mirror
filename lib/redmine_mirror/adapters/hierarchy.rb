@@ -20,6 +20,8 @@ module RedmineMirror
     class Hierarchy < IssueState
       def key; "issue_hierarchy"; end
       def records(client, project_id); Issues.new.records(client, project_id); end
+      # A parent left out of the import leaves the link out too, rather than pending.
+      def source_issue_ids(record); [record.fetch("id"), record.dig("parent", "id")].compact; end
       def synchronize(record, project_id:, mappings:, lookup:, store:, source:, apply:, track_blocks: false)
         event = super(record, project_id: project_id, mappings: mappings, lookup: lookup, store: store, source: source, apply: apply)
         if apply && store.respond_to?(:pending_parent)

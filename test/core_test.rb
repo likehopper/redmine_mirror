@@ -177,6 +177,49 @@ class MirrorCoreTest < Minitest::Test
     assert_equal "Updated source", @destination.records["issues"].first["subject"]
   end
 
+  def test_ignored_tracker_leaves_its_issues_and_their_records_out_without_errors
+    @source.records["issues"] << @issue.merge("id" => 4, "tracker" => { "id" => 7 })
+    @source.records["time_entries"] << @source.records["time_entries"].first.merge("id" => 9, "issue" => { "id" => 4 })
+    @config["mappings"]["tracker"]["7"] = "ignore"
+    events = @runner.run(@config, apply: true)
+    assert_equal [[3, "create"], [4, "ignored"], [8, "create"], [9, "ignored"]], events.map { |event| [event[:source_id], event[:action]] }
+    assert_equal "Tracker ignored by the mapping", events[1][:reason]
+    assert_equal "Issue #4 not imported: its tracker is ignored by the mapping", events[3][:reason]
+    assert_equal 2, @destination.writes.length
+    # Without the "ignore" choice, the unmapped tracker is still an error.
+    @config["mappings"]["tracker"].delete("7")
+    assert_raises(RedmineMirror::Error) { @runner.run(@config) }
+    assert RedmineMirror::MappingTable.new("tracker").ignore_allowed?
+    refute RedmineMirror::MappingTable.new("priority").ignore_allowed?
+    refute RedmineMirror::MappingTable.new("user").ignore_allowed?
+  end
+
+  # An ignored status leaves its issues out like a tracker; an ignored activity, its time entries.
+  def test_ignored_status_and_activity_leave_their_records_out_without_errors
+    @source.records["issues"] << @issue.merge("id" => 4, "status" => { "id" => 7 })
+    @source.records["time_entries"] << @source.records["time_entries"].first.merge("id" => 9, "issue" => { "id" => 4 })
+    @source.records["time_entries"] << @source.records["time_entries"].first.merge("id" => 10, "activity" => { "id" => 7 })
+    @config["mappings"]["status"]["7"] = "ignore"
+    @config["mappings"]["activity"]["7"] = "ignore"
+    events = @runner.run(@config, apply: true)
+    assert_equal [[3, "create"], [4, "ignored"], [8, "create"], [9, "ignored"], [10, "ignored"]], events.map { |event| [event[:source_id], event[:action]] }
+    assert_equal ["Status ignored by the mapping", "Issue #4 not imported: its status is ignored by the mapping", "Activity ignored by the mapping"],
+      events.values_at(1, 3, 4).map { |event| event[:reason] }
+    assert_equal 2, @destination.writes.length
+    %w[status activity document_category].each { |kind| assert RedmineMirror::MappingTable.new(kind).ignore_allowed? }
+    assert_equal "document_category", RedmineMirror::Adapters::Documents.new.ignored_reference({ "category" => { "id" => 5 } }, { "document_category" => { "5" => "ignore" } })
+  end
+
+  def test_relations_and_parents_of_an_ignored_issue_are_ignored
+    ignored = { 4 => true }
+    relations = RedmineMirror::Adapters::Relations.new
+    assert relations.source_issue_ids({ "issue_id" => 3, "issue_to_id" => 4 }).any? { |id| ignored[id] }
+    hierarchy = RedmineMirror::Adapters::Hierarchy.new
+    assert_equal [3, 4], hierarchy.source_issue_ids(@issue.merge("parent" => { "id" => 4 }))
+    assert_equal [3], RedmineMirror::Adapters::Journals.new.source_issue_ids({ "issue_id" => 3 })
+    assert_equal [], RedmineMirror::Adapters::TimeEntries.new.source_issue_ids({ "id" => 1 })
+  end
+
   def test_local_edit_is_a_conflict_even_if_source_unchanged
     @runner.run(@config, apply: true)
     @destination.records["issues"].first["subject"] = "Local edit"

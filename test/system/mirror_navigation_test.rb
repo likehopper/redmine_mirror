@@ -50,13 +50,18 @@ class MirrorMappingSystemTest < ApplicationSystemTestCase
     visit "/projects/ecookbook/settings/mirror"
     assert_no_text "hidden-system-test-key"
     find("#mirror-settings-subtabs a[href*='mirror_tab=users']").click
-    select "Anonymize", from: "mirror-user-7"
+    # Anonymizing is a checkbox beside the field, which it greys.
+    check "Anonymize"
+    assert_selector "td.mirror-special-on #mirror-user-7"
     click_button "Save"
     assert_selector "#flash_notice"
     assert_equal "anonymous", project.mirror_reference_mappings.find_by!(reference_type: "user", source_id: 7).mode
     visit "/projects/ecookbook/settings/mirror?mirror_tab=users"
-    assert_select_value = find("#mirror-user-7").value
-    assert_equal "anonymous", assert_select_value
+    assert find("#mirror-user-7-anonymous").checked?
+    uncheck "Anonymize"
+    click_button "Save"
+    assert_selector "#flash_notice"
+    assert_nil project.mirror_reference_mappings.find_by(reference_type: "user", source_id: 7)
   end
 end
 
@@ -167,7 +172,7 @@ class MirrorCustomFieldSystemTest < ApplicationSystemTestCase
     assert_selector "#flash_notice"
     assert_selector "#mirror-cf-value-900-#{hash} option[selected]", text: "Local A"
     assert_equal "Local A", setting.reload.module_options.dig("issue_custom_fields", "value_mappings", "900", hash)
-    select "Ignore this field", from: "mirror-custom_field-900"
+    check "Ignore this field"
     click_button "Save"
     assert_selector "#flash_notice"
     assert_no_selector "table.mirror-custom-field-values"

@@ -73,6 +73,31 @@ class MirrorSettingsControllerTest < ActionController::TestCase
     assert_equal "anonymous", @setting.reload.synchronization_config(destination_url: "https://local.example").dig("mappings", "user", "7")
   end
 
+  # A checked special choice wins over the row's field; one the table does not offer is refused.
+  def test_checked_special_choice_wins_over_the_field
+    patch :update_mappings, params: { project_id: @project.identifier, module_key: "users",
+      mappings: { user: { "7" => "2" } }, special_mappings: { user: { "7" => "anonymous" } }, mirror_filter: "mapped" }
+    assert_redirected_to "/projects/ecookbook/settings/mirror?mirror_filter=mapped&mirror_tab=users"
+    assert_equal "anonymous", @project.mirror_reference_mappings.find_by!(reference_type: "user", source_id: 7).mode
+    patch :update_mappings, params: { project_id: @project.identifier, module_key: "users",
+      mappings: { user: { "7" => "" } }, special_mappings: { user: { "7" => "ignore" } } }
+    assert flash[:error].present?
+    assert_equal "anonymous", @project.mirror_reference_mappings.find_by!(reference_type: "user", source_id: 7).mode
+  end
+
+  # A tracker's checkbox leaves its issues out; a priority offers no such choice.
+  def test_tracker_checkbox_ignores_its_issues
+    patch :update_mappings, params: { project_id: @project.identifier, module_key: "issue_tracking",
+      mappings: { tracker: { "1" => @project.trackers.first.id.to_s } }, special_mappings: { tracker: { "1" => "ignore" } } }
+    row = @project.mirror_reference_mappings.find_by!(reference_type: "tracker", source_id: 1)
+    assert_equal ["ignore", nil], [row.mode, row.destination_id]
+    assert_equal "ignore", @setting.reload.synchronization_config(destination_url: "https://local.example").dig("mappings", "tracker", "1")
+    patch :update_mappings, params: { project_id: @project.identifier, module_key: "issue_tracking",
+      mappings: { priority: { "1" => "" } }, special_mappings: { priority: { "1" => "ignore" } } }
+    assert flash[:error].present?
+    assert_nil @project.mirror_reference_mappings.find_by(reference_type: "priority", source_id: 1)
+  end
+
   def test_rejects_anonymous_tracker_and_rolls_back_other_mappings
     patch :update_mappings, params: { project_id: @project.identifier, module_key: "issue_tracking",
       mappings: { status: { "1" => IssueStatus.first.id.to_s }, tracker: { "1" => "anonymous" } } }

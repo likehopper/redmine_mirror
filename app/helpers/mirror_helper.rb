@@ -140,17 +140,23 @@ module MirrorHelper
   end
 
   # A single local reference with the same name, ignoring case, accents, punctuation and
-  # word order. Labels end with " (#id)" and, for users, their login and email.
-  def mirror_name_suggestion(choices, name)
+  # word order. index: mirror_name_index of the table's choices.
+  def mirror_name_suggestion(index, name)
+    RedmineMirror::NameMatch.suggest(name, index)
+  end
+
+  # The local choices indexed by name, once per table. Labels end with " (#id)" and, for
+  # users, their login and email.
+  def mirror_name_index(choices)
     candidates = choices.select { |_, value| value.match?(/\A\d+\z/) }.map { |label, value| [label.sub(/ \(#\d+\)(?: .*)?\z/, ""), value] }
-    RedmineMirror::NameMatch.suggest(name, candidates)
+    RedmineMirror::NameMatch.index(candidates)
   end
 
   # The AI proposal for an unmapped source reference, when it is still a valid choice.
-  # ai: the "ai_suggestions" entry of the source catalog.
-  def mirror_ai_suggestion(ai, choices, kind, source_id)
+  # ai: the "ai_suggestions" entry of the source catalog; labels: choice labels by value.
+  def mirror_ai_suggestion(ai, labels, kind, source_id)
     proposal = ai.dig("tables", kind, source_id)
-    proposal if proposal && choices.any? { |_, value| value == proposal["id"].to_s }
+    proposal if proposal && labels.key?(proposal["id"].to_s)
   end
 
   # What the "Propose with AI" button of a mapping table would ask (doc/AI.md), or nil

@@ -95,7 +95,12 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     visit "/projects/#{PROJECT}/mirror"
     within("#mirror-setup") { click_link "Connect the source project" }
     assert_current_path "/projects/#{PROJECT}/settings/mirror"
-    fill_in "connection_source_url", with: SOURCE_URL
+    # Chosen among the allowed sources, or typed while none is allowed.
+    if page.has_select?("connection_source_url", wait: 0)
+      select SOURCE_URL, from: "connection_source_url"
+    else
+      fill_in "connection_source_url", with: SOURCE_URL
+    end
     fill_in "connection_source_project_id", with: PROJECT
     fill_in "connection_api_key", with: SOURCE_API_KEY
     MODULES.each { |key| find("input[name='connection[modules][]'][value='#{key}']").check }
@@ -399,6 +404,8 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     within("#mirror-table-#{table}") do
       all("tbody tr").each do |row|
         name = row.find("td", match: :first).text.sub(/ \(#\d+\)\z/, "")
+        # Special choices (anonymize, ignore) are checkboxes beside the field.
+        next row.check(overrides[name]) if overrides.key?(name) && row.has_field?(overrides[name], type: "checkbox")
         field = row.find("select")
         choice = overrides.fetch(name) { field.all("option").map(&:text).find { |text| text.sub(/ \(#\d+\)(?: .*)?\z/, "") == name } }
         assert choice, "No local #{table} named #{name}"

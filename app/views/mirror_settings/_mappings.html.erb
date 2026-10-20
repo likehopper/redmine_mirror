@@ -27,7 +27,7 @@ preselected; nothing is saved until the form is. AI proposals are asked for per 
     <% if User.current.allowed_to?(:select_project_modules, @project) %><%= link_to l(:label_mirror_enable_project_module), settings_project_path(@project, tab: "modules") %><% end %></p>
 <% end %>
 <%= render adapter.settings_partial, adapter: adapter if adapter.settings_partial %>
-<% if %w[issue_hierarchy issue_watchers wiki project_members documents].include?(adapter.key) %>
+<% if %w[issue_hierarchy issue_watchers wiki project_members documents project_files].include?(adapter.key) %>
   <p><%= l("text_mirror_#{adapter.key}".to_sym) %></p>
   <p><%= link_to l(:label_mirror_module_users), mirror_configuration_path(@project, "users") %></p>
 <% end %>
@@ -49,35 +49,65 @@ preselected; nothing is saved until the form is. AI proposals are asked for per 
     <p class="warning" id="mirror-ai-blocked"><%= l(:text_mirror_ai_blocked, reason: ai_config.blocked_reason) %></p>
   <% end %>
 <% end %>
+<%# Each table's rows, computed before the form so that the filter counts them all. Only
+    references used by the source project (and those already mapped) are listed, unless
+    all are requested. Unsaved proposals count as to map. %>
+<% tables = adapter.mapping_tables.map do |table|
+  # The special choice (anonymize, do not give, ignore) is a checkbox beside the field.
+  special = if table.anonymous_allowed? then ["anonymous", l(:label_mirror_anonymous)]
+            elsif table.ignore_allowed? then ["ignore", l(table.ignore_label)] end
+  local_choices = [[l(:label_mirror_unmapped), ""]]
+  records = table.local_records(@project).to_a
+  local_choices += records.map { |record| [record.is_a?(User) ? mirror_user_label(record, company_field) : "#{record.name} (##{record.id})", record.id.to_s] }
+  used = @setting.source_catalog["#{table.key}_used"]&.to_set
+  rows = @setting.source_catalog.fetch(table.key, {}).sort_by { |id, name| [name.downcase, id.to_i] }
+  hidden, rows = rows.partition { |id, _| used && params[:all_references] != "1" && !used.include?(id) && @mapping_values[[table.key, id]].blank? }
+  { table: table, special: special, records: records, choices: local_choices, labels: local_choices.to_h { |label, value| [value, label] },
+    names: mirror_name_index(local_choices), rows: rows, hidden: hidden }
+end %>
+<% to_map = tables.sum { |entry| entry[:rows].count { |id, _| @mapping_values[[entry[:table].key, id]].blank? } } %>
+<% total = tables.sum { |entry| entry[:rows].size } %>
+<% filter = params[:mirror_filter].presence_in(%w[unmapped mapped all]) || (to_map.positive? ? "unmapped" : "all") %>
+<% if total.positive? %>
+  <p class="mirror-mapping-filter" id="mirror-mapping-filter"><%= l(:label_mirror_mapping_filter) %>
+    <% { "unmapped" => to_map, "mapped" => total - to_map, "all" => total }.each do |value, count| %>
+      <% text = l("label_mirror_mapping_filter_#{value}", count: count) %>
+      <%= value == filter ? content_tag(:strong, text) : link_to(text, mirror_configuration_path(@project, adapter.key, all_references: params[:all_references].presence, mirror_filter: value)) %>
+    <% end %>
+  </p>
+<% end %>
 <%= form_tag project_mirror_mappings_path(@project, module_key: adapter.key), method: :patch, id: "mirror-mappings-form" do %>
-  <% adapter.mapping_tables.each do |table| %>
+  <%= hidden_field_tag :mirror_filter, params[:mirror_filter], id: nil if params[:mirror_filter].present? %>
+  <% tables.each do |entry| %>
+    <% table, special, local_choices, labels = entry.values_at(:table, :special, :choices, :labels) %>
+    <%# Long lists are sent once per table and searched as the user types (mirror.js): each
+        row's select only holds the empty choice and its current or proposed value. %>
+    <% shared = local_choices.size >= 12 %>
     <h3><%= l(table.label) %></h3>
     <table class="list mirror-mapping-table" id="mirror-table-<%= table.key %>">
       <thead><tr><th><%= l(:label_mirror_source) %></th><th><%= l(:label_mirror_destination) %></th></tr></thead>
       <tbody>
-      <%# Special choices (anonymize, do not give, ignore) come first, before the local records. %>
-      <% local_choices = [[l(:label_mirror_unmapped), ""]] %>
-      <% local_choices << [l(:label_mirror_anonymous), "anonymous"] if table.anonymous_allowed? %>
-      <% local_choices << [l(table.ignore_label), "ignore"] if table.ignore_allowed? %>
-      <% records = table.local_records(@project).to_a %>
-      <% local_choices += records.map { |record| [record.is_a?(User) ? mirror_user_label(record, company_field) : "#{record.name} (##{record.id})", record.id.to_s] } %>
-      <%# Only references used by the source project (and those already mapped), unless all are requested. %>
-      <% used = @setting.source_catalog["#{table.key}_used"] %>
-      <% rows = @setting.source_catalog.fetch(table.key, {}).sort_by { |id, name| [name.downcase, id.to_i] } %>
-      <% hidden = used && params[:all_references] != "1" ? rows.reject { |id, _| used.include?(id) || @mapping_values[[table.key, id]].present? } : [] %>
-      <% (rows - hidden).each do |id, name| %>
+      <% entry[:rows].each do |id, name| %>
         <% selected = @mapping_values[[table.key, id]] %>
-        <% suggestion = selected.blank? ? mirror_name_suggestion(local_choices, name) : nil %>
+        <% next if filter == (selected.blank? ? "mapped" : "unmapped") %>
+        <% suggestion = selected.blank? ? mirror_name_suggestion(entry[:names], name) : nil %>
         <% suggested += 1 if suggestion %>
         <%# Then the AI proposal, if one was asked for. %>
-        <% ai_proposal = selected.blank? && !suggestion ? mirror_ai_suggestion(ai, local_choices, table.key, id) : nil %>
+        <% ai_proposal = selected.blank? && !suggestion ? mirror_ai_suggestion(ai, labels, table.key, id) : nil %>
         <% ai_suggested += 1 if ai_proposal %>
-        <% choices = local_choices.dup %>
-        <% choices << [l(:label_mirror_invalid_destination), selected] if selected.present? && choices.none? { |choice| choice.last == selected } %>
-        <tr class="<%= selected.blank? ? (suggestion || ai_proposal ? 'mirror-suggested' : 'mirror-unmapped') : nil %>"><td><%= name %> (#<%= mirror_object_link(table.key, id, source_url: @setting.source_url) %>)</td><td>
+        <% checked = special && selected == special.first %>
+        <% value = checked ? "" : selected.presence || suggestion || (ai_proposal && ai_proposal["id"].to_s) %>
+        <% choices = shared ? local_choices.first(1) : local_choices.dup %>
+        <% choices << [labels[value], value] if shared && value.present? && labels.key?(value) %>
+        <% choices << [l(:label_mirror_invalid_destination), selected] if selected.present? && !checked && !labels.key?(selected) %>
+        <tr class="<%= selected.blank? ? (suggestion || ai_proposal ? 'mirror-suggested' : 'mirror-unmapped') : nil %>"><td><%= name %> (#<%= mirror_object_link(table.key, id, source_url: @setting.source_url) %>)</td><td class="<%= 'mirror-special-on' if checked %>">
           <%= label_tag "mirror-#{table.key}-#{id}", l(:label_mirror_destination), class: "hidden-for-sighted" %>
-          <%= select_tag "mappings[#{table.key}][#{id}]", options_for_select(choices, selected.presence || suggestion || (ai_proposal && ai_proposal["id"].to_s)), id: "mirror-#{table.key}-#{id}",
-            class: "mirror-autocomplete", data: { placeholder: l(:label_mirror_type_to_search) } %>
+          <%= select_tag "mappings[#{table.key}][#{id}]", options_for_select(choices, value), id: "mirror-#{table.key}-#{id}",
+            class: "mirror-autocomplete", data: { placeholder: l(:label_mirror_type_to_search), more: l(:text_mirror_more_choices), choices: (shared ? "mirror-choices-#{table.key}" : nil) } %>
+          <% if special %>
+            <label class="mirror-special"><%= check_box_tag "special_mappings[#{table.key}][#{id}]", special.first, checked, id: "mirror-#{table.key}-#{id}-#{special.first}",
+              class: "mirror-special-choice" %> <%= special.last %></label>
+          <% end %>
           <% if suggestion %><em class="info mirror-suggestion"><%= l(:label_mirror_suggested) %></em><% end %>
           <% if ai_proposal %><em class="info mirror-suggestion mirror-ai-suggestion"><%= l(:label_mirror_ai_suggested, confidence: (ai_proposal["confidence"].to_f * 100).round) %></em><% end %>
           <%= mirror_object_link(table.key, selected) if selected.present? && !%w[anonymous ignore].include?(selected) %>
@@ -85,14 +115,15 @@ preselected; nothing is saved until the form is. AI proposals are asked for per 
       <% end %>
       </tbody>
     </table>
+    <% if shared %><%= content_tag :script, local_choices.reject { |_, value| value.empty? }.to_json.html_safe, type: "application/json", id: "mirror-choices-#{table.key}" %><% end %>
     <% if @setting.source_catalog.fetch(table.key, {}).empty? %><p class="nodata"><%= l(:label_no_data) %></p><% end %>
-    <% if (offer = mirror_ai_offer(ai_config, table, records.map { |record| [record.id.to_s, record.name.to_s] }, catalog)) && !%w[pending running].include?(@setting.ai_status) %>
+    <% if (offer = mirror_ai_offer(ai_config, table, entry[:records].map { |record| [record.id.to_s, record.name.to_s] }, catalog)) && !%w[pending running].include?(@setting.ai_status) %>
       <p class="mirror-ai-offer" id="mirror-ai-offer-<%= table.key %>">
         <%= link_to l(:button_mirror_ai_propose), project_mirror_ai_path(@project, module_key: adapter.key, table: table.key), method: :post, class: "mirror-ai-propose" %>
         <em class="info"><%= l(:text_mirror_ai_offer, count: offer[:count], requests: offer[:requests], left: offer[:left]) %></em>
       </p>
     <% end %>
-    <% if hidden.any? %><p class="mirror-unused-references"><%= link_to l(:label_mirror_show_unused_references, count: hidden.size), mirror_configuration_path(@project, adapter.key, all_references: 1) %></p><% end %>
+    <% if entry[:hidden].any? %><p class="mirror-unused-references"><%= link_to l(:label_mirror_show_unused_references, count: entry[:hidden].size), mirror_configuration_path(@project, adapter.key, all_references: 1, mirror_filter: params[:mirror_filter].presence) %></p><% end %>
   <% end %>
   <% if suggested.positive? %>
     <p class="warning" id="mirror-suggestions"><%= l(:text_mirror_suggested_mappings, count: suggested) %></p>
