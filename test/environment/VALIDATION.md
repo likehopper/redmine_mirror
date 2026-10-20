@@ -317,3 +317,22 @@ source : `documents_smoke.rb`, `documents_source_check.rb` (6 sessions : référ
 prévisualisation, synchronisation ; fichiers et compte journalisés), `wiki_smoke.rb` et
 `smoke.rb` réussis ; refus « disabled », « not_shared » et « module » remontés à la
 destination avec leur consigne, puis journalisés sur la source.
+
+1.0.0-beta.20 (20 octobre 2026) : accompagnement de la migration. Propositions IA à la
+demande pour les correspondances (Administration → Mirror → IA, migration 016) : clé
+chiffrée en écriture seule, modèle choisi dans la liste du fournisseur (légers en tête),
+limite quotidienne, suspension au premier refus (402/429/401/403), noms seulement, noms
+d'utilisateurs sur option. Rapprochement par nom normalisé (casse, accents, ponctuation,
+ordre des mots). Liste « Avant la prévisualisation » et erreurs regroupées par cause, les
+plus fréquentes d'abord, avec explication et corrections selon les droits : référence
+existante mais non activée (tracker, statut sans workflow, champ, activité, priorité,
+membre), version héritée d'un projet parent renvoyant au projet local qui le réplique.
+Runner CI 6.1.4 : 182 tests Redmine / 947 assertions, désinstallation et réinstallation
+comprises ; moteur 35 / 135, client 5 / 22, IA 7 / 38, diagnostic 3 / 9. Parcours de
+documentation : 19 étapes / 113 assertions, captures 32 à 36 (API IA simulée).
+Environnement à deux instances 6.1.4 : `smoke.rb`, `history_smoke.rb`,
+`relations_smoke.rb`, `conflicts_smoke.rb`, `issue_state_smoke.rb` et
+`custom_fields_smoke.rb` réussis ; propriétaire d'une version lu sur la vraie source.
+Essai réel avec Google Gemini (`gemini-3.5-flash-lite`) : liste des modèles, demande
+traitée par le worker (une requête, environ 450 jetons), propositions justes, nom
+d'injection ignoré, aucune correspondance enregistrée.

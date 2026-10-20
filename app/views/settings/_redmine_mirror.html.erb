@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 Plugin settings: the source Redmine URLs that project managers may connect to, the
 user field shown as the company in the user mappings, and Mirror source (this Redmine
 as a source): its global switch and log retention. Its activity is in Administration >
-Mirror > Source.
+Mirror > Source. AI proposals have their own page, Administration > Mirror > AI.
 %><p>
   <%= label_tag "settings_allowed_source_urls", l(:label_mirror_allowed_source_urls) %>
   <%= text_area_tag "settings[allowed_source_urls]", @settings["allowed_source_urls"], rows: 5, cols: 60, id: "settings_allowed_source_urls", placeholder: "https://redmine.example.com" %>
@@ -29,6 +29,10 @@ Mirror > Source.
           UserCustomField.sorted.map { |field| [field.name, field.id.to_s] }, @settings["user_company_field_id"].to_s),
         id: "settings_user_company_field_id" %>
   <em class="info"><%= l(:text_mirror_user_company_field) %></em>
+</p>
+<p id="mirror-ai-settings-link"><label><%= l(:label_mirror_admin_ai) %></label>
+  <%= link_to l(:label_mirror_ai_settings_open), mirror_admin_ai_path, class: "icon icon-arrow-right" %>
+  <em class="info"><%= l(:text_mirror_ai_settings_link) %></em>
 </p>
 <fieldset class="box tabular" id="mirror-source-settings"><legend><%= l(:label_mirror_source_module) %></legend>
   <p><em class="info"><%= l(:text_mirror_source_admin_help) %></em></p>

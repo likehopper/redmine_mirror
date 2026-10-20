@@ -63,6 +63,9 @@ module RedmineMirror
           end
           catalog = SourceCatalog.new(client: client, project_id: setting.source_project_id, adapters: setting.adapters).fetch(progress: progress)
           identifier = client.get("projects/#{Integer(setting.source_project_id)}.json").fetch("project")["identifier"]
+          # AI proposals cost requests: keep them; the forms show only those still valid.
+          previous = setting.reload.source_catalog["ai_suggestions"]
+          catalog["ai_suggestions"] = previous if previous
           setting.update_columns(source_catalog: JSON.generate(catalog), source_project_identifier: identifier,
             catalog_status: "ready", catalog_error: nil, catalog_progress: nil, updated_at: Time.current)
         rescue StandardError => error
@@ -77,6 +80,8 @@ module RedmineMirror
     # catch-up jobs. Each completed run calculates its next deadline.
     def self.tick
       refresh_catalogs
+      # AI proposals asked for in the mapping forms (doc/AI.md).
+      Ai.process_requests
       now = Time.current
       MirrorProjectSetting.where(auto_sync_enabled: true).where("next_sync_at IS NULL OR next_sync_at <= ?", now).find_each do |setting|
         setting.with_lock do

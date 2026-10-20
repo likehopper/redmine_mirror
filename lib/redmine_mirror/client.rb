@@ -19,7 +19,15 @@ require "net/http"
 require "securerandom"
 require "uri"
 module RedmineMirror
-  class Error < StandardError; end
+  # details: what the run log needs to explain the error and its fix (Diagnosis).
+  class Error < StandardError
+    attr_reader :details
+
+    def initialize(message = nil, details: nil)
+      super(message)
+      @details = details
+    end
+  end
   class Client
     # Credentials belong to one trusted base URL. Reject userinfo, queries and
     # fragments so they cannot alter the authenticated request destination.

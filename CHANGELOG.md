@@ -16,6 +16,27 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.20 — 2026-10-20
+
+- **Guidance** through the migration. The Mirror page lists what to settle before the
+  preview: references without correspondence, disabled project modules, mapped fields
+  the project does not use. A local tracker, status, custom field, activity, priority
+  or user with the source name that is not offered in the project (not enabled, no
+  workflow, inactive, not a member) is pointed out with the page that enables it. In
+  the log, errors are grouped by cause, largest first, each explained with the fixes the
+  current user may apply, or who to ask. A version inherited from a parent project names
+  its source project and links to the local project mirroring it: synchronize it first.
+- **AI proposals for the mappings**, optional and off by default (migration 016). An
+  administrator sets the provider (Google Gemini, Ollama or another OpenAI-compatible
+  API), an encrypted write-only key, the model (light models first) and a daily request
+  limit in **Administration → Mirror → AI**. In a mapping tab, a table with enough
+  references to map offers **Propose with AI**: the worker sends the names only, as the
+  person who asked, and the proposals are preselected, never saved. A quota, credit or
+  key refusal pauses AI until the connection is tested again. User names need a
+  separate option. Rules in [doc/AI.md](doc/AI.md).
+- Same-name proposals now ignore accents, punctuation and word order: *Dupont, Jérôme*
+  proposes *Jerome Dupont*.
+
 ## 1.0.0-beta.19 — 2026-10-20
 
 - **Documents** module: title, description, category, creation date and files with their

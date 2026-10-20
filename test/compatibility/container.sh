@@ -54,7 +54,7 @@ if bundle exec rails runner 'Rails.application.eager_load!' 2>&1 | grep "redmine
   echo "Redmine Mirror files were loaded twice" >&2
   exit 1
 fi
-for test_file in core_test client_test adapter_example_test; do
+for test_file in core_test client_test adapter_example_test ai_test diagnosis_test; do
   bundle exec ruby "plugins/redmine_mirror/test/$test_file.rb"
 done
 bundle exec rake db:migrate redmine:plugins:migrate

@@ -28,6 +28,8 @@ To add a module, start with the [adapter tutorial](ADAPTERS.md) and its
 | `Registry` | Validates registered adapters and resolves their phases and dependencies |
 | `SourceCatalog` | Discovers remote references for the mapping forms |
 | `MappingTable` | Lists available local choices; never creates administration-owned definitions |
+| `NameMatch` | Proposes the single local reference with the same normalized name; scores names for AI shortlists |
+| `Ai` | Optional, on-demand AI proposals run by the worker; follow the rules of [AI usage](AI.md) |
 | `Runner` | Plans and applies imports |
 | `DatabaseStore` | Persists correspondences, fingerprints and diagnostics |
 | `Synchronization` | Queues and leases project runs, runs preflight, writes filtered logs |

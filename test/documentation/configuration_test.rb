@@ -18,6 +18,7 @@
 # test/documentation/run.sh prepares both in a container.
 
 require File.expand_path("test/application_system_test_case", Dir.pwd)
+require "socket"
 
 class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
   # Steps follow the document: each one starts where the previous one left the database.
@@ -283,7 +284,86 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     screenshot "31-source-activity", "#main", max_height: 900
   end
 
+  # AI proposals (doc/AI.md), against a local stand-in for an OpenAI-compatible API: the
+  # destination names its statuses differently, as after a change of workflow.
+  def test_18_ai_proposals
+    url = start_fake_ai_api
+    visit "/admin/mirror/ai"
+    check "ai_enabled"
+    select "Other OpenAI-compatible API", from: "ai_provider"
+    fill_in "ai_url", with: url
+    click_button "Save"
+    assert_selector "#flash_notice"
+    click_button "Test the connection and list the models"
+    assert_selector "#flash_notice", text: /models available/
+    select "demo-mini — light, recommended", from: "ai_model"
+    click_button "Save"
+    assert_selector "#mirror-ai-status"
+    screenshot "32-ai-settings", "#content", max_height: 900
+
+    # Fewer statuses than the default threshold are used here: offer AI from one.
+    MirrorAiConfig.current.update!(min_references: 1)
+    FAKE_AI_SYNONYMS.each { |source, local| IssueStatus.find_by(name: source)&.update!(name: local) }
+    project.mirror_reference_mappings.where(reference_type: "status").delete_all
+    open_module_tab "issue_tracking"
+    assert_selector "#mirror-ai-offer-status"
+    screenshot "33-ai-offer", "#tab-content-mirror", max_height: 700
+    within("#mirror-ai-offer-status") { click_link "Propose with AI" }
+    assert_selector "#mirror-ai-status"
+    run_worker
+    open_module_tab "issue_tracking"
+    assert_selector "#mirror-table-status .mirror-ai-suggestion"
+    screenshot "34-ai-proposals", "#tab-content-mirror", max_height: 900
+  end
+
+  # Guided errors: the statuses of step 18 are still unmapped (proposals are not saved).
+  def test_19_guided_errors
+    visit "/projects/#{PROJECT}/mirror"
+    assert_selector "#mirror-checklist li", text: /Statuses: \d+ without correspondence/
+    screenshot "35-checklist", "#mirror-checklist"
+    click_button "Run preview"
+    assert_text "Execution queued"
+    run = run_worker
+    assert_equal "partial", run.status, run.error_message
+    visit "/projects/#{PROJECT}/mirror/synchronizations/#{run.id}"
+    assert_selector "#mirror-error-causes .mirror-guide"
+    screenshot "36-guided-errors", "#mirror-run-summary"
+  end
+
+  FAKE_AI_SYNONYMS = { "New" => "To do", "In Progress" => "Doing", "Resolved" => "Done", "Feedback" => "Waiting for reply",
+                       "Closed" => "Finished", "Rejected" => "Won't do" }.freeze
+
   private
+
+  # Answers like an OpenAI-compatible API: a model list, and matches from FAKE_AI_SYNONYMS.
+  def start_fake_ai_api
+    server = TCPServer.new("127.0.0.1", 0)
+    Thread.new do
+      loop do
+        socket = server.accept
+        head = +""
+        while (line = socket.gets) && line != "\r\n"
+          head << line
+        end
+        body = socket.read(head[/content-length: (\d+)/i, 1].to_i)
+        answer = if head.start_with?("GET")
+          { "object" => "list", "data" => %w[demo-large demo-mini].map { |id| { "id" => id } } }
+        else
+          request = JSON.parse(JSON.parse(body)["messages"].last["content"])
+          locals = request["destination"].to_h { |local| [local["name"], local["id"]] }
+          matches = request["source"].filter_map do |source|
+            id = locals[FAKE_AI_SYNONYMS[source["name"]]]
+            { "source_id" => source["id"], "local_id" => id, "confidence" => 0.9 } if id
+          end
+          { "choices" => [{ "message" => { "content" => JSON.generate("matches" => matches) } }], "usage" => { "total_tokens" => 412 } }
+        end
+        text = JSON.generate(answer)
+        socket.write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: #{text.bytesize}\r\nConnection: close\r\n\r\n#{text}")
+        socket.close
+      end
+    end
+    "http://127.0.0.1:#{server.addr[1]}/v1"
+  end
 
   # Default data plus what an administrator prepares before using Mirror: the
   # destination project, its members and an account for the worker's API key.

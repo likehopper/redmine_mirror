@@ -18,11 +18,15 @@
 get "projects/:project_id/mirror", to: "mirror#index", as: "project_mirror"
 get "admin/mirror", to: "mirror_admin#index", as: "mirror_admin"
 get "admin/mirror/source", to: "mirror_admin#source", as: "mirror_admin_source"
+get "admin/mirror/ai", to: "mirror_admin#ai", as: "mirror_admin_ai"
+patch "admin/mirror/ai", to: "mirror_admin#update_ai"
+post "admin/mirror/ai/test", to: "mirror_admin#test_ai", as: "mirror_admin_ai_test"
 
 get "projects/:project_id/mirror/settings", to: "mirror_settings#show", as: "project_mirror_settings"
 patch "projects/:project_id/mirror/settings/connection", to: "mirror_settings#update_connection", as: "project_mirror_connection"
 post "projects/:project_id/mirror/settings/refresh", to: "mirror_settings#refresh", as: "project_mirror_refresh"
 patch "projects/:project_id/mirror/settings/modules/:module_key", to: "mirror_settings#update_mappings", as: "project_mirror_mappings"
+post "projects/:project_id/mirror/settings/modules/:module_key/ai/:table", to: "mirror_settings#request_ai", as: "project_mirror_ai"
 
 patch "projects/:project_id/mirror/schedule", to: "mirror_synchronizations#update", as: "project_mirror_schedule"
 post "projects/:project_id/mirror/synchronizations", to: "mirror_synchronizations#create", as: "project_mirror_enqueue"

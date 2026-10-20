@@ -23,6 +23,7 @@ class MirrorAdminController < ApplicationController
   before_action :require_admin
   before_action :require_migrated_schema, only: :index
   before_action :require_source_schema, only: :source
+  before_action :require_ai_schema, only: [:ai, :update_ai, :test_ai]
 
   helper :queries
   include QueriesHelper
@@ -70,7 +71,48 @@ class MirrorAdminController < ApplicationController
     @sessions = sessions.offset(@session_pages.offset).limit(@session_pages.per_page).to_a
   end
 
+  # Administration > Mirror > AI (doc/AI.md): provider, key, model, limits and usage.
+  def ai
+    @config = MirrorAiConfig.current
+    @usages = MirrorAiUsage.where("day >= ?", Date.current - 29).order(day: :desc).to_a
+  end
+
+  # The key is write-only: an empty field keeps it, the delete box removes it.
+  def update_ai
+    @config = MirrorAiConfig.current
+    input = params.require(:ai).permit(:enabled, :provider, :url, :model, :send_user_names, :min_references, :daily_request_limit)
+    @config.assign_attributes(input)
+    @config.api_key = params[:ai][:api_key] if params[:ai][:api_key].present?
+    @config.api_key = nil if params[:ai][:clear_api_key] == "1"
+    if @config.save
+      flash[:notice] = l(:notice_successful_update)
+    else
+      flash[:error] = @config.errors.full_messages.to_sentence
+    end
+    redirect_to mirror_admin_ai_path
+  rescue RedmineMirror::Error => error
+    flash[:error] = error.message
+    redirect_to mirror_admin_ai_path
+  end
+
+  # Lists the models: checks the key without spending credit, and lifts a block.
+  def test_ai
+    config = MirrorAiConfig.current
+    return redirect_to(mirror_admin_ai_path) unless config.persisted?
+    ids = config.test_connection!
+    flash[:notice] = l(:text_mirror_ai_test_succeeded, count: ids.size)
+    redirect_to mirror_admin_ai_path
+  rescue RedmineMirror::Error, ActiveRecord::RecordInvalid => error
+    flash[:error] = l(:text_mirror_ai_test_failed, message: error.message)
+    redirect_to mirror_admin_ai_path
+  end
+
   private
+
+  def require_ai_schema
+    return if MirrorAiConfig.table_exists? && MirrorProjectSetting.schema_current?
+    render_error message: l(:text_mirror_pending_migrations), status: 503
+  end
 
   def require_source_schema
     return if MirrorSourceAccess.table_exists? && MirrorSourceSetting.table_exists?

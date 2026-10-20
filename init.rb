@@ -36,7 +36,7 @@ Redmine::Plugin.register :redmine_mirror do
     permission :view_mirror, { mirror: [:index], mirror_synchronizations: [:show] }, read: true, require: :member
     permission :run_mirror, { mirror: [:index], mirror_synchronizations: [:show, :create, :cancel], mirror_conflicts: [:update] }, require: :member
     permission :manage_mirror, { projects: [:settings], mirror: [:index], mirror_synchronizations: [:show, :create, :cancel, :update],
-      mirror_conflicts: [:update], mirror_settings: [:show, :update_connection, :update_mappings, :refresh] }, require: :member
+      mirror_conflicts: [:update], mirror_settings: [:show, :update_connection, :update_mappings, :refresh, :request_ai] }, require: :member
   end
   # Mirror source, when this Redmine is a source: a project shares chosen data with Mirror
   # destinations (Documents), if an administrator allows it. Configuring the sharing

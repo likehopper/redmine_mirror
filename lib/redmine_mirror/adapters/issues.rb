@@ -66,8 +66,9 @@ module RedmineMirror
         { "category" => "issue_categories", "fixed_version" => "project_versions" }.each do |field, module_key|
           result["#{field}_id"] = record[field] && lookup.call(module_key, record[field].fetch("id"))
           if record[field] && !result["#{field}_id"]
-            raise Error, "Missing #{field} correspondence for source issue ##{record['id']} (#{field} ##{record[field]['id']} " \
-              "#{record[field]['name'].inspect}); select its module, or synchronize the source project that owns it first"
+            raise Error.new("Missing #{field} correspondence for source issue ##{record['id']} (#{field} ##{record[field]['id']} " \
+              "#{record[field]['name'].inspect}); select its module, or synchronize the source project that owns it first",
+              details: { "code" => "missing_reference", "field" => field, "id" => record[field]["id"].to_s, "name" => record[field]["name"].to_s })
           end
         end
         result["is_private"] = record.fetch("is_private", false)

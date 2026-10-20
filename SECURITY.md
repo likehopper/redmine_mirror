@@ -18,7 +18,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 ## Supported versions
 
-Mirror is currently in beta (1.0.0-beta.19). Security fixes are considered for the
+Mirror is currently in beta (1.0.0-beta.20). Security fixes are considered for the
 latest pre-release and, after 1.0.0, the latest maintained release.
 No response or remediation deadline is promised.
 
@@ -34,6 +34,7 @@ Provide affected versions, configuration without secrets, reproduction steps, im
 and a minimal proof of concept using fictitious data. Relevant boundaries include
 project permissions, private issue/history visibility, destination identifiers,
 API credentials, download URLs, worker leases and conflict handling, and on a source
-the Mirror source locks (global switch, project module, shared data) and its access log.
+the Mirror source locks (global switch, project module, shared data) and its access log,
+and the optional AI API: its key and the data sent to it ([doc/AI.md](doc/AI.md)).
 
 The maintainer and reporter will coordinate validation, fixes and disclosure.
