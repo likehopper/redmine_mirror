@@ -231,6 +231,13 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     assert_match(/edited locally/, issue.reload.subject)
   end
 
+  def test_16_admin_overview
+    visit "/admin/mirror?set_filter=1&c[]=project&c[]=modules&c[]=source_wins&c[]=activity&c[]=last_run_at&c[]=last_run_status" \
+      "&c[]=last_run_duration&c[]=runs_count&c[]=duration_total&c[]=objects_count&c[]=open_conflicts&t[]=runs_count&t[]=duration_total&group_by=source_url"
+    assert_selector "table.mirror-admin-projects tbody tr", minimum: 1
+    screenshot "26-admin-overview", "#content", max_height: 620
+  end
+
   private
 
   # Default data plus what an administrator prepares before using Mirror: the

@@ -26,6 +26,12 @@ class MirrorSyncRun < ActiveRecord::Base
   # A worker normally picks a run up within a minute; longer usually means none runs.
   QUEUE_WARNING_DELAY = 5.minutes
 
+  # Ends the run, with its duration in seconds when it started.
+  def finish!(attributes)
+    now = Time.current
+    update!(attributes.merge(finished_at: now, duration_seconds: started_at && [(now - started_at).round, 0].max))
+  end
+
   def stalled_in_queue?(now = Time.current)
     status == "queued" && created_at && created_at < now - QUEUE_WARNING_DELAY
   end

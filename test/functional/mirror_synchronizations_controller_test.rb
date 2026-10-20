@@ -171,9 +171,9 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     end
   end
 
-  def execute_with(runner, on_error:)
+  def execute_with(runner, on_error:, apply: true)
     @setting.update!(on_error: on_error)
-    run = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual")
+    run = RedmineMirror::Synchronization.enqueue(@setting, apply: apply, trigger: "manual")
     with_destination_env do
       RedmineMirror::Runner.stub(:new, runner) { RedmineMirror::Synchronization.execute(run) }
     end
@@ -203,6 +203,19 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     assert_equal [[false, "collect"]], runner.calls
     assert_equal "failed", run.status
     assert_equal %w[create error], run.log_events.map { |event| event["action"] }
+  end
+
+  # A preview with failing objects does not block the rest in skip mode: it reads as
+  # partial and completes the Getting started preview step; stop mode still fails it.
+  def test_preview_with_errors_is_partial_in_skip_mode
+    runner = PartialRunner.new
+    run = execute_with(runner, on_error: "skip", apply: false)
+    assert_equal [[false, "collect"]], runner.calls
+    assert_equal "partial", run.status
+    assert_includes run.error_message, "Missing user mapping for source ID 7"
+    get :show, params: { project_id: @project.identifier, id: run.id }
+    assert_equal :done, @controller.view_context.mirror_setup_steps(@project, @setting.reload).assoc(:preview)[1]
+    assert_equal "failed", execute_with(PartialRunner.new, on_error: "stop", apply: false).status
   end
 
   def test_run_log_groups_errors_by_cause

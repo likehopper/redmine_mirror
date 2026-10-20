@@ -16,6 +16,7 @@
 # Define project-scoped Mirror endpoints with explicit HTTP methods.
 
 get "projects/:project_id/mirror", to: "mirror#index", as: "project_mirror"
+get "admin/mirror", to: "mirror_admin#index", as: "mirror_admin"
 
 get "projects/:project_id/mirror/settings", to: "mirror_settings#show", as: "project_mirror_settings"
 patch "projects/:project_id/mirror/settings/connection", to: "mirror_settings#update_connection", as: "project_mirror_connection"

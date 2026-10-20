@@ -193,6 +193,11 @@ object, without writing anything.
 Each error has its cause and, when Mirror knows it, a link to where it is fixed: a
 mapping tab, a custom field, the project's fields, a conflict.
 
+Errors do not block the rest: with **Skip it and synchronize the rest** (the default), a
+preview with errors ends **Partial**, and a synchronization writes every other object.
+The failing ones are retried by the next synchronization. With **Stop: write nothing**,
+the preview ends **Failed** and nothing is written until every error is fixed.
+
 ## 10. Synchronize
 
 Click **Synchronize now**. The log gives, for each object, its remote and local IDs with
@@ -256,6 +261,17 @@ issue's subject: the next run leaves it unchanged and reports it.
 
 ![Conflict kept locally](screenshots/configuration/25-conflict-kept.png)
 
+## 13. Follow usage and load
+
+`Administration → Mirror` lists the projects Mirror is configured in, as a Redmine query:
+filters (module, mirror mode, activity, last status, last run date, conflicts…), columns,
+grouping (root or parent project, source Redmine, status…), sorting, totals and CSV
+export. Columns cover the configuration (modules, mirror mode, schedule), the activity
+(running or queued, last run, last success, duration, message) and the load (runs,
+recent runs, total and average duration, objects processed, mappings, conflicts).
+
+![Administration overview](screenshots/configuration/26-admin-overview.png)
+
 ## Run the worker
 
 Runs are processed by the worker, a command scheduled every minute on the destination
@@ -286,7 +302,7 @@ and **Cancel this execution** withdraws a queued run.
 | Run stays **Queued**, "already queued or running" | The worker is not running: schedule `redmine_mirror:tick`, or cancel the run in **Overview**. |
 | "HTTP 403 for GET …" | The source account lacks the permission for that request (step 2). |
 | "MIRROR_DESTINATION_URL is not configured" | Set both variables in the worker's environment. |
-| Preview fails on a mapping | Complete the module tabs with a red counter (steps 7 and 8). |
+| Preview ends Partial or Failed on a mapping | Complete the module tabs with a red counter (steps 7 and 8); with *Skip it*, the rest is synchronized meanwhile. |
 | Run reports a conflict | Step 12. |
 | Relations or parents pending | Import the other project, then rerun this one. |
 

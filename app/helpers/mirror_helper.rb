@@ -113,6 +113,32 @@ module MirrorHelper
     label
   end
 
+  # Administration overview cells: the project links to its Mirror page, durations read
+  # in hours and minutes; other cells use Redmine's query formatting.
+  def mirror_admin_column_content(column, setting)
+    case column.name
+    when :project
+      link_to(setting.project.name, project_mirror_path(setting.project))
+    when :last_run_duration, :duration_average
+      minutes = column.value(setting)
+      minutes.nil? ? "" : mirror_duration(minutes * 60)
+    when :duration_total
+      mirror_duration(setting["mirror_duration_seconds"].to_f)
+    when :last_run_error
+      content_tag(:span, truncate(setting["mirror_last_error"].to_s, length: 120), title: setting["mirror_last_error"].to_s)
+    else
+      column_content(column, setting)
+    end
+  end
+
+  def mirror_duration(seconds)
+    seconds = seconds.to_f.round
+    return "0 s" if seconds.zero?
+    hours, rest = seconds.divmod(3600)
+    minutes, secs = rest.divmod(60)
+    [("#{hours} h" if hours.positive?), ("#{minutes} min" if minutes.positive?), ("#{secs} s" if secs.positive? && hours.zero?)].compact.join(" ")
+  end
+
   def mirror_name_suggestion(choices, name)
     return nil if name.blank?
     matches = choices.select { |label, value| value.match?(/\A\d+\z/) && label.sub(/ \(#\d+\)(?: .*)?\z/, "").casecmp?(name.to_s.strip) }

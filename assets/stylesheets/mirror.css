@@ -82,3 +82,7 @@
 .mirror-mapping-table tr.mirror-suggested td:first-child { border-left: 3px solid #e8b84a; }
 .mirror-suggestion { margin-left: .5em; }
 .mirror-page-link { margin: 0 0 .5em; }
+
+/* Administration overview: saved queries are not supported there. */
+.mirror-admin-query .buttons a.icon-save { display: none; }
+.mirror-admin-projects td.last_run_error { white-space: normal; max-width: 30em; }

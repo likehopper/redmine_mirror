@@ -40,7 +40,8 @@ begin
   original_subject = issue.subject
   issue.update_columns(subject: "Retained local subject")
   failed = execute.call(false)
-  raise "Conflict not captured" unless failed.status == "failed" && project.mirror_conflicts.count == 1
+  # Skip mode (default): the preview reads as partial, the conflicting issue excluded.
+  raise "Conflict not captured" unless failed.status == "partial" && project.mirror_conflicts.count == 1
   conflict = project.mirror_conflicts.first!
   raise "Wrong conflict identity" unless conflict.module_key == "issue_tracking" && conflict.destination_id == issue.id
   mapping = MirrorMapping.find_by!(connection_key: conflict.connection_key, module_key: conflict.module_key, source_id: conflict.source_id)
@@ -53,7 +54,7 @@ begin
   raise "Exclusion not logged" unless continued.log_events.any? { |event| event["source_id"] == conflict.source_id && event["module"] == conflict.module_key && event["action"] == "ignored" }
   conflict.update!(status: "open")
   repeated = execute.call(false)
-  raise "Recheck bypassed conflict" unless repeated.status == "failed"
+  raise "Recheck bypassed conflict" unless repeated.status == "partial"
   raise "Duplicate conflicts" unless project.mirror_conflicts.count == 1
   issue.update_columns(subject: original_subject)
   corrected = execute.call(true)
