@@ -14,12 +14,14 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Administration > Mirror sidebar: this Redmine as a destination (projects mirrored here)
-and as a source (data shared with other Redmines), then the plugin configuration.
+and as a source (data shared with other Redmines), the AI proposals, then the plugin
+configuration.
 %><% content_for :sidebar do %>
   <h3><%= l(:label_mirror_admin) %></h3>
   <ul class="mirror-admin-sidebar">
     <li><%= link_to l(:label_mirror_admin_destination), mirror_admin_path, class: ("selected" if action_name == "index") %></li>
     <li><%= link_to l(:label_mirror_admin_source), mirror_admin_source_path, class: ("selected" if action_name == "source") %></li>
+    <li><%= link_to l(:label_mirror_admin_ai), mirror_admin_ai_path, class: ("selected" if %w[ai update_ai].include?(action_name)) %></li>
     <li><%= link_to l(:label_mirror_admin_configuration), plugin_settings_path("redmine_mirror") %></li>
   </ul>
 <% end %>

@@ -71,13 +71,14 @@ class MirrorSynchronizationsController < ApplicationController
     @action_counts = @events.group_by { |event| event["module"] }.transform_values { |rows| rows.group_by { |event| event["action"] }.transform_values(&:size) }
     @flag_counts = @events.flat_map { |event| Array(event["flags"]) }.tally
     @warning_counts = @events.flat_map { |event| Array(event["warnings"]) }.tally.sort_by { |_, count| -count }
-    @error_counts = @events.select { |event| event["action"] == "error" }.group_by { |event| mirror_cause(event["reason"]) }.transform_values(&:size).sort_by { |_, count| -count }
+    # Errors grouped by cause, the largest first, each explained with its fix (Diagnosis).
+    @error_groups = RedmineMirror::Diagnosis.groups(@events)
     @events = @events.select { |event| event["module"] == params[:module_key] } if params[:module_key].present?
     if params[:flag].present?
       @events = @events.select { |event| params[:flag] == "any" ? Array(event["flags"]).any? : Array(event["flags"]).include?(params[:flag]) }
     end
     @events = @events.select { |event| event["action"] == params[:action_filter] } if params[:action_filter].present?
-    @events = @events.select { |event| mirror_cause(event["reason"]) == params[:reason] } if params[:reason].present?
+    @events = @events.select { |event| RedmineMirror::Diagnosis.group_key(event) == params[:reason] } if params[:reason].present?
     @events = @events.select { |event| Array(event["warnings"]).include?(params[:warning]) } if params[:warning].present?
     @events = @events.select { |event| event["source_id"].to_s == params[:source_id] } if params[:source_id].present?
     @event_count = @events.size
@@ -88,10 +89,6 @@ class MirrorSynchronizationsController < ApplicationController
   private
 
   # Causes that differ only by the source object ID are one cause.
-  def mirror_cause(reason)
-    reason.to_s.sub(/ for (\w+) source ID \d+\z/, ' for \\1')
-  end
-
   def mirror_connection_key
     destination = ENV["MIRROR_DESTINATION_URL"]
     return nil if destination.blank?

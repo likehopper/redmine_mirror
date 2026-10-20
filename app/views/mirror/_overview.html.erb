@@ -16,6 +16,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 Overview: getting started, source and schedule, actions, current execution, items to check, recent executions.
 %><% steps = mirror_setup_steps(@project, @setting) %>
 <%= render "mirror/setup", steps: steps unless mirror_setup_complete?(steps) %>
+<% checklist = mirror_checklist(@project, @setting) %>
+<% if checklist.any? %>
+  <div class="box" id="mirror-checklist"><h3><%= l(:label_mirror_checklist) %></h3>
+    <p class="info"><%= l(:text_mirror_checklist) %></p>
+    <ul><% checklist.each do |item| %><li><%= item[:text] %>
+      <%= safe_join(item[:actions].map { |label, path| link_to(label, path, class: "mirror-fix") }, " · ") %></li><% end %></ul>
+  </div>
+<% end %>
 <% active = @project.mirror_sync_runs.where(status: %w[queued running]).order(id: :desc).first %>
 <% current = active || @project.mirror_sync_runs.order(id: :desc).first %>
 <div class="splitcontent">

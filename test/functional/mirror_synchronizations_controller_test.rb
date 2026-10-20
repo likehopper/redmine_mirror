@@ -20,7 +20,8 @@ require "minitest/mock"
 
 class MirrorSynchronizationsControllerTest < ActionController::TestCase
   tests MirrorSynchronizationsController
-  fixtures :projects, :users, :roles, :members, :member_roles, :enabled_modules
+  fixtures :projects, :users, :roles, :members, :member_roles, :enabled_modules, :trackers, :projects_trackers,
+    :issue_statuses, :workflows, :enumerations
 
   def setup
     @project = Project.find(1)
@@ -222,7 +223,8 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     run = @project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "partial", events: JSON.generate(
       [1, 2, 3].map { |id| { "module" => "time_tracking", "source_id" => id, "action" => "error", "reason" => "Missing user mapping for source ID 7" } }))
     get :show, params: { project_id: @project.identifier, id: run.id }
-    assert_select "#mirror-error-causes li", text: /Missing user mapping for source ID 7 — fix the mapping — 3 object\(s\)/
+    assert_select "#mirror-error-causes li", text: /Missing user mapping for source ID 7 — 3 object\(s\)/
+    assert_select "#mirror-error-causes .mirror-guide", text: /No local reference corresponds to #7 yet/
     assert_select "#mirror-error-causes a[href*='tab=users']", text: "fix the mapping"
     # A cause link lists only its own objects.
     events = JSON.parse(run.events) + [{ "module" => "issue_tracking", "source_id" => 9, "action" => "error", "reason" => "Other cause" }]
@@ -280,11 +282,42 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     assert_select 'a[href="/issues/34"]', text: "34"
   end
 
+
+  # A tracker that exists in Redmine but not in the project: the fix is to enable it.
+  def test_guide_points_to_a_reference_that_only_needs_enabling
+    @project.trackers = [Tracker.find(1), Tracker.find(2)]
+    @setting.update!(source_catalog: { "tracker" => { "5" => "support REQUEST" } })
+    run = @project.mirror_sync_runs.create!(apply: false, trigger: "manual", status: "partial", events: JSON.generate(
+      [1, 2].map { |id| { "module" => "issue_tracking", "source_id" => id, "action" => "error", "reason" => "Missing tracker mapping for source ID 5" } }))
+    get :show, params: { project_id: @project.identifier, id: run.id }
+    assert_select "#mirror-error-causes li", text: /\(support REQUEST\) — 2 object\(s\)/
+    assert_select "#mirror-error-causes .mirror-guide", text: /The tracker Support request exists in Redmine but is not enabled in this project/
+    assert_select "#mirror-error-causes .mirror-guide a[href=?]", "/projects/ecookbook/settings/issues", text: "enable it in the project"
+  end
+
+  # A version inherited from a parent: synchronize first the local project mirroring it.
+  def test_guide_sends_inherited_versions_to_the_project_mirroring_their_owner
+    parent = Project.find(2)
+    parent.enable_module!(:mirror)
+    other = MirrorProjectSetting.new(project: parent, source_url: "https://remote.example", source_project_id: 30)
+    other.selected_modules = ["project_versions"]
+    other.api_key = "other-key"
+    other.save!
+    details = ->(owner) { { "code" => "missing_reference", "field" => "fixed_version", "id" => "44", "name" => "2.0", "owner_id" => owner, "owner_name" => "Parent" } }
+    run = @project.mirror_sync_runs.create!(apply: false, trigger: "manual", status: "partial", events: JSON.generate([
+      { "module" => "issue_tracking", "source_id" => 1, "action" => "error", "reason" => "Missing fixed_version correspondence", "details" => details.call("30") },
+      { "module" => "issue_tracking", "source_id" => 2, "action" => "error", "reason" => "Missing fixed_version correspondence", "details" => details.call("31") }]))
+    get :show, params: { project_id: @project.identifier, id: run.id }
+    assert_select "#mirror-error-causes > li", 1
+    assert_select ".mirror-guide", text: /inherited from the source project Parent, mirrored here by OnlineStore: synchronize OnlineStore first/
+    assert_select ".mirror-guide a[href=?]", "/projects/onlinestore/mirror", text: "open the Mirror page of OnlineStore"
+  end
 end
 
 class MirrorQueuedRunDisplayTest < ActionController::TestCase
   tests MirrorController
-  fixtures :projects, :users, :roles, :members, :member_roles, :enabled_modules
+  fixtures :projects, :users, :roles, :members, :member_roles, :enabled_modules, :trackers, :projects_trackers,
+    :issue_statuses, :workflows, :enumerations
 
   def setup
     @project = Project.find(1)
@@ -308,5 +341,14 @@ class MirrorQueuedRunDisplayTest < ActionController::TestCase
     queued.update_columns(created_at: 10.minutes.ago)
     get :index, params: { project_id: @project.identifier }
     assert_select "#mirror-queued-run .warning", text: /redmine_mirror:tick/
+  end
+  # Before any run, the overview lists what to settle, with what only needs enabling.
+  def test_overview_checklist_before_the_preview
+    @project.trackers = [Tracker.find(1)]
+    @setting.update!(source_catalog: { "tracker" => { "1" => "Bug", "2" => "Feature request" }, "tracker_used" => %w[1 2], "status" => {}, "priority" => {} })
+    @project.mirror_reference_mappings.create!(reference_type: "tracker", source_id: 1, mode: "existing", destination_id: 1)
+    get :index, params: { project_id: @project.identifier }
+    assert_select "#mirror-checklist li", text: /Trackers: 1 without correspondence \(Feature request…\)/
+    assert_select "#mirror-checklist li", text: /The tracker Feature request exists in Redmine but is not enabled in this project/
   end
 end

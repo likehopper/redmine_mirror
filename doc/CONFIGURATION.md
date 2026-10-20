@@ -78,6 +78,8 @@ format compatibility checks and the complete lists of possible values.
 one per line. Project members can connect only to these sources; administrators can
 enter any URL. **User company field** picks the user custom field shown as the company
 in the user mappings (by default, a field named Company, Société or Entreprise).
+Optional AI proposals for long mapping lists are set in **Administration → Mirror → AI**:
+see [AI usage](AI.md).
 
 ![Allowed sources](screenshots/configuration/03-allowed-sources.png)
 
@@ -162,7 +164,10 @@ statuses are limited to those of the project's tracker workflows. Long lists, su
 users, can be filtered by typing.
 
 A reference without correspondence is marked in red. When a single local reference has
-the same name, it is preselected and marked in yellow: check it, then save.
+the same name (ignoring case, accents, punctuation and word order), it is preselected and
+marked in yellow: check it, then save. With [AI proposals](AI.md) enabled, a table with
+many references without correspondence offers **Propose with AI**: the proposals are
+preselected the same way, marked *proposed by AI* with a confidence.
 
 ![Issue mappings](screenshots/configuration/11-issues.png)
 
@@ -191,8 +196,21 @@ object, without writing anything.
 
 ![Preview log](screenshots/configuration/15-preview-log.png)
 
-Each error has its cause and, when Mirror knows it, a link to where it is fixed: a
-mapping tab, a custom field, the project's fields, a conflict.
+Before the first preview, the **Mirror** page lists what the configuration alone
+reveals: references without correspondence, disabled project modules, mapped fields the
+project does not use. A local reference that exists in Redmine under the same name but is
+not offered (a tracker not enabled in the project, a status no workflow uses, an inactive
+activity, a user who is not a member) is pointed out with the page that enables it.
+
+![Before the preview](screenshots/configuration/35-checklist.png)
+
+In the log, errors are grouped by cause, the largest first: fixing one unblocks all its
+objects. Each cause is explained, with links to where it is fixed when the current user
+may do it (a mapping tab, the project settings, a custom field, a workflow, a conflict),
+otherwise who to ask. A version inherited from a parent project points to the local
+project that mirrors that parent: synchronize it first.
+
+![Errors by cause](screenshots/configuration/36-guided-errors.png)
 
 Errors do not block the rest: with **Skip it and synchronize the rest** (the default), a
 preview with errors ends **Partial**, and a synchronization writes every other object.
@@ -275,6 +293,25 @@ export. Columns cover the configuration (modules, mirror mode, schedule), the ac
 recent runs, total and average duration, objects processed, mappings, conflicts).
 
 ![Administration overview](screenshots/configuration/26-admin-overview.png)
+
+## AI proposals (optional)
+
+For long mapping lists, an administrator can enable AI proposals in
+**Administration → Mirror → AI**: provider, key, model and daily limit. **Test the
+connection and list the models** checks the key without spending credit. See
+[AI usage](AI.md) for the rules and the data sent.
+
+![AI settings](screenshots/configuration/32-ai-settings.png)
+
+A mapping table with enough references without correspondence then offers
+**Propose with AI**, with the number of requests it needs.
+
+![Propose with AI](screenshots/configuration/33-ai-offer.png)
+
+The worker asks the AI; the proposals are preselected in yellow, marked *proposed by
+AI* with a confidence. Check them, then save.
+
+![AI proposals](screenshots/configuration/34-ai-proposals.png)
 
 ## Mirror source (on the source Redmine)
 

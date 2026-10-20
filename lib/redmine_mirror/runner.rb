@@ -161,7 +161,7 @@ module RedmineMirror
           # and "skip" record it and go on. Objects that depend on this one then fail
           # on their missing correspondence and are reported as well.
           raise unless %w[collect skip].include?(config["on_error"])
-          event = { module: adapter.key, source_id: record.fetch("id"), action: "error", reason: error.message }
+          event = { module: adapter.key, source_id: record.fetch("id"), action: "error" }.merge(error_fields(error))
           results << event
           yield event if block_given?
         end
@@ -211,7 +211,7 @@ module RedmineMirror
           nil
         rescue Error => error
           raise unless %w[collect skip].include?(config["on_error"])
-          yield({ module: adapter.key, source_id: source_id, destination_id: destination_id, action: "error", reason: error.message })
+          yield({ module: adapter.key, source_id: source_id, destination_id: destination_id, action: "error" }.merge(error_fields(error)))
           nil
         end
         [adapter, candidates, [(known.size * DELETION_LIMIT).floor, 2].max]
@@ -234,13 +234,33 @@ module RedmineMirror
             yield event
           rescue Error => error
             raise unless %w[collect skip].include?(config["on_error"])
-            yield event.merge(action: "error", reason: error.message)
+            yield event.merge(action: "error").merge(error_fields(error))
           end
         end
       end
     end
 
     private
+
+    # The reason, and the details the run log uses to explain the fix. A version that the
+    # project does not own is looked up once per run: its owner tells which project to
+    # synchronize first.
+    def error_fields(error)
+      details = error.details
+      return { reason: error.message } unless details
+      if details["code"] == "missing_reference" && details["field"] == "fixed_version"
+        @version_owners ||= {}
+        owner = @version_owners.fetch(details["id"]) do
+          @version_owners[details["id"]] = begin
+            @source_client.get("versions/#{Integer(details['id'])}.json").fetch("version")["project"]
+          rescue Error, KeyError, ArgumentError
+            nil
+          end
+        end
+        details = details.merge("owner_id" => owner["id"].to_s, "owner_name" => owner["name"].to_s) if owner.is_a?(Hash)
+      end
+      { reason: error.message, details: details }
+    end
 
     # A local deletion and its correspondence go together; outside Redmine (standalone
     # tests) there is no database transaction.

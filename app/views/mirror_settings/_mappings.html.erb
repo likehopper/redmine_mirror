@@ -14,7 +14,8 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 A module's correspondences: each source reference used by the project and its local
-reference. Unmapped references with a single local namesake are preselected.
+reference. Unmapped references with a single local namesake, or an AI proposal, are
+preselected; nothing is saved until the form is. AI proposals are asked for per table.
 %><% if adapter.is_a?(RedmineMirror::Adapters::ProjectReferences) %>
   <p><%= l(:text_mirror_reference_objects) %> <%= link_to l(:label_mirror_objects), mirror_page_path(@project, "objects", module_key: adapter.key) %></p>
 <% end %>
@@ -32,7 +33,22 @@ reference. Unmapped references with a single local namesake are preselected.
 <% end %>
 <% if adapter.mapping_tables.any? %><p><%= l(:text_mirror_mapping_help) %></p><% end %>
 <% suggested = 0 %>
+<% ai_suggested = 0 %>
+<% catalog = @setting.source_catalog %>
+<%# AI proposals (doc/AI.md): hidden when an administrator disables AI. %>
+<% ai_config = MirrorAiConfig.current %>
+<% ai = (ai_config.enabled? && catalog["ai_suggestions"]) || {} %>
 <% company_field = RedmineMirror.user_company_field %>
+<% if adapter.mapping_tables.any? && ai_config.enabled? %>
+  <% if %w[pending running].include?(@setting.ai_status) %>
+    <p class="warning" id="mirror-ai-status" data-mirror-reload="10"><%= l(:text_mirror_ai_requested, time: format_time(@setting.ai_requested_at)) %></p>
+  <% elsif @setting.ai_status == "failed" %>
+    <p class="warning" id="mirror-ai-error"><%= l(:text_mirror_ai_failed, message: @setting.ai_error) %></p>
+  <% end %>
+  <% if ai_config.blocked_at && mirror_manager?(@project) %>
+    <p class="warning" id="mirror-ai-blocked"><%= l(:text_mirror_ai_blocked, reason: ai_config.blocked_reason) %></p>
+  <% end %>
+<% end %>
 <%= form_tag project_mirror_mappings_path(@project, module_key: adapter.key), method: :patch, id: "mirror-mappings-form" do %>
   <% adapter.mapping_tables.each do |table| %>
     <h3><%= l(table.label) %></h3>
@@ -43,7 +59,8 @@ reference. Unmapped references with a single local namesake are preselected.
       <% local_choices = [[l(:label_mirror_unmapped), ""]] %>
       <% local_choices << [l(:label_mirror_anonymous), "anonymous"] if table.anonymous_allowed? %>
       <% local_choices << [l(table.ignore_label), "ignore"] if table.ignore_allowed? %>
-      <% local_choices += table.local_records(@project).map { |record| [record.is_a?(User) ? mirror_user_label(record, company_field) : "#{record.name} (##{record.id})", record.id.to_s] } %>
+      <% records = table.local_records(@project).to_a %>
+      <% local_choices += records.map { |record| [record.is_a?(User) ? mirror_user_label(record, company_field) : "#{record.name} (##{record.id})", record.id.to_s] } %>
       <%# Only references used by the source project (and those already mapped), unless all are requested. %>
       <% used = @setting.source_catalog["#{table.key}_used"] %>
       <% rows = @setting.source_catalog.fetch(table.key, {}).sort_by { |id, name| [name.downcase, id.to_i] } %>
@@ -52,23 +69,37 @@ reference. Unmapped references with a single local namesake are preselected.
         <% selected = @mapping_values[[table.key, id]] %>
         <% suggestion = selected.blank? ? mirror_name_suggestion(local_choices, name) : nil %>
         <% suggested += 1 if suggestion %>
+        <%# Then the AI proposal, if one was asked for. %>
+        <% ai_proposal = selected.blank? && !suggestion ? mirror_ai_suggestion(ai, local_choices, table.key, id) : nil %>
+        <% ai_suggested += 1 if ai_proposal %>
         <% choices = local_choices.dup %>
         <% choices << [l(:label_mirror_invalid_destination), selected] if selected.present? && choices.none? { |choice| choice.last == selected } %>
-        <tr class="<%= selected.blank? ? (suggestion ? 'mirror-suggested' : 'mirror-unmapped') : nil %>"><td><%= name %> (#<%= mirror_object_link(table.key, id, source_url: @setting.source_url) %>)</td><td>
+        <tr class="<%= selected.blank? ? (suggestion || ai_proposal ? 'mirror-suggested' : 'mirror-unmapped') : nil %>"><td><%= name %> (#<%= mirror_object_link(table.key, id, source_url: @setting.source_url) %>)</td><td>
           <%= label_tag "mirror-#{table.key}-#{id}", l(:label_mirror_destination), class: "hidden-for-sighted" %>
-          <%= select_tag "mappings[#{table.key}][#{id}]", options_for_select(choices, selected.presence || suggestion), id: "mirror-#{table.key}-#{id}",
+          <%= select_tag "mappings[#{table.key}][#{id}]", options_for_select(choices, selected.presence || suggestion || (ai_proposal && ai_proposal["id"].to_s)), id: "mirror-#{table.key}-#{id}",
             class: "mirror-autocomplete", data: { placeholder: l(:label_mirror_type_to_search) } %>
           <% if suggestion %><em class="info mirror-suggestion"><%= l(:label_mirror_suggested) %></em><% end %>
+          <% if ai_proposal %><em class="info mirror-suggestion mirror-ai-suggestion"><%= l(:label_mirror_ai_suggested, confidence: (ai_proposal["confidence"].to_f * 100).round) %></em><% end %>
           <%= mirror_object_link(table.key, selected) if selected.present? && !%w[anonymous ignore].include?(selected) %>
         </td></tr>
       <% end %>
       </tbody>
     </table>
     <% if @setting.source_catalog.fetch(table.key, {}).empty? %><p class="nodata"><%= l(:label_no_data) %></p><% end %>
+    <% if (offer = mirror_ai_offer(ai_config, table, records.map { |record| [record.id.to_s, record.name.to_s] }, catalog)) && !%w[pending running].include?(@setting.ai_status) %>
+      <p class="mirror-ai-offer" id="mirror-ai-offer-<%= table.key %>">
+        <%= link_to l(:button_mirror_ai_propose), project_mirror_ai_path(@project, module_key: adapter.key, table: table.key), method: :post, class: "mirror-ai-propose" %>
+        <em class="info"><%= l(:text_mirror_ai_offer, count: offer[:count], requests: offer[:requests], left: offer[:left]) %></em>
+      </p>
+    <% end %>
     <% if hidden.any? %><p class="mirror-unused-references"><%= link_to l(:label_mirror_show_unused_references, count: hidden.size), mirror_configuration_path(@project, adapter.key, all_references: 1) %></p><% end %>
   <% end %>
   <% if suggested.positive? %>
     <p class="warning" id="mirror-suggestions"><%= l(:text_mirror_suggested_mappings, count: suggested) %></p>
+  <% end %>
+  <% if ai_suggested.positive? %>
+    <p class="warning" id="mirror-ai-suggestions"><%= l(:text_mirror_ai_suggested_mappings, count: ai_suggested, model: ai["model"], host: ai["host"],
+      time: ai["at"] ? format_time(Time.iso8601(ai["at"])) : "—") %></p>
   <% end %>
   <%= render "mirror_settings/custom_field_values", adapter: adapter if adapter.key == "issue_custom_fields" %>
   <% if adapter.key == "issue_relations" %>

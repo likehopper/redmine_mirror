@@ -123,6 +123,31 @@ class MirrorSettingsController < ApplicationController
     redirect_to configuration_path(params[:module_key])
   end
 
+  # Queue AI proposals for one mapping table (doc/AI.md). The worker asks the API as the
+  # current user, within the administrator's daily limit; nothing is saved.
+  def request_ai
+    return render_404 unless @setting.persisted?
+    adapter = @setting.adapters.find { |entry| entry.key == params[:module_key] }
+    table = adapter&.mapping_tables&.find { |entry| entry.key == params[:table] }
+    return render_404 unless table
+    config = MirrorAiConfig.current
+    raise RedmineMirror::Error, l(:text_mirror_ai_unavailable) unless config.usable? && RedmineMirror::Ai.tables(config).include?(table.key)
+    raise RedmineMirror::Error, l(:text_mirror_ai_budget_exhausted) if config.budget_left.zero?
+    if RedmineMirror::Ai.pending_sources(@setting, table).size < config.min_references
+      raise RedmineMirror::Error, l(:text_mirror_ai_below_threshold, count: config.min_references)
+    end
+    @setting.with_lock do
+      raise RedmineMirror::Error, l(:text_mirror_ai_already_requested) if %w[pending running].include?(@setting.ai_status)
+      @setting.update_columns(ai_status: "pending", ai_tables: JSON.generate([table.key]), ai_requested_by_id: User.current.id,
+        ai_requested_at: Time.current, ai_error: nil)
+    end
+    flash[:notice] = l(:text_mirror_ai_queued)
+    redirect_to configuration_path(adapter.key)
+  rescue RedmineMirror::Error => error
+    flash[:error] = error.message
+    redirect_to configuration_path(params[:module_key])
+  end
+
   private
 
   # After an upgrade without `rake redmine:plugins:migrate`, explain instead of failing.

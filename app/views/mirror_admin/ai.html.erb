@@ -1,0 +1,106 @@
+<%#
+File: redmine_mirror/app/views/mirror_admin/ai.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Administration > Mirror > AI: the OpenAI-compatible API that proposes mappings on demand,
+its write-only key, the model, the limits, and the usage of the last 30 days (doc/AI.md).
+%><% content_for :header_tags do %>
+  <%= stylesheet_link_tag "mirror", plugin: "redmine_mirror" %>
+<% end %>
+<% html_title(l(:label_mirror_admin_ai)) %>
+<%= render "mirror_admin/sidebar" %>
+<h2><%= link_to l(:label_mirror_admin), mirror_admin_path %> » <%= l(:label_mirror_admin_ai) %></h2>
+<p class="info"><%= l(:text_mirror_admin_ai) %></p>
+<% if @config.blocked_at %>
+  <p class="warning" id="mirror-ai-blocked"><%= l(:text_mirror_admin_ai_blocked, reason: @config.blocked_reason, time: format_time(@config.blocked_at)) %></p>
+<% elsif @config.usable? %>
+  <p class="mirror-source-on" id="mirror-ai-status"><%= l(:text_mirror_admin_ai_ready, model: @config.model, left: @config.budget_left, limit: @config.daily_request_limit) %></p>
+<% end %>
+
+<%= form_tag mirror_admin_ai_path, method: :patch, id: "mirror-ai-form" do %>
+  <div class="box tabular">
+    <p>
+      <%= label_tag "ai_enabled", l(:label_mirror_ai_enabled) %>
+      <%= hidden_field_tag "ai[enabled]", "0", id: nil %>
+      <%= check_box_tag "ai[enabled]", "1", @config.enabled?, id: "ai_enabled" %>
+    </p>
+    <p>
+      <%= label_tag "ai_provider", l(:label_mirror_ai_provider) %>
+      <%= select_tag "ai[provider]", options_for_select(MirrorAiConfig::PROVIDERS.keys.map { |key| [l("label_mirror_ai_provider_#{key}"), key] }, @config.provider), id: "ai_provider" %>
+      <em class="info"><%= l(:text_mirror_ai_provider) %></em>
+    </p>
+    <p>
+      <%= label_tag "ai_url", l(:label_mirror_ai_url) %>
+      <%= text_field_tag "ai[url]", @config.url, size: 60, id: "ai_url", placeholder: "https://ai.example.com/v1" %>
+      <em class="info"><%= l(:text_mirror_ai_url) %></em>
+    </p>
+    <p>
+      <%= label_tag "ai_api_key", l(:label_mirror_ai_api_key) %>
+      <%= password_field_tag "ai[api_key]", nil, size: 60, id: "ai_api_key", autocomplete: "new-password",
+            placeholder: @config.api_key_set? ? l(:label_mirror_ai_api_key_set) : nil %>
+      <% if @config.encrypted_api_key.present? %>
+        <label class="inline"><%= check_box_tag "ai[clear_api_key]", "1", false, id: "ai_clear_api_key" %> <%= l(:label_mirror_ai_clear_api_key) %></label>
+      <% end %>
+      <em class="info"><%= l(:text_mirror_ai_api_key) %></em>
+    </p>
+    <p>
+      <%= label_tag "ai_model", l(:label_mirror_ai_model) %>
+      <% models = @config.models %>
+      <% if models.any? %>
+        <%= select_tag "ai[model]", options_for_select([[l(:label_mirror_ai_model_choose), ""]] +
+              models.map { |id| [MirrorAiConfig.light?(id) ? "#{id} — #{l(:label_mirror_ai_model_light)}" : id, id] } +
+              (@config.model.present? && !models.include?(@config.model) ? [[@config.model, @config.model]] : []), @config.model), id: "ai_model" %>
+      <% else %>
+        <%= text_field_tag "ai[model]", @config.model, size: 30, id: "ai_model" %>
+      <% end %>
+      <em class="info"><%= l(:text_mirror_ai_model) %></em>
+    </p>
+    <p>
+      <%= label_tag "ai_daily_request_limit", l(:label_mirror_ai_daily_request_limit) %>
+      <%= number_field_tag "ai[daily_request_limit]", @config.daily_request_limit, min: 1, max: 10_000, id: "ai_daily_request_limit" %>
+      <em class="info"><%= l(:text_mirror_ai_daily_request_limit) %></em>
+    </p>
+    <p>
+      <%= label_tag "ai_min_references", l(:label_mirror_ai_min_references) %>
+      <%= number_field_tag "ai[min_references]", @config.min_references, min: 1, max: 1000, id: "ai_min_references" %>
+      <em class="info"><%= l(:text_mirror_ai_min_references) %></em>
+    </p>
+    <p>
+      <%= label_tag "ai_send_user_names", l(:label_mirror_ai_send_user_names) %>
+      <%= hidden_field_tag "ai[send_user_names]", "0", id: nil %>
+      <%= check_box_tag "ai[send_user_names]", "1", @config.send_user_names?, id: "ai_send_user_names" %>
+      <em class="info"><%= l(:text_mirror_ai_send_user_names) %></em>
+    </p>
+  </div>
+  <%= submit_tag l(:button_save) %>
+<% end %>
+<% if @config.persisted? %>
+  <p><%= button_to l(:button_mirror_ai_test), mirror_admin_ai_test_path, method: :post, form_class: "mirror-inline-form" %>
+    <em class="info"><%= l(:text_mirror_ai_test, time: @config.verified_at ? format_time(@config.verified_at) : "—") %></em></p>
+<% end %>
+
+<h3><%= l(:label_mirror_ai_usage) %></h3>
+<% if @usages.empty? %>
+  <p class="nodata"><%= l(:label_no_data) %></p>
+<% else %>
+  <table class="list mirror-ai-usage">
+    <thead><tr><th><%= l(:label_date) %></th><th><%= l(:label_mirror_ai_requests) %></th><th><%= l(:label_mirror_ai_tokens) %></th></tr></thead>
+    <tbody>
+      <% @usages.each do |usage| %>
+        <tr><td><%= format_date(usage.day) %></td><td><%= usage.requests %></td><td><%= usage.tokens %></td></tr>
+      <% end %>
+    </tbody>
+    <tfoot><tr class="total"><th><%= l(:label_total) %></th><th><%= @usages.sum(&:requests) %></th><th><%= @usages.sum(&:tokens) %></th></tr></tfoot>
+  </table>
+<% end %>

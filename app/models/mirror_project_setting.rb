@@ -18,7 +18,7 @@
 class MirrorProjectSetting < ActiveRecord::Base
   SYNC_INTERVALS = [5, 15, 30, 60, 360, 1440].freeze
   # Columns of the latest migrations; extend this list with each new migration.
-  LATEST_COLUMNS = %w[source_project_identifier source_text_format on_error catalog_status source_wins].freeze
+  LATEST_COLUMNS = %w[source_project_identifier source_text_format on_error catalog_status source_wins ai_status].freeze
   ON_ERROR = %w[skip stop].freeze
 
   def self.schema_current?

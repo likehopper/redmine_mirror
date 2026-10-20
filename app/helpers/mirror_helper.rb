@@ -139,10 +139,28 @@ module MirrorHelper
     [("#{hours} h" if hours.positive?), ("#{minutes} min" if minutes.positive?), ("#{secs} s" if secs.positive? && hours.zero?)].compact.join(" ")
   end
 
+  # A single local reference with the same name, ignoring case, accents, punctuation and
+  # word order. Labels end with " (#id)" and, for users, their login and email.
   def mirror_name_suggestion(choices, name)
-    return nil if name.blank?
-    matches = choices.select { |label, value| value.match?(/\A\d+\z/) && label.sub(/ \(#\d+\)(?: .*)?\z/, "").casecmp?(name.to_s.strip) }
-    matches.one? ? matches.first.last : nil
+    candidates = choices.select { |_, value| value.match?(/\A\d+\z/) }.map { |label, value| [label.sub(/ \(#\d+\)(?: .*)?\z/, ""), value] }
+    RedmineMirror::NameMatch.suggest(name, candidates)
+  end
+
+  # The AI proposal for an unmapped source reference, when it is still a valid choice.
+  # ai: the "ai_suggestions" entry of the source catalog.
+  def mirror_ai_suggestion(ai, choices, kind, source_id)
+    proposal = ai.dig("tables", kind, source_id)
+    proposal if proposal && choices.any? { |_, value| value == proposal["id"].to_s }
+  end
+
+  # What the "Propose with AI" button of a mapping table would ask (doc/AI.md), or nil
+  # when it is not offered: AI unavailable, table not allowed, or few references left,
+  # which are quicker to map by hand.
+  def mirror_ai_offer(config, table, locals, catalog)
+    return nil unless config.usable? && RedmineMirror::Ai.tables(config).include?(table.key) && mirror_manager?(@project)
+    count = RedmineMirror::Ai.pending_sources(@setting, table, catalog: catalog, locals: locals).size
+    return nil if count < config.min_references
+    { count: count, requests: RedmineMirror::Ai.requests_for(count), left: config.budget_left }
   end
   # Name of a Redmine text formatting, as in the administration settings.
   def mirror_text_format_name(format)
@@ -161,39 +179,191 @@ module MirrorHelper
 
   # An error or warning with, when known, the source reference name and a link to the
   # page that fixes it.
-  def mirror_reason(reason)
+  def mirror_reason(reason, details = nil)
     text = reason.to_s
-    name, label, path = mirror_fix(text)
+    name, label, path = mirror_fix(text, details)
     parts = [text]
     parts << " (#{name})" if name
-    parts << " — " << link_to(l(label), path, class: "mirror-fix") if path
+    parts << " — " << link_to(label, path, class: "mirror-fix") if path
     safe_join(parts)
   end
 
-  # [source reference name, link label, path] for the causes Mirror knows how to fix.
-  def mirror_fix(text)
+  # [source reference name, link text, path] of the main fix of a known cause.
+  def mirror_fix(text, details = nil)
     return [] unless @setting
-    if (match = text.match(/\AMissing (\w+) mapping for source ID (\d+)/))
-      kind, id = match.captures
-      tab = MAPPING_TABS[kind]
-      [@setting.source_catalog.dig(kind, id), :label_mirror_fix_mapping, tab && mirror_manager?(@project) && mirror_configuration_path(@project, tab)]
-    elsif (match = text.match(/\ACustom field "(.+?)" is not enabled for destination tracker/))
-      field = IssueCustomField.find_by(name: match[1])
-      if User.current.admin? && field
-        [nil, :label_mirror_fix_field_trackers, edit_custom_field_path(field)]
+    code, params = RedmineMirror::Diagnosis.cause(text, details)
+    return [] unless code
+    guide = mirror_guidance(code, params)
+    label, path = guide[:actions].first
+    [guide[:name], label, path]
+  end
+
+  # What a known cause means and how to fix it: {name:, text:, actions: [[label, path]]}.
+  # Actions are links the current user may follow; otherwise the text says who can.
+  def mirror_guidance(code, params)
+    params ||= {}
+    manager = mirror_manager?(@project)
+    guide = { name: nil, text: nil, actions: [] }
+    add = ->(label, path) { guide[:actions] << [label.is_a?(Symbol) ? l(label) : label, path] if path }
+    case code
+    when "missing_mapping"
+      kind, id = params["kind"], params["id"]
+      guide[:name] = @setting.source_catalog.dig(kind, id)
+      table = @setting.mapping_tables.find { |entry| entry.key == kind }
+      add.call(:label_mirror_fix_mapping, manager && MAPPING_TABS[kind] && mirror_configuration_path(@project, MAPPING_TABS[kind]))
+      near = mirror_near_miss(kind, guide[:name])
+      if near
+        guide[:text] = near[:text]
+        add.call(near[:label], near[:path])
       else
-        [nil, :label_mirror_fix_ignore_field, mirror_manager?(@project) && mirror_configuration_path(@project, "issue_custom_fields")]
+        guide[:text] = l(table&.ignore_allowed? ? :text_mirror_guide_missing_mapping_ignore : :text_mirror_guide_missing_mapping,
+          name: guide[:name] || "##{id}")
+        add.call(:label_mirror_guide_create, User.current.admin? && MIRROR_CREATE_PATHS[kind])
       end
-    elsif text.include?("is not enabled in this project")
-      [nil, :label_mirror_fix_project_fields, User.current.allowed_to?(:edit_project, @project) && settings_project_path(@project, tab: "issues")]
-    elsif text.match?(/value mapping for custom field|incompatible formats|Invalid value for custom field|custom_field mapping/)
-      [nil, :label_mirror_fix_mapping, mirror_manager?(@project) && mirror_configuration_path(@project, "issue_custom_fields")]
-    elsif text.start_with?("Local modification detected")
-      [nil, :label_mirror_fix_conflict, mirror_page_path(@project, "conflicts")]
-    elsif text.include?("maximum attachment size") && User.current.admin?
-      [nil, :label_mirror_fix_attachment_size, settings_path(tab: "attachments")]
+    when "missing_reference"
+      mirror_guide_reference(guide, params, manager, add)
+    when "field_not_on_tracker"
+      field = IssueCustomField.find_by(name: params["name"])
+      guide[:text] = l(:text_mirror_guide_field_not_on_tracker, name: params["name"])
+      add.call(:label_mirror_fix_field_trackers, User.current.admin? && field && edit_custom_field_path(field))
+      add.call(:label_mirror_fix_ignore_field, manager && mirror_configuration_path(@project, "issue_custom_fields"))
+    when "field_not_in_project"
+      guide[:text] = l(:text_mirror_guide_field_not_in_project)
+      add.call(:label_mirror_fix_project_fields, User.current.allowed_to?(:edit_project, @project) && settings_project_path(@project, tab: "issues"))
+      add.call(:label_mirror_fix_ignore_field, manager && mirror_configuration_path(@project, "issue_custom_fields"))
+    when "field_values"
+      guide[:text] = l(:text_mirror_guide_field_values)
+      add.call(:label_mirror_fix_mapping, manager && mirror_configuration_path(@project, "issue_custom_fields"))
+    when "conflict"
+      guide[:text] = l(:text_mirror_guide_conflict)
+      add.call(:label_mirror_fix_conflict, mirror_page_path(@project, "conflicts"))
+    when "attachment_size"
+      guide[:text] = l(:text_mirror_guide_attachment_size)
+      add.call(:label_mirror_fix_attachment_size, User.current.admin? && settings_path(tab: "attachments"))
+    when "project_module"
+      guide[:text] = l(:text_mirror_guide_project_module, module: l_or_humanize(params["module"], prefix: "project_module_"))
+      add.call(:label_mirror_enable_project_module, User.current.allowed_to?(:select_project_modules, @project) && settings_project_path(@project, tab: "modules"))
+    when "source_permission"
+      guide[:text] = l(:text_mirror_guide_source_permission, path: params["path"])
+    when "deletions"
+      guide[:text] = l(:text_mirror_guide_deletions)
+      add.call(:label_mirror_guide_overview, mirror_page_path(@project))
+    end
+    guide[:text] = [guide[:text], l(:text_mirror_guide_ask)].compact.join(" ") if guide[:actions].empty? && code != "source_permission"
+    guide
+  end
+
+  # What to settle before a preview, found from the configuration alone: references
+  # without correspondence (with those that only need enabling), disabled project modules
+  # and mapped fields the project does not use. Each item: {text:, actions: [[label, path]]}.
+  def mirror_checklist(project, setting)
+    return [] unless setting&.persisted? && setting.catalog_status == "ready"
+    items = []
+    manager = mirror_manager?(project)
+    catalog = setting.source_catalog
+    mapped = project.mirror_reference_mappings.to_a
+    ai_config = MirrorAiConfig.current
+    setting.adapters.each do |adapter|
+      if adapter.project_module && !project.module_enabled?(adapter.project_module)
+        items << { text: l(:text_mirror_project_module_disabled, module: l_or_humanize(adapter.project_module, prefix: "project_module_")),
+          actions: [[l(:label_mirror_enable_project_module), User.current.allowed_to?(:select_project_modules, project) && settings_project_path(project, tab: "modules")]] }
+      end
+      adapter.mapping_tables.each do |table|
+        next if table.respond_to?(:unmapped_allowed?) && table.unmapped_allowed?(setting)
+        used = catalog["#{table.key}_used"]
+        missing = catalog.fetch(table.key, {}).select { |id, _| (used.nil? || used.include?(id)) && mapped.none? { |row| row.reference_type == table.key && row.source_id.to_s == id } }
+        next if missing.empty?
+        tab = manager && mirror_configuration_path(project, MAPPING_TABS.fetch(table.key, adapter.key))
+        actions = [[l(:label_mirror_fix_mapping), tab]]
+        if ai_config.usable? && RedmineMirror::Ai.tables(ai_config).include?(table.key) && missing.size >= ai_config.min_references
+          actions << [l(:button_mirror_ai_propose), tab]
+        end
+        items << { text: l(:text_mirror_check_unmapped, table: l(table.label), count: missing.size, names: missing.values.first(5).join(", ")), actions: actions }
+        missing.each_value.filter_map { |name| mirror_near_miss(table.key, name) }.first(5).each do |near|
+          items << { text: near[:text], actions: [[l(near[:label]), near[:path]]] }
+        end
+      end
+    end
+    # Fields mapped to a local field that this project does not use.
+    if setting.selected_modules.include?("issue_custom_fields")
+      enabled = project.all_issue_custom_fields.map(&:id)
+      mapped.select { |row| row.reference_type == "custom_field" && row.mode == "existing" && !enabled.include?(row.destination_id) }.each do |row|
+        field = IssueCustomField.find_by(id: row.destination_id)
+        next unless field
+        items << { text: l(:text_mirror_guide_field_disabled, name: field.name),
+          actions: [[l(:label_mirror_guide_enable_in_project), User.current.allowed_to?(:edit_project, project) && settings_project_path(project, tab: "issues")]] }
+      end
+    end
+    items.each { |item| item[:actions] = item[:actions].select(&:last).uniq(&:first) }
+  end
+
+  # Administration pages that create a missing local reference.
+  MIRROR_CREATE_PATHS = { "tracker" => "/trackers/new", "status" => "/issue_statuses/new",
+    "custom_field" => "/custom_fields/new?type=IssueCustomField", "priority" => "/enumerations/new?type=IssuePriority",
+    "activity" => "/enumerations/new?type=TimeEntryActivity", "document_category" => "/enumerations/new?type=DocumentCategory" }.freeze
+
+  # A local reference with the source name that exists in Redmine but is not offered in
+  # this project's form, and how to make it available: {text:, label:, path:}.
+  def mirror_near_miss(kind, name)
+    return nil if name.blank?
+    same = ->(records) { records.find { |record| RedmineMirror::NameMatch.key(record.name) == RedmineMirror::NameMatch.key(name) } }
+    case kind
+    when "tracker"
+      tracker = same.call(Tracker.all.to_a)
+      tracker && !@project.trackers.include?(tracker) &&
+        { text: l(:text_mirror_guide_tracker_disabled, name: tracker.name), label: :label_mirror_guide_enable_in_project,
+          path: User.current.allowed_to?(:edit_project, @project) && settings_project_path(@project, tab: "issues") }
+    when "status"
+      status = same.call(IssueStatus.all.to_a)
+      status && !RedmineMirror::MappingTable.new("status").local_records(@project).include?(status) &&
+        { text: l(:text_mirror_guide_status_no_workflow, name: status.name), label: :label_mirror_guide_edit_workflow,
+          path: User.current.admin? && url_for(controller: "workflows", action: "edit") }
+    when "custom_field"
+      field = same.call(IssueCustomField.all.to_a)
+      field && !@project.all_issue_custom_fields.include?(field) &&
+        { text: l(:text_mirror_guide_field_disabled, name: field.name), label: :label_mirror_guide_enable_in_project,
+          path: User.current.allowed_to?(:edit_project, @project) && settings_project_path(@project, tab: "issues") }
+    when "activity"
+      activity = same.call(TimeEntryActivity.shared.to_a)
+      activity && !@project.activities.include?(activity) &&
+        { text: l(:text_mirror_guide_activity_inactive, name: activity.name), label: :label_mirror_guide_enable_in_project,
+          path: User.current.allowed_to?(:manage_project_activities, @project) && settings_project_path(@project, tab: "activities") }
+    when "priority"
+      priority = same.call(IssuePriority.all.to_a)
+      priority && !priority.active? &&
+        { text: l(:text_mirror_guide_priority_inactive, name: priority.name), label: :label_mirror_guide_edit_enumeration,
+          path: User.current.admin? && edit_enumeration_path(priority) }
+    when "user"
+      user = same.call(User.where(status: [User::STATUS_ACTIVE, User::STATUS_LOCKED]).to_a)
+      user && !RedmineMirror::MappingTable.new("user").local_records(@project).include?(user) &&
+        { text: l(:text_mirror_guide_user_not_member, name: user.name), label: :label_mirror_guide_add_member,
+          path: User.current.allowed_to?(:manage_members, @project) && settings_project_path(@project, tab: "members") }
+    end || nil
+  end
+
+  # A category or version the issue uses but Mirror has not imported. A version shared
+  # by another source project is imported by the local project that mirrors it.
+  def mirror_guide_reference(guide, params, manager, add)
+    guide[:name] = params["name"].presence
+    connection = manager && mirror_configuration_path(@project)
+    if params["field"] == "category"
+      guide[:text] = l(:text_mirror_guide_category, name: params["name"])
+      add.call(:label_mirror_guide_select_module, connection)
+    elsif params["owner_id"].blank?
+      guide[:text] = l(:text_mirror_guide_version, name: params["name"])
+      add.call(:label_mirror_guide_select_module, connection)
+    elsif params["owner_id"].to_i == @setting.source_project_id
+      guide[:text] = l(:text_mirror_guide_version_own, name: params["name"])
+      add.call(:label_mirror_guide_select_module, connection)
     else
-      []
+      other = MirrorProjectSetting.where(source_url: @setting.source_url, source_project_id: params["owner_id"].to_i).where.not(project_id: @project.id).first
+      if other
+        guide[:text] = l(:text_mirror_guide_version_shared, name: params["name"], owner: params["owner_name"], project: other.project.name)
+        add.call(l(:label_mirror_guide_open_project, project: other.project.name),
+          User.current.allowed_to?(:view_mirror, other.project) && mirror_page_path(other.project))
+      else
+        guide[:text] = l(:text_mirror_guide_version_unmirrored, name: params["name"], owner: params["owner_name"])
+      end
     end
   end
 

@@ -18,7 +18,7 @@ Document Mirror setup, operation, extension points or validation evidence.
 
 # <img src="assets/images/synchronisation-des-donnees-64.png" width="64" height="64" alt=""> Redmine Mirror
 
-![Version](https://img.shields.io/badge/Version-1.0.0--beta.19-orange)
+![Version](https://img.shields.io/badge/Version-1.0.0--beta.20-orange)
 ![Destination tested](https://img.shields.io/badge/Destination_tested-5.1_%7C_6.1-blue)
 ![Source tested](https://img.shields.io/badge/Source_tested-4.2_%7C_5.0_%7C_6.1-blue)
 ![Database tested](https://img.shields.io/badge/Database_tested-SQLite_3-blue)
@@ -32,7 +32,7 @@ existing destination project, through the destination REST API and native models
 
 Use it to migrate projects to a new instance, or to keep a regularly updated secondary
 copy. Each project has its own connection, mappings, schedule, history and conflicts.
-Version **1.0.0-beta.19** is a pre-release for testing before 1.0.0, not a stable release.
+Version **1.0.0-beta.20** is a pre-release for testing before 1.0.0, not a stable release.
 
 ## Features
 
@@ -66,6 +66,33 @@ Version **1.0.0-beta.19** is a pre-release for testing before 1.0.0, not a stabl
 - Execution log with a summary, errors grouped by cause and the special cases to check
   (converted texts, links, images, attachments).
 - A failing object is skipped and the rest synchronized, or the run stops: your choice.
+- Mapping proposals: same name (ignoring case, accents, punctuation and word order) and,
+  on request, AI (see below).
+- Guidance: a checklist before the preview, and errors grouped by cause, largest first,
+  each explained with links to its fix: a reference that only needs enabling in the
+  project, a version inherited from a parent project to synchronize first, a source
+  permission to grant.
+
+## AI-assisted mapping (optional)
+
+Off by default. For long mapping lists, such as 30 statuses or many users, the person
+configuring the project can click **Propose with AI** under the table. An
+OpenAI-compatible API, hosted (Google Gemini) or local (Ollama, llama.cpp…), proposes
+correspondences, for example *Nouveau* → *New*.
+
+- **On demand**: nothing is sent automatically, and the button appears only for tables
+  with enough references to map (10 by default).
+- **AI proposes, a person decides**: a proposal only preselects a value, marked
+  *proposed by AI* with its confidence. Nothing is saved until a person saves the form.
+- **Names only**: reference names and IDs; never issues, notes, time entries, wiki
+  pages, documents, attachments, logins, emails or keys. User names need a separate
+  administrator option.
+- **Budget**: a daily request limit; a quota, credit or key refusal pauses AI until an
+  administrator tests the connection again.
+
+An administrator sets the provider, the encrypted key and the model (light models are
+recommended) in **Administration → Mirror → AI**. The [AI usage document](doc/AI.md) sets
+these rules in full: data sent, setup, credit, security and limits.
 
 ## Requirements
 
@@ -147,6 +174,7 @@ Without correspondences, a new import would duplicate them.
   scheduling, command-line runs and limits.
 - [Adapter tutorial](doc/ADAPTERS.md): write a module, in Mirror or in another plugin.
 - [Developer guide](doc/DEVELOPMENT.md): architecture and conventions.
+- [AI usage](doc/AI.md): the rules for the optional AI mapping proposals.
 
 ## Scope and limitations
 
@@ -172,6 +200,8 @@ Standalone tests, from the plugin directory:
 ruby test/core_test.rb
 ruby test/client_test.rb
 ruby test/adapter_example_test.rb
+ruby test/ai_test.rb
+ruby test/diagnosis_test.rb
 ```
 
 - [CI runner](test/compatibility/README.md): full Redmine suite in a disposable container.
