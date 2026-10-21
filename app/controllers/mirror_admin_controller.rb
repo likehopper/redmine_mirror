@@ -21,6 +21,7 @@ class MirrorAdminController < ApplicationController
   self.main_menu = false
   menu_item :mirror_admin
   before_action :require_admin
+  before_action :require_destination, except: :source
   before_action :require_migrated_schema, only: :index
   before_action :require_source_schema, only: :source
   before_action :require_ai_schema, only: [:ai, :update_ai, :test_ai]
@@ -108,6 +109,12 @@ class MirrorAdminController < ApplicationController
   end
 
   private
+
+  # A source-only Redmine (below Redmine 5) has no destination or AI pages.
+  def require_destination
+    return unless RedmineMirror.source_only?
+    action_name == "index" ? redirect_to(mirror_admin_source_path) : render_404
+  end
 
   def require_ai_schema
     return if MirrorAiConfig.table_exists? && MirrorProjectSetting.schema_current?

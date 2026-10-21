@@ -328,7 +328,8 @@ Only for the **Documents** module, which Redmine's REST API does not provide. On
 source Redmine:
 
 1. Install Redmine Mirror 1.0.0-beta.19 or later and run its migration (see the README).
-   Nothing else of Mirror needs configuring there.
+   Nothing else of Mirror needs configuring there. On Redmine 4.0 to 4.2, Mirror runs as
+   a source only: Mirror source and its administration page, no Mirror project module.
 2. `Administration → Plugins → Redmine Mirror → Configure`: check **Allow Mirror
    source**. Off, nothing is shared, whatever the projects check.
 

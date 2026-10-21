@@ -27,16 +27,19 @@ Redmine::Plugin.register :redmine_mirror do
   url "https://github.com/likehopper/redmine_mirror"
   description "Modular project synchronization through Redmine REST APIs"
   version RedmineMirror::VERSION
-  requires_redmine version_or_higher: "5.0"
+  # Redmine 4 runs Mirror as a source only (RedmineMirror.source_only?).
+  requires_redmine version_or_higher: "4.0"
   # The project settings hold the configuration (manage_mirror); the Mirror menu shows
   # the operations: status and history (view_mirror), launching executions and
   # resolving conflicts (run_mirror). Configuring includes the other two, and the right
   # to enable the project's modules includes configuring (RedmineMirror.manager?).
-  project_module :mirror do
-    permission :view_mirror, { mirror: [:index], mirror_synchronizations: [:show] }, read: true, require: :member
-    permission :run_mirror, { mirror: [:index], mirror_synchronizations: [:show, :create, :cancel], mirror_conflicts: [:update] }, require: :member
-    permission :manage_mirror, { projects: [:settings], mirror: [:index], mirror_synchronizations: [:show, :create, :cancel, :update],
-      mirror_conflicts: [:update], mirror_settings: [:show, :update_connection, :update_mappings, :refresh, :request_ai] }, require: :member
+  unless RedmineMirror.source_only?
+    project_module :mirror do
+      permission :view_mirror, { mirror: [:index], mirror_synchronizations: [:show] }, read: true, require: :member
+      permission :run_mirror, { mirror: [:index], mirror_synchronizations: [:show, :create, :cancel], mirror_conflicts: [:update] }, require: :member
+      permission :manage_mirror, { projects: [:settings], mirror: [:index], mirror_synchronizations: [:show, :create, :cancel, :update],
+        mirror_conflicts: [:update], mirror_settings: [:show, :update_connection, :update_mappings, :refresh, :request_ai] }, require: :member
+    end
   end
   # Mirror source, when this Redmine is a source: a project shares chosen data with Mirror
   # destinations (Documents), if an administrator allows it. Configuring the sharing
@@ -49,10 +52,13 @@ Redmine::Plugin.register :redmine_mirror do
   # and allow Mirror source globally (off by default).
   settings default: { "allowed_source_urls" => "", "user_company_field_id" => "", "source_enabled" => "", "source_log_days" => "180" },
     partial: "settings/redmine_mirror"
-  menu :project_menu, :mirror, { controller: "mirror", action: "index" },
-       caption: :label_mirror, param: :project_id
-  # Administration overview of the projects Mirror is configured in.
-  menu :admin_menu, :mirror_admin, { controller: "mirror_admin", action: "index" },
+  unless RedmineMirror.source_only?
+    menu :project_menu, :mirror, { controller: "mirror", action: "index" },
+         caption: :label_mirror, param: :project_id
+  end
+  # Administration overview of the projects Mirror is configured in; a source-only
+  # Redmine opens its Mirror source page.
+  menu :admin_menu, :mirror_admin, { controller: "mirror_admin", action: RedmineMirror.source_only? ? "source" : "index" },
        caption: :label_mirror_admin, html: { class: "icon icon-mirror-admin" }
 end
 

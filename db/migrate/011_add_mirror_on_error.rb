@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 #
 # Apply or revert this versioned Mirror database schema change.
-class AddMirrorOnError < ActiveRecord::Migration[6.1]
+class AddMirrorOnError < ActiveRecord::Migration[RedmineMirror.migration_version]
   def change
     # skip: synchronize everything else when an object fails; stop: write nothing.
     add_column :mirror_project_settings, :on_error, :string, limit: 10, null: false, default: "skip"

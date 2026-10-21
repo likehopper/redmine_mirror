@@ -15,7 +15,7 @@
 #
 # Apply or revert this versioned Mirror database schema change.
 
-class AddMirrorObjectMappingContext < ActiveRecord::Migration[6.1]
+class AddMirrorObjectMappingContext < ActiveRecord::Migration[RedmineMirror.migration_version]
   def change
     add_column :mirror_mappings, :project_id, :integer
     add_index :mirror_mappings, :project_id

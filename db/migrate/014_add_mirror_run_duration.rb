@@ -15,7 +15,7 @@
 #
 # Apply or revert this versioned Mirror database schema change.
 
-class AddMirrorRunDuration < ActiveRecord::Migration[6.1]
+class AddMirrorRunDuration < ActiveRecord::Migration[RedmineMirror.migration_version]
   class Run < ActiveRecord::Base
     self.table_name = "mirror_sync_runs"
   end

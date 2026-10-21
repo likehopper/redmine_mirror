@@ -15,7 +15,7 @@
 #
 # Apply or revert this versioned Mirror database schema change.
 
-class CreateMirrorAi < ActiveRecord::Migration[6.1]
+class CreateMirrorAi < ActiveRecord::Migration[RedmineMirror.migration_version]
   # AI proposals for the mappings (doc/AI.md): the instance configuration, the daily
   # usage, and each project's pending request.
   def change

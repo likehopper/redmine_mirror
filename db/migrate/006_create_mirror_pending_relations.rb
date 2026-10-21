@@ -15,7 +15,7 @@
 #
 # Apply or revert this versioned Mirror database schema change.
 
-class CreateMirrorPendingRelations < ActiveRecord::Migration[6.1]
+class CreateMirrorPendingRelations < ActiveRecord::Migration[RedmineMirror.migration_version]
   def change
     create_table :mirror_pending_relations do |t|
       t.integer :project_id, null: false

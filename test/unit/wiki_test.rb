@@ -37,11 +37,18 @@ class MirrorWikiTest < ActiveSupport::TestCase
     }.freeze
     OLD = { "text" => "First", "version" => 1, "comments" => "Created", "author" => { "id" => 8, "name" => "Other" }, "updated_on" => "2026-01-10T09:00:00Z" }.freeze
 
+    # Redmine 4.0 answers a deleted version with the current one, Redmine 5 with 404.
+    def initialize(deleted_as_current: false)
+      @deleted_as_current = deleted_as_current
+    end
+
     def get(path, _params = {})
       case path
       when "projects/9/wiki/index.json" then { "wiki_pages" => PAGES.values.reverse.map { |page| page.slice("title", "parent", "version") } }
       when "projects/9/wiki/Mirror_home/1.json" then { "wiki_page" => PAGES.fetch("Mirror_home").merge(OLD) }
-      when "projects/9/wiki/Mirror_home/2.json" then raise RedmineMirror::Error, "Redmine API returned HTTP 404 for GET #{path}"
+      when "projects/9/wiki/Mirror_home/2.json"
+        raise RedmineMirror::Error, "Redmine API returned HTTP 404 for GET #{path}" unless @deleted_as_current
+        { "wiki_page" => PAGES.fetch("Mirror_home") }
       when %r{\Aprojects/9/wiki/(\w+)\.json\z} then { "wiki_page" => PAGES.fetch(Regexp.last_match(1)) }
       else raise "Unexpected #{path}"
       end
@@ -56,10 +63,15 @@ class MirrorWikiTest < ActiveSupport::TestCase
     @lookup = ->(key, id) { @store.find(key, id)&.fetch("destination_id") }
   end
 
-  def sync(apply: true)
-    @adapter.records(Source.new, 9).map do |record|
-      @adapter.synchronize(record, project_id: @project.id, mappings: @mappings, lookup: @lookup, store: @store, source: Source.new, apply: apply)
+  def sync(apply: true, source: Source.new)
+    @adapter.records(source, 9).map do |record|
+      @adapter.synchronize(record, project_id: @project.id, mappings: @mappings, lookup: @lookup, store: @store, source: source, apply: apply)
     end
+  end
+
+  def test_deleted_version_answered_as_the_current_one_stays_a_gap
+    sync(source: Source.new(deleted_as_current: true))
+    assert_equal [1, 3], @project.wiki.find_page("Mirror_home").content.versions.order(:version).pluck(:version)
   end
 
   def test_pages_versions_parents_and_dates_without_notifications

@@ -17,7 +17,14 @@ Plugin settings: the source Redmine URLs that project managers may connect to, t
 user field shown as the company in the user mappings, and Mirror source (this Redmine
 as a source): its global switch and log retention. Its activity is in Administration >
 Mirror > Source. AI proposals have their own page, Administration > Mirror > AI.
-%><p>
+Below Redmine 5 (source only), only Mirror source is shown.
+%><% if RedmineMirror.source_only? %>
+  <%# Destination settings, unused below Redmine 5: kept as they are. %>
+  <%= hidden_field_tag "settings[allowed_source_urls]", @settings["allowed_source_urls"] %>
+  <%= hidden_field_tag "settings[user_company_field_id]", @settings["user_company_field_id"] %>
+  <p class="info" id="mirror-source-only"><%= l(:text_mirror_source_only) %></p>
+<% else %>
+<p>
   <%= label_tag "settings_allowed_source_urls", l(:label_mirror_allowed_source_urls) %>
   <%= text_area_tag "settings[allowed_source_urls]", @settings["allowed_source_urls"], rows: 5, cols: 60, id: "settings_allowed_source_urls", placeholder: "https://redmine.example.com" %>
   <em class="info"><%= l(:text_mirror_allowed_source_urls) %></em>
@@ -34,6 +41,7 @@ Mirror > Source. AI proposals have their own page, Administration > Mirror > AI.
   <%= link_to l(:label_mirror_ai_settings_open), mirror_admin_ai_path, class: "icon icon-arrow-right" %>
   <em class="info"><%= l(:text_mirror_ai_settings_link) %></em>
 </p>
+<% end %>
 <fieldset class="box tabular" id="mirror-source-settings"><legend><%= l(:label_mirror_source_module) %></legend>
   <p><em class="info"><%= l(:text_mirror_source_admin_help) %></em></p>
   <p>

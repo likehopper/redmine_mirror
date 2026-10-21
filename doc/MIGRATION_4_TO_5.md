@@ -25,6 +25,8 @@ This is a **project-by-project migration to a fresh Redmine 5**, not the officia
 in-place upgrade (`rake db:migrate` on a copy of the Redmine 4 database). Choose it to
 start from a clean instance, migrate projects one at a time, or merge several old
 instances. Nothing is installed on the Redmine 4: Mirror only reads its REST API.
+To migrate Documents too, install Mirror on the Redmine 4 as a source only and share
+them through [Mirror source](CONFIGURATION.md#mirror-source-on-the-source-redmine).
 
 The screenshots come from the browser test
 [`migration_4_to_5_test.rb`](../test/documentation/migration_4_to_5_test.rb): a real
