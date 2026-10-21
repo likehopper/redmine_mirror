@@ -22,6 +22,9 @@ enabled it and what they share, then every session across projects, or one sessi
 <%= render "mirror_admin/sidebar" %>
 <h2><%= link_to l(:label_mirror_admin), mirror_admin_path %> » <%= l(:label_mirror_admin_source) %></h2>
 <p class="info"><%= l(:text_mirror_admin_source) %></p>
+<% if RedmineMirror.source_only? %>
+  <p class="info" id="mirror-source-only"><%= l(:text_mirror_source_only) %></p>
+<% end %>
 <p id="mirror-admin-source-status" class="<%= RedmineMirror::Source.enabled? ? 'mirror-source-on' : 'warning' %>">
   <%= l(RedmineMirror::Source.enabled? ? :text_mirror_admin_source_enabled : :text_mirror_admin_source_disabled, days: RedmineMirror::Source.retention_days) %>
   <%= link_to l(:label_mirror_admin_configuration), plugin_settings_path("redmine_mirror") %>

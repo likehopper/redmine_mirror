@@ -98,4 +98,27 @@ class MirrorAdminTest < Redmine::IntegrationTest
     assert_includes response.body, "eCookbook"
     assert_includes response.body, "https://source.example/redmine"
   end
+
+  # Below Redmine 5, Mirror source only: no destination overview or AI page, and the
+  # plugin settings keep the destination values without showing them.
+  def test_source_only_redmine_shows_mirror_source_only
+    Setting.plugin_redmine_mirror = Setting.plugin_redmine_mirror.to_h.merge("allowed_source_urls" => "https://kept.example")
+    RedmineMirror.stubs(:source_only?).returns(true)
+    log_user("admin", "admin")
+    get "/admin/mirror"
+    assert_redirected_to "/admin/mirror/source"
+    get "/admin/mirror/ai"
+    assert_response 404
+    get "/admin/mirror/source"
+    assert_response :success
+    assert_select "#mirror-source-only"
+    assert_select ".mirror-admin-sidebar a", count: 2
+    assert_select ".mirror-admin-sidebar a[href='/admin/mirror']", 0
+    get "/settings/plugin/redmine_mirror"
+    assert_response :success
+    assert_select "#mirror-source-only"
+    assert_select "#mirror-source-settings"
+    assert_select "textarea#settings_allowed_source_urls", 0
+    assert_select "input[type=hidden][name='settings[allowed_source_urls]'][value='https://kept.example']"
+  end
 end

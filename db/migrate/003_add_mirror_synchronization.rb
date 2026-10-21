@@ -15,7 +15,7 @@
 #
 # Apply or revert this versioned Mirror database schema change.
 
-class AddMirrorSynchronization < ActiveRecord::Migration[6.1]
+class AddMirrorSynchronization < ActiveRecord::Migration[RedmineMirror.migration_version]
   def change
     add_column :mirror_project_settings, :auto_sync_enabled, :boolean, null: false, default: false
     add_column :mirror_project_settings, :sync_interval_minutes, :integer, null: false, default: 60

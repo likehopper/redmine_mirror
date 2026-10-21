@@ -72,11 +72,13 @@ module RedmineMirror
         { "user" => users.uniq { |user| user.fetch("id") } }
       end
 
-      # Source versions after +after+, the current one included. Deleted versions are gaps.
+      # Source versions after +after+, the current one included. Deleted versions are gaps:
+      # Redmine 5 answers 404, Redmine 4.0 the current version.
       def versions(client, project_id, record, after)
         current = Integer(record.fetch("version"))
         ((after + 1)...current).filter_map do |number|
-          client.get("#{page_path(project_id, record.fetch('title'))}/#{number}.json").fetch("wiki_page")
+          version = client.get("#{page_path(project_id, record.fetch('title'))}/#{number}.json").fetch("wiki_page")
+          version if Integer(version.fetch("version")) == number
         rescue Error => error
           raise Error, "Wiki history needs the source permission View wiki history" if error.message.include?("HTTP 403")
           raise unless error.message.include?("HTTP 404")

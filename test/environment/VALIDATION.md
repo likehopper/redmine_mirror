@@ -366,3 +366,13 @@ au-delà du plafond avec confirmation : 7 étapes / 32 assertions ; guide de con
 (`navigator.webdriver`), cause des échecs aléatoires des tests système. Runner CI 6.1.4
 deux fois de suite : 195 tests Redmine / 1033 assertions ; suite sur
 `reporting-compat-ready:5.1.13` : 195 / 1031.
+
+1.0.0-beta.23 (21 octobre 2026) : Mirror s'installe sur Redmine 4.0 à 4.2 en source seule
+(Mirror source, sans module projet Mirror, vue destination ni IA) ; migrations compatibles
+Rails 5.2. Wiki : sur une source 4.0, une version supprimée renvoie la version courante,
+désormais ignorée. `versions.sh` source `redmine:4.0.3` (Ruby 2.6.3) → destination 6.1.4 :
+sans Mirror sur la source, douze smokes d'écriture réussis ; avec `MIRROR_SOURCE_PLUGIN=1`,
+quatorze (dont `documents_smoke.rb` et `documents_source_check.rb`). Pages source seule
+rendues sur 4.0.3 (administration Source, configuration du plugin, onglet projet).
+Installation, désinstallation (`VERSION=0`) et réinstallation sur 4.0.3. Runner CI 6.1.4 :
+197 tests Redmine / 1049 assertions.

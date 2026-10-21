@@ -15,7 +15,7 @@
 #
 # Apply or revert this versioned Mirror database schema change.
 
-class AddMirrorSourceWins < ActiveRecord::Migration[6.1]
+class AddMirrorSourceWins < ActiveRecord::Migration[RedmineMirror.migration_version]
   def change
     # Mirror mode: local differences are overwritten, local deletions recreated and
     # source deletions propagated. Off keeps the additive mode with conflicts.

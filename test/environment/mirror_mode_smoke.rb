@@ -70,11 +70,11 @@ begin
   raise "Local note kept" unless Journal.find_by(id: local_journal.id)&.notes == note_text
   raise "Deleted issue not recreated" unless local.call(second["id"]) && project.issues.count == 12
   # A note edited on the source is updated in place (journal API: Redmine 5.0 and later;
-  # older sources answer 403 or 404).
+  # older sources answer 401, 403 or 404).
   edited = begin
     client.update("journals/#{note_id}.json", "journal" => { "notes" => "Edited on the source" })
   rescue RedmineMirror::Error => error
-    raise unless error.message.match?(/HTTP 40[34]/)
+    raise unless error.message.match?(/HTTP 40[134]/)
     note_id = nil
   end
   if edited

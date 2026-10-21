@@ -185,7 +185,9 @@ ID shown by the source API, then refresh the references.
 ## Older source versions
 
 Mirror reads the source only through its REST API, so the source can run an older
-Redmine. `versions.sh` starts a separate, disposable stack with the official image of the
+Redmine. `MIRROR_SOURCE_PLUGIN=1` installs Mirror on the source too (source only below
+Redmine 5) and adds `documents_seed.rb`, `documents_smoke.rb` and
+`documents_source_check.rb`. `versions.sh` starts a separate, disposable stack with the official image of the
 source and a destination on a local `reporting-compat-ready:<version>` image, then runs
 the write smokes. Stop the main stack first: both publish ports 3101 and 3102.
 
@@ -193,6 +195,7 @@ the write smokes. Stop the main stack first: both publish ports 3101 and 3102.
 bash test/environment/versions.sh redmine:4.2 6.1.4
 bash test/environment/versions.sh redmine:5.0 6.1.4
 bash test/environment/versions.sh redmine:4.2 5.1.13
+MIRROR_SOURCE_PLUGIN=1 bash test/environment/versions.sh redmine:4.0.3 6.1.4
 ```
 
 IDs differ across versions: the browser setup maps references by name and anonymizes

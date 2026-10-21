@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 #
 # Apply or revert this versioned Mirror database schema change.
-class AddMirrorSourceTextFormat < ActiveRecord::Migration[6.1]
+class AddMirrorSourceTextFormat < ActiveRecord::Migration[RedmineMirror.migration_version]
   def change
     # auto, textile, markdown or html: how source texts are read before conversion.
     add_column :mirror_project_settings, :source_text_format, :string, limit: 20, null: false, default: "auto"

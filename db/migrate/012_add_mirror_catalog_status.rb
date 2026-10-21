@@ -14,7 +14,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 #
 # Apply or revert this versioned Mirror database schema change.
-class AddMirrorCatalogStatus < ActiveRecord::Migration[6.1]
+class AddMirrorCatalogStatus < ActiveRecord::Migration[RedmineMirror.migration_version]
   def change
     # The worker refreshes source references: ready, pending, refreshing or failed.
     add_column :mirror_project_settings, :catalog_status, :string, limit: 12, null: false, default: "ready"

@@ -15,7 +15,7 @@
 #
 # Apply or revert this versioned Mirror database schema change.
 
-class CreateMirrorSource < ActiveRecord::Migration[6.1]
+class CreateMirrorSource < ActiveRecord::Migration[RedmineMirror.migration_version]
   # Mirror source: what each project shares with Mirror destinations, and every access.
   def change
     create_table :mirror_source_settings do |t|

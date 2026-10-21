@@ -16,8 +16,9 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Compatibility and publication checks
 
-Minimum declared Redmine version: **5.0**. This is not a compatibility certification.
-Current plugin version: **1.0.0-beta.22**.
+Minimum declared Redmine version: **5.0** as a destination, **4.0** as a source with
+Mirror source (source only). This is not a compatibility certification.
+Current plugin version: **1.0.0-beta.23**.
 
 Destination (Redmine running Mirror):
 
@@ -28,14 +29,15 @@ Destination (Redmine running Mirror):
 | 5.0 / 6.0 / 7.x | Not validated | No compatibility claim |
 | Any version | PostgreSQL / MariaDB / MySQL | Not validated |
 
-Source (read through its REST API only, Mirror not installed; the Documents module
-needs Mirror on the source, validated on 6.1.4 only):
+Source (read through its REST API; the Documents module needs Mirror on the source,
+validated on 6.1.4 and, source only, on 4.0.3):
 
 | Redmine | Evidence |
 | --- | --- |
 | 6.1.4 | All two-instance smokes |
 | 5.0.12 | Write smokes into 6.1.4 and 5.1.13 destinations (`versions.sh`) |
 | 4.2.10 | Write smokes into 6.1.4 and 5.1.13 destinations (`versions.sh`) |
+| 4.0.3 | Write smokes into a 6.1.4 destination, without Mirror and with Mirror source only (Documents smoke, `MIRROR_SOURCE_PLUGIN=1 versions.sh`); install, uninstall and reinstall on Ruby 2.6.3 / Rails 5.2.3 |
 
 The write smokes cover issues, time entries, categories and versions, history and
 attachments, relations, hierarchy and watchers, custom fields, conflicts, locked users

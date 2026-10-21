@@ -18,9 +18,9 @@ Document Mirror setup, operation, extension points or validation evidence.
 
 # <img src="assets/images/synchronisation-des-donnees-64.png" width="64" height="64" alt=""> Redmine Mirror
 
-![Version](https://img.shields.io/badge/Version-1.0.0--beta.22-orange)
+![Version](https://img.shields.io/badge/Version-1.0.0--beta.23-orange)
 ![Destination tested](https://img.shields.io/badge/Destination_tested-5.1_%7C_6.1-blue)
-![Source tested](https://img.shields.io/badge/Source_tested-4.2_%7C_5.0_%7C_6.1-blue)
+![Source tested](https://img.shields.io/badge/Source_tested-4.0_%7C_4.2_%7C_5.0_%7C_6.1-blue)
 ![Database tested](https://img.shields.io/badge/Database_tested-SQLite_3-blue)
 ![License](https://img.shields.io/badge/License-GPL--2.0--or--later-green)
 
@@ -32,7 +32,7 @@ existing destination project, through the destination REST API and native models
 
 Use it to migrate projects to a new instance, or to keep a regularly updated secondary
 copy. Each project has its own connection, mappings, schedule, history and conflicts.
-Version **1.0.0-beta.22** is a pre-release for testing before 1.0.0, not a stable release.
+Version **1.0.0-beta.23** is a pre-release for testing before 1.0.0, not a stable release.
 
 ## Features
 
@@ -101,8 +101,9 @@ these rules in full: data sent, setup, credit, security and limits.
   and a worker sharing its database, attachment storage and cipher key.
 - Source: any Redmine with the REST API enabled; Mirror is not needed there, except for
   the Documents module, which Redmine's API does not cover: install Mirror 1.0.0-beta.19
-  or later on the source too, then share the documents through its **Mirror source**
-  module (see [Mirror source](doc/CONFIGURATION.md#mirror-source-on-the-source-redmine)).
+  or later on the source too (on Redmine 4.0 to 4.2, Mirror then runs as a source only),
+  then share the documents through its **Mirror source** module
+  (see [Mirror source](doc/CONFIGURATION.md#mirror-source-on-the-source-redmine)).
   Use the key of a dedicated, read-only account member of the source projects
   (see [source permissions](doc/CONFIGURATION.md#2-enable-the-rest-api)).
 - HTTPS URLs on both sides.
@@ -111,8 +112,8 @@ these rules in full: data sent, setup, credit, security and limits.
 - Existing destination projects, users, trackers, statuses, priorities, activities and
   custom field definitions: Mirror maps them, it never creates them.
 
-Validated with SQLite: destinations **Redmine 6.1.4 and 5.1.13**, sources **Redmine 4.2,
-5.0 and 6.1**. Other versions and databases are not validated yet. See the
+Validated with SQLite: destinations **Redmine 6.1.4 and 5.1.13**, sources **Redmine
+4.0.3, 4.2, 5.0 and 6.1**. Other versions and databases are not validated yet. See the
 [compatibility matrix](test/compatibility/README.md) and the
 [validation record](test/environment/VALIDATION.md).
 

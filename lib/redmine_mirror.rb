@@ -19,7 +19,7 @@
 # lives here, not in lib/redmine_mirror/version.rb: Zeitwerk would require that file to
 # define RedmineMirror::Version, which would hide Redmine's Version model in this namespace.
 module RedmineMirror
-  VERSION = "1.0.0-beta.22"
+  VERSION = "1.0.0-beta.23"
   # Contract between Mirror and external adapters. Increase only on incompatible
   # changes to Adapters::Base, MappingTable or the registration rules.
   ADAPTER_API_VERSION = 1
@@ -47,6 +47,17 @@ require File.join(File.dirname(__FILE__), "redmine_mirror/synchronization")
 require File.join(File.dirname(__FILE__), "redmine_mirror/source")
 module RedmineMirror
   REGISTRY = Registry.new
+
+  # Below Redmine 5 (Rails 5.2, Ruby 2.6), Mirror only runs as a source: Mirror source
+  # shares what the REST API does not cover. Destinations need Redmine 5 or later.
+  def self.source_only?
+    Redmine::VERSION::MAJOR < 5
+  end
+
+  # Migrations keep the Rails 6.1 behaviour and also run on the Rails 5.2 of Redmine 4.
+  def self.migration_version
+    ActiveRecord::VERSION::MAJOR >= 6 ? 6.1 : 5.2
+  end
 
   # Source Redmine URLs that non-administrators may connect to (plugin settings).
   def self.allowed_source_urls

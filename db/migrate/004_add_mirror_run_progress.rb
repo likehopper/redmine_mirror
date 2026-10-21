@@ -15,7 +15,7 @@
 #
 # Apply or revert this versioned Mirror database schema change.
 
-class AddMirrorRunProgress < ActiveRecord::Migration[6.1]
+class AddMirrorRunProgress < ActiveRecord::Migration[RedmineMirror.migration_version]
   def change
     add_column :mirror_sync_runs, :total_records, :integer
     add_column :mirror_sync_runs, :processed_records, :integer, default: 0, null: false

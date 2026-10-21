@@ -15,7 +15,7 @@
 #
 # Apply or revert this versioned Mirror database schema change.
 
-class CreateMirrorMappings < ActiveRecord::Migration[6.1]
+class CreateMirrorMappings < ActiveRecord::Migration[RedmineMirror.migration_version]
   def change
     create_table :mirror_mappings do |t|
       t.string :connection_key, null: false, limit: 64

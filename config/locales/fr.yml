@@ -302,6 +302,7 @@ fr:
   text_mirror_source_refusal_module: "Module Mirror source désactivé sur le projet"
   text_mirror_source_refusal_not_shared: "Documents non partagés"
   text_mirror_source_refusal_permission: "Le compte ne peut pas voir les documents"
+  text_mirror_source_only: "Ce Redmine utilise Mirror comme source uniquement : il partage des données par Mirror source. Synchroniser des projets vers ce Redmine demande Redmine 5 ou plus."
   text_mirror_source_admin_help: "Quand ce Redmine est la source d'un autre Redmine équipé de Mirror : les projets qui activent le module Mirror source partagent les données qu'ils choisissent (Documents), que l'API REST de Redmine ne fournit pas. Désactivé, rien n'est partagé."
   label_mirror_source_enabled: "Autoriser Mirror source"
   label_mirror_source_log_days: "Conserver le journal d'accès (jours)"
