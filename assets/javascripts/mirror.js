@@ -105,9 +105,11 @@ $(function () {
   $(document).on("change", "input.mirror-special-choice", function () { special(this); });
 
   // Catalog refresh or execution in progress: reload while the Mirror content is visible,
-  // unless a form field has been edited.
+  // unless a form field has been edited. Not in automated browsers (system and
+  // documentation tests): they reload themselves, and a reload in the middle of a step
+  // detaches the elements they hold.
   var reload = $("[data-mirror-reload]:visible").first();
-  if (reload.length) {
+  if (reload.length && !navigator.webdriver) {
     var edited = false;
     $(document).on("input change", "form :input", function () { edited = true; });
     setTimeout(function () { if (!edited && reload.is(":visible")) window.location.reload(); },
