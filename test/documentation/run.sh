@@ -13,8 +13,9 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 #
-# Regenerate doc/screenshots/configuration in one disposable container: a plain
-# source Redmine serves its API on port 3001, the browser test is the destination.
+# Regenerate the screenshots of doc/CONFIGURATION.md and doc/MIRROR_COPY.md in one
+# disposable container: a plain source Redmine serves its API on port 3001, the browser
+# tests are the destination. The mirror copy guide runs after the configuration guide.
 
 set -euo pipefail
 plugin_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -68,8 +69,11 @@ export MIRROR_SOURCE_URL=http://redmine-source:3001 MIRROR_SOURCE_API_KEY=111111
 export MIRROR_DOC_SCREENSHOTS=/screenshots
 bundle exec rake db:migrate redmine:plugins:migrate
 bundle exec ruby -Itest plugins/redmine_mirror/test/documentation/configuration_test.rb -v
+bundle exec ruby -Itest plugins/redmine_mirror/test/documentation/mirror_copy_test.rb -v
 ' > "$results/run.log" 2>&1 || { echo "Documentation run failed: see $results/run.log" >&2; exit 1; }
 mkdir -p "$plugin_root/doc/images" "$plugin_root/doc/screenshots/configuration"
 mv "$results/screenshots/home.png" "$plugin_root/doc/images/redmine_mirror_home.png"
 cp "$results/screenshots/"*.png "$plugin_root/doc/screenshots/configuration/"
-printf 'Screenshots copied to %s\n' "$plugin_root/doc/screenshots/configuration"
+mkdir -p "$plugin_root/doc/screenshots/mirror-copy"
+cp "$results/screenshots/mirror-copy/"*.png "$plugin_root/doc/screenshots/mirror-copy/"
+printf 'Screenshots copied to %s and %s\n' "$plugin_root/doc/screenshots/configuration" "$plugin_root/doc/screenshots/mirror-copy"

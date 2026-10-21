@@ -73,7 +73,10 @@ Run the standalone tests and the full Redmine suite described in the
 [test environment guide](../test/environment/README.md). Browser tests cover mapping
 forms, permissions and navigation with long translated labels. Check YAML/JSON parsing
 and that view comments are absent from rendered HTML. When the UI changes, regenerate
-the guide's screenshots with `bash test/documentation/run.sh`.
+the guides' screenshots with `bash test/documentation/run.sh` (configuration, exact copy)
+and `bash test/documentation/migration_run.sh` (Redmine 4 to 5 migration). Each guide is
+a browser test that walks through its steps and saves one screenshot per step, so a
+guide that no longer matches the interface fails instead of going stale.
 
 Patch Redmine core classes and helpers without breaking other plugins: many still chain
 methods with `alias_method`, which captures a method added with `prepend` and breaks

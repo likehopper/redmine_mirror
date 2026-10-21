@@ -18,7 +18,7 @@ Document Mirror setup, operation, extension points or validation evidence.
 
 # <img src="assets/images/synchronisation-des-donnees-64.png" width="64" height="64" alt=""> Redmine Mirror
 
-![Version](https://img.shields.io/badge/Version-1.0.0--beta.21-orange)
+![Version](https://img.shields.io/badge/Version-1.0.0--beta.22-orange)
 ![Destination tested](https://img.shields.io/badge/Destination_tested-5.1_%7C_6.1-blue)
 ![Source tested](https://img.shields.io/badge/Source_tested-4.2_%7C_5.0_%7C_6.1-blue)
 ![Database tested](https://img.shields.io/badge/Database_tested-SQLite_3-blue)
@@ -32,7 +32,7 @@ existing destination project, through the destination REST API and native models
 
 Use it to migrate projects to a new instance, or to keep a regularly updated secondary
 copy. Each project has its own connection, mappings, schedule, history and conflicts.
-Version **1.0.0-beta.21** is a pre-release for testing before 1.0.0, not a stable release.
+Version **1.0.0-beta.22** is a pre-release for testing before 1.0.0, not a stable release.
 
 ## Features
 
@@ -171,6 +171,10 @@ Without correspondences, a new import would duplicate them.
 
 - [Configuration guide](doc/CONFIGURATION.md): from activation to the first
   synchronization, step by step with screenshots.
+- [Migrate from Redmine 4 to Redmine 5](doc/MIGRATION_4_TO_5.md): a project from a
+  Redmine 4.2 to a fresh Redmine 5, from preparing the source to the switch.
+- [Keep an exact copy](doc/MIRROR_COPY.md): mirror mode, overwritten local changes,
+  propagated deletions and their confirmation.
 - [Module reference](doc/MODULES.md): each module's behavior, anonymization, conflicts,
   scheduling, command-line runs and limits.
 - [Adapter tutorial](doc/ADAPTERS.md): write a module, in Mirror or in another plugin.
@@ -208,7 +212,9 @@ ruby test/diagnosis_test.rb
 - [CI runner](test/compatibility/README.md): full Redmine suite in a disposable container.
 - [Two-instance environment](test/environment/README.md): seeded source and destination,
   worker and real API smoke checks.
-- `bash test/documentation/run.sh`: regenerates the configuration guide's screenshots.
+- `bash test/documentation/run.sh`: regenerates the screenshots of the configuration and
+  exact copy guides; `bash test/documentation/migration_run.sh` those of the Redmine 4 to 5
+  migration guide, with a real Redmine 4.2 source.
 
 ## Community and releases
 

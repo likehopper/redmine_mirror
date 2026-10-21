@@ -401,5 +401,8 @@ bash test/documentation/run.sh
 ```
 
 It runs the test in a disposable container (Redmine 6.1.4, SQLite, Chromium), with a
-seeded source Redmine on the side. It updates `doc/screenshots/configuration/` and the
-README image. The test is not part of `redmine:plugins:test`.
+seeded source Redmine on the side, then the [exact copy guide](MIRROR_COPY.md). It
+updates `doc/screenshots/configuration/`, `doc/screenshots/mirror-copy/` and the README
+image. These tests are not part of `redmine:plugins:test`. The
+[Redmine 4 to 5 migration guide](MIGRATION_4_TO_5.md) has its own runner,
+`test/documentation/migration_run.sh`, with a real Redmine 4.2 source.

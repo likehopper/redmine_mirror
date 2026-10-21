@@ -351,3 +351,18 @@ compte chaque téléchargement de fichier de projet ou de version, y compris cel
 l'import par l'API ; il compare désormais aux compteurs lus avant l'import et vérifie un
 seul téléchargement de plus côté source. `versions.sh` source 4.2.10 → destinations
 5.1.13 et 6.1.4 : douze smokes d'écriture réussis chacun (Files ajouté ; `sole` retiré).
+
+1.0.0-beta.22 (21 octobre 2026) : modes opératoires pas à pas générés par des tests
+navigateur, une capture par étape. « Migrate from Redmine 4 to Redmine 5 »
+(`doc/MIGRATION_4_TO_5.md`, `test/documentation/migration_run.sh`) : une vraie source
+`redmine:4.2` dans son conteneur et une destination 5.1.13 avec Chromium sur un réseau
+Docker ; le test prépare la source par son interface (API REST, rôle en lecture seule,
+compte de service, clé API), migre, resynchronise puis ferme le projet source : 15 étapes
+/ 67 assertions, 20 captures. « Keep an exact copy » (`doc/MIRROR_COPY.md`) dans
+`test/documentation/run.sh` après le guide de configuration : mode miroir, modification
+locale écrasée, suppression locale recréée, suppression source en prévisualisation puis
+au-delà du plafond avec confirmation : 7 étapes / 32 assertions ; guide de configuration
+19 / 112. Les pages Mirror ne se rechargent plus seules sous automatisation
+(`navigator.webdriver`), cause des échecs aléatoires des tests système. Runner CI 6.1.4
+deux fois de suite : 195 tests Redmine / 1033 assertions ; suite sur
+`reporting-compat-ready:5.1.13` : 195 / 1031.
