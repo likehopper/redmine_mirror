@@ -71,9 +71,10 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
     end
     get "/projects/ecookbook/settings", params: { tab: "mirror_source", mirror_source_session: SESSION }
     assert_select "table.mirror-source-accesses tbody tr", count: 3
-    assert_select "table.mirror-source-accesses td", text: "Test document (#1), An other document (#2)"
+    # What a list returned, under the name of its data.
+    assert_select "table.mirror-source-accesses td", text: /\ADocuments\s+Test document \(#1\), An other document \(#2\)\z/
     assert_select "table.mirror-source-accesses td", text: /document\.txt/
-    assert_select "table.mirror-source-accesses tr.mirror-source-refused td", text: "Documents not shared"
+    assert_select "table.mirror-source-accesses tr.mirror-source-refused td", text: "Data not shared"
   end
 
   def test_administrator_switches_mirror_source_in_the_plugin_settings

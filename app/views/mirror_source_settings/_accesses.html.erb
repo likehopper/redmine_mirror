@@ -41,7 +41,10 @@ One Mirror source session: each request, served or refused, and what it sent.
               <% file = details.fetch("attachment", {}) %>
               <%= file["filename"] %> (<%= number_to_human_size(access.bytes) %>)
             <% else %>
-              <%= safe_join(details.fetch("documents", []).map { |document| "#{document['title']} (##{document['id']})" }, ", ") %>
+              <% %w[documents news].each do |kind| %>
+                <% next if details.fetch(kind, []).empty? %>
+                <strong><%= l("label_mirror_module_#{kind}".to_sym) %></strong> <%= safe_join(details.fetch(kind).map { |row| "#{row['title']} (##{row['id']})" }, ", ") %>
+              <% end %>
             <% end %>
           </td>
         </tr>

@@ -112,8 +112,6 @@ To study. Checked against Redmine 6.1, the controllers that accept the API
 
 With a REST API, not used by Mirror yet:
 
-- **News.** Full API since Redmine 4.1, so every supported source has it. Author and
-  creation date are probably those of the API account and of the import.
 - **Files.** Read and upload API since Redmine 3.4 (`files#index`, `files#create`).
   Check whether it is enough before going through **Mirror source**, which is needed only
   to keep the original author or date.
@@ -121,7 +119,6 @@ With a REST API, not used by Mirror yet:
 Without a REST API, so through **Mirror source**, like Documents:
 
 - **Forums**: boards, topics and replies. Nothing is exposed, read or write.
-- **News comments.** News have an API, their comments do not.
 - **Project time entry activities**: the activities enabled or disabled per project.
   `enumerations` only lists the global ones.
 - **Wiki settings**: start page, redirects after a rename, protected pages, wiki

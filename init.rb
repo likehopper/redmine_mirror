@@ -42,9 +42,9 @@ Redmine::Plugin.register :redmine_mirror do
     end
   end
   # Mirror source, when this Redmine is a source: a project shares chosen data with Mirror
-  # destinations (Documents), if an administrator allows it. Configuring the sharing
+  # destinations (Documents, News), if an administrator allows it. Configuring the sharing
   # and reading its access log are one permission; the API account needs only the
-  # native permission of the data (View documents).
+  # native permission of the data (View documents, View news).
   project_module :mirror_source do
     permission :manage_mirror_source, { projects: [:settings], mirror_source_settings: [:update] }, require: :member
   end

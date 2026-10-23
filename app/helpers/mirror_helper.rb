@@ -175,8 +175,8 @@ module MirrorHelper
   end
 
   def mirror_module_label(key)
-    # Wiki and document attachments have their own correspondences, inside their module.
-    RedmineMirror::REGISTRY.keys.include?(key) || %w[wiki_attachments document_attachments].include?(key) ? l("label_mirror_module_#{key}".to_sym) : key
+    # Wiki, document and news files and news comments have their own correspondences, inside their module.
+    RedmineMirror::REGISTRY.keys.include?(key) || %w[wiki_attachments document_attachments news_attachments news_comments].include?(key) ? l("label_mirror_module_#{key}".to_sym) : key
   end
 
   MAPPING_TABS = { "status" => "issue_tracking", "tracker" => "issue_tracking", "priority" => "issue_tracking",
@@ -403,7 +403,7 @@ module MirrorHelper
            when "priority", "activity", "document_category" then "/enumerations/#{id}/edit"
            when "issue_tracking", "issue_hierarchy", "issue_watchers", "issue_custom_fields" then issue_path(id)
            when "time_tracking" then edit_time_entry_path(id)
-           when "issue_attachments", "wiki_attachments", "document_attachments" then "/attachments/#{id}"
+           when "issue_attachments", "wiki_attachments", "document_attachments", "news_attachments" then "/attachments/#{id}"
            when "project_versions" then version_path(id)
            when "issue_categories" then "/projects/#{@project.identifier}/issue_categories/#{id}/edit"
            when "issue_journals", "issue_relation_notes"
@@ -431,7 +431,7 @@ module MirrorHelper
                     when "status" then "issue_statuses/#{id}/edit"
                     when "priority", "activity", "document_category" then "enumerations/#{id}/edit"
                     when "issue_tracking", "issue_hierarchy", "issue_watchers", "issue_custom_fields" then "issues/#{id}"
-                    when "issue_attachments", "wiki_attachments", "document_attachments" then "attachments/#{id}"
+                    when "issue_attachments", "wiki_attachments", "document_attachments", "news_attachments" then "attachments/#{id}"
                     when "project_versions" then "versions/#{id}"
                     when "issue_categories"
                       setting = @setting || @project.mirror_project_setting

@@ -16,6 +16,16 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.26 — 2026-10-23
+
+- **News** module: news are imported with their summary, author, date, comments and
+  files, without notifications. Redmine's API has no news comments nor files, so the
+  source shares its news through **Mirror source** (Redmine Mirror 1.0.0-beta.26 or later
+  on the source, *View news*), like Documents. Comments edited on the source are updated;
+  mirror mode propagates deletions.
+- Mirror source: the access log names what each list or item request returned (documents
+  or news); its labels no longer assume documents.
+
 ## 1.0.0-beta.25 — 2026-10-23
 
 - Local IDs grow in the source order: time entries are read by ID instead of by date,

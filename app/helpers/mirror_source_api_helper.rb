@@ -13,7 +13,7 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 #
-# Render a document like Redmine's own API resources, files included.
+# Render documents and news like Redmine's own API resources, files included.
 
 module MirrorSourceApiHelper
   def render_api_mirror_document(document, api)
@@ -26,6 +26,30 @@ module MirrorSourceApiHelper
     render_api_custom_values document.visible_custom_field_values, api
     api.array :attachments do
       document.attachments.each { |attachment| render_api_attachment(attachment, api) }
+    end
+  end
+
+  def render_api_mirror_news(news, api)
+    api.id news.id
+    api.project(id: news.project_id, name: news.project.name)
+    api.author(id: news.author_id, name: news.author.name) if news.author
+    api.title news.title
+    api.summary news.summary
+    api.description news.description
+    api.created_on news.created_on
+    api.array :comments do
+      news.comments.each do |comment|
+        api.comment do
+          api.id comment.id
+          api.author(id: comment.author_id, name: comment.author.name) if comment.author
+          api.content comment.comments
+          api.created_on comment.created_on
+          api.updated_on comment.updated_on
+        end
+      end
+    end
+    api.array :attachments do
+      news.attachments.each { |attachment| render_api_attachment(attachment, api) }
     end
   end
 end

@@ -292,6 +292,25 @@ the destination project first. Writes go through local models and send no notifi
   added on later runs; in mirror mode, files removed on the source are removed locally.
 - Custom field values are not copied.
 
+## News
+
+Imports the source project's news: title, summary, description, author, creation date,
+comments with their authors and dates, and files. Enable the News module on the
+destination project first. Writes go through local models and send no notification.
+
+- Redmine's REST API provides news, but neither their comments nor their files: the
+  source must run Redmine Mirror 1.0.0-beta.26 or later and share the project's news
+  through **Mirror source**
+  ([configuration](CONFIGURATION.md#mirror-source-on-the-source-redmine)). The source
+  API key needs *View news*. Otherwise the refresh and the runs say which lock to open.
+- **Refresh source references** lists the authors of news, comments and files in
+  *Users*. An anonymized author becomes Redmine's anonymous user.
+- Descriptions and comments follow the destination format and issue references are
+  rewritten, as for issues.
+- A local edit or deletion of an imported news item is a conflict. New comments and files
+  are added on later runs, and a comment edited on the source is updated; in mirror mode,
+  comments and files removed on the source are removed locally.
+
 ## Files
 
 Imports the files of the source project's Files module: name, description, author,
