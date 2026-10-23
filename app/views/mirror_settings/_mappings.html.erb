@@ -16,7 +16,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 A module's correspondences: each source reference used by the project and its local
 reference. Unmapped references with a single local namesake, or an AI proposal, are
 preselected; nothing is saved until the form is. AI proposals are asked for per table.
-%><% if adapter.is_a?(RedmineMirror::Adapters::ProjectReferences) %>
+%><%= render "mirror_settings/module_overview", adapter: adapter %>
+<% if adapter.is_a?(RedmineMirror::Adapters::ProjectReferences) %>
   <p><%= l(:text_mirror_reference_objects) %> <%= link_to l(:label_mirror_objects), mirror_page_path(@project, "objects", module_key: adapter.key) %></p>
 <% end %>
 <% if %w[issue_hierarchy issue_relations].include?(adapter.key) %>
@@ -29,7 +30,6 @@ preselected; nothing is saved until the form is. AI proposals are asked for per 
 <%= render adapter.settings_partial, adapter: adapter if adapter.settings_partial %>
 <% if %w[issue_hierarchy issue_watchers wiki project_members documents project_files news issue_tags].include?(adapter.key) %>
   <p><%= l("text_mirror_#{adapter.key}".to_sym) %></p>
-  <p><%= link_to l(:label_mirror_module_users), mirror_configuration_path(@project, "users") %></p>
 <% end %>
 <% if adapter.mapping_tables.any? %><p><%= l(:text_mirror_mapping_help) %></p><% end %>
 <% suggested = 0 %>

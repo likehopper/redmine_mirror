@@ -94,6 +94,17 @@ module RedmineMirror
         "label_mirror_module_#{key}".to_sym
       end
 
+      # Locale key of what the module counts on the source, shown in the module tab.
+      def record_label
+        :label_mirror_statistic_records
+      end
+
+      # Extra source statistics of a record ({name => count}), added up per module by
+      # the catalog and shown in the module tab (label_mirror_statistic_<name>).
+      def catalog_statistics(_record)
+        {}
+      end
+
       def catalog_references(_client, _project_id)
         {}
       end

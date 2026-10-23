@@ -87,6 +87,13 @@
 .mirror-suggestion { margin-left: .5em; }
 .mirror-page-link { margin: 0 0 .5em; }
 
+/* Module tab overview: mapping state, source against destination, last run. */
+.mirror-module-overview p { margin: .4em 0; }
+.mirror-module-overview .info { color: #777; font-size: .9em; }
+table.mirror-module-statistics { width: auto; min-width: 26em; margin: .5em 0; }
+table.mirror-module-statistics td { padding: 2px 1em; }
+table.mirror-module-statistics td:first-child { text-align: left; }
+
 /* Administration overview: saved queries are not supported there. */
 .mirror-admin-query .buttons a.icon-save { display: none; }
 .mirror-admin-projects td.last_run_error { white-space: normal; max-width: 30em; }

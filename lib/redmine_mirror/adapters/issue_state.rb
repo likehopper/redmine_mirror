@@ -21,6 +21,7 @@ module RedmineMirror
     class IssueState < IssueChildren
       # Records are the issues themselves.
       def source_issue_ids(record); [record.fetch("id")]; end
+      def record_label; :label_mirror_statistic_issues; end
 
       def records(client, project_id)
         Issues.new.records(client, project_id).lazy.map do |issue|

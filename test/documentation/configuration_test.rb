@@ -186,6 +186,10 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     visit "/projects/#{PROJECT}/mirror?tab=objects"
     assert_selector "table.list tbody tr"
     screenshot "18-object-mappings", "#content", max_height: 760
+    # A module with nothing to map: its tab compares the source with this project.
+    open_module_tab "issue_attachments"
+    assert_selector "#mirror-module-statistics"
+    screenshot "37-module-overview", "#mirror-module-overview"
     issue = project.issues.order(:id).first
     visit "/issues/#{issue.id}"
     assert_selector "#mirror-issue-origin"

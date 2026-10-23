@@ -1,0 +1,71 @@
+<%#
+File: redmine_mirror/app/views/mirror_settings/_module_overview.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Top of every module tab, those with nothing to map included: whether something is left
+to map here or in the modules it relies on, the source objects against those linked
+here, and the last run that wrote the module.
+%><% overview = mirror_module_overview(@project, @setting, adapter) %>
+<div class="box mirror-module-overview" id="mirror-module-overview">
+  <p id="mirror-mapping-state">
+    <% if adapter.mapping_tables.empty? %>
+      <span class="icon icon-ok"><%= l(:text_mirror_nothing_to_map) %></span>
+    <% elsif overview[:unmapped].positive? %>
+      <span class="icon icon-warning"><%= l(:text_mirror_references_to_map, count: overview[:unmapped]) %></span>
+    <% else %>
+      <span class="icon icon-ok"><%= l(:text_mirror_all_mapped) %></span>
+    <% end %>
+  </p>
+  <% if overview[:dependencies].any? %>
+    <p id="mirror-module-dependencies"><%= l(:label_mirror_relies_on) %>
+      <%= safe_join(overview[:dependencies].map do |entry, count|
+        link_to(l(entry.label), mirror_configuration_path(@project, entry.key)) + " " +
+          (count.positive? ? content_tag(:span, l(:label_mirror_to_map, count: count), class: "mirror-badge") : content_tag(:span, l(:label_mirror_all_mapped), class: "icon icon-ok"))
+      end, " · ") %></p>
+  <% end %>
+  <% source = overview[:source] %>
+  <table class="list mirror-module-statistics" id="mirror-module-statistics">
+    <thead><tr><th></th><th><%= l(:label_mirror_on_source) %></th><th><%= l(:label_mirror_linked_here) %></th></tr></thead>
+    <tbody>
+      <tr><td><%= l(adapter.record_label) %></td><td><%= source ? source["records"] : "—" %></td>
+        <td><%= link_to overview[:linked], mirror_page_path(@project, "objects", module_key: adapter.key) %></td></tr>
+      <% (source || {}).except("records").each do |name, value| %>
+        <tr><td><%= l("label_mirror_statistic_#{name}".to_sym) %></td><td><%= mirror_statistic_value(name, value) %></td><td></td></tr>
+      <% end %>
+      <% overview[:parts].each do |key, count| %>
+        <tr><td><%= mirror_module_label(key) %></td><td></td><td><%= link_to count, mirror_page_path(@project, "objects", module_key: key) %></td></tr>
+      <% end %>
+    </tbody>
+  </table>
+  <% if source.nil? %>
+    <p class="info"><%= l(:text_mirror_source_not_counted, button: l(:button_mirror_refresh)) %></p>
+  <% else %>
+    <% if source["records"] > overview[:linked] %>
+      <p class="info" id="mirror-not-linked"><%= l(:text_mirror_not_linked, count: source["records"] - overview[:linked]) %></p>
+    <% end %>
+    <% if overview[:read_at] %><p class="info"><%= l(:text_mirror_source_read_at, time: format_time(overview[:read_at])) %></p><% end %>
+  <% end %>
+  <p id="mirror-module-last-run">
+    <% if (run = overview[:run]) %>
+      <strong><%= l(:label_mirror_last_run) %></strong> <%= link_to "##{run.id}", project_mirror_run_path(@project, run) %>
+      — <%= format_time(run.finished_at || run.created_at) %> — <%= l("label_mirror_run_#{run.status}".to_sym) %>
+      — <%= overview[:actions].empty? ? l(:label_mirror_no_object) : safe_join(MirrorHelper::RUN_ACTIONS.filter_map { |action| overview[:actions][action] && "#{overview[:actions][action]} #{l("label_mirror_action_#{action}".to_sym)}" }, ", ") %>
+    <% else %>
+      <%= l(:text_mirror_no_run_for_module) %>
+    <% end %>
+  </p>
+  <% if overview[:conflicts].positive? %>
+    <p class="warning" id="mirror-module-conflicts"><%= link_to l(:label_mirror_open_conflicts, count: overview[:conflicts]), mirror_page_path(@project, "conflicts") %></p>
+  <% end %>
+</div>

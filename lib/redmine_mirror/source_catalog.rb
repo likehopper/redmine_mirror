@@ -29,7 +29,9 @@ module RedmineMirror
       tables = {}
       used = Hash.new { |hash, key| hash[key] = [] }
       formats = Hash.new(0)
+      statistics = {}
       @adapters.each_with_index do |adapter, index|
+        counts = statistics[adapter.key] = { "records" => 0 }
         progress&.call(index + 1, @adapters.size, adapter.key, 0)
         adapter.mapping_tables.each { |table| tables[table.key] ||= {} }
         adapter.catalog_references(@client, @project_id).each do |kind, references|
@@ -46,6 +48,8 @@ module RedmineMirror
         adapter.records(@client, @project_id).each_with_index do |record, count|
           progress&.call(index + 1, @adapters.size, adapter.key, count + 1)
           next unless record.fetch("project").fetch("id").to_i == @project_id.to_i
+          counts["records"] += 1
+          adapter.catalog_statistics(record).each { |name, value| counts[name] = counts.fetch(name, 0) + value }
           # Historical authors and observers may not be project members. Discover
           # their remote identities without creating any destination accounts.
           if tables.key?("user")
@@ -74,6 +78,10 @@ module RedmineMirror
       used.each { |kind, ids| tables["#{kind}_used"] = ids.uniq.sort_by(&:to_i) }
       # Detected markup of descriptions and notes, shown next to the source text format.
       tables["text_formats"] = formats unless formats.empty?
+      # Per module: records of the project and adapter statistics, with the time they
+      # were read, compared with the destination in the module tabs.
+      tables["module_statistics"] = statistics
+      tables["read_at"] = Time.now.utc.iso8601
       tables
     end
   end

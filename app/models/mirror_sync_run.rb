@@ -26,6 +26,12 @@ class MirrorSyncRun < ActiveRecord::Base
   # A worker normally picks a run up within a minute; longer usually means none runs.
   QUEUE_WARNING_DELAY = 5.minutes
 
+  # Runs that planned or logged objects of a module.
+  scope :for_module, lambda { |module_key|
+    key = sanitize_sql_like(JSON.generate(module_key), "!")
+    where("module_totals LIKE :manifest ESCAPE '!' OR events LIKE :event ESCAPE '!'", manifest: "%#{key}:%", event: "%\"module\":#{key}%")
+  }
+
   # Ends the run, with its duration in seconds when it started.
   def finish!(attributes)
     now = Time.current

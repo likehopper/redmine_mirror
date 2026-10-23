@@ -16,6 +16,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.29 — 2026-10-23
+
+- Every module tab starts with an overview, including the tabs with nothing to map: what
+  is left to map in the tab and in the modules it relies on, the source objects against
+  those linked in the project (with sizes, parents, watchers or tags where relevant), the
+  last synchronization of the module and its open conflicts. Source figures are counted
+  when the references are refreshed: refresh them once after upgrading.
+
 ## 1.0.0-beta.28 — 2026-10-23
 
 - **Tags** module, for the Redmine Tags plugin (RedmineUP) on both sides: the current

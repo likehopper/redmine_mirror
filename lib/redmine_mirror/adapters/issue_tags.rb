@@ -27,6 +27,8 @@ module RedmineMirror
       def project_module; :issue_tracking; end
       def phase; :history; end
       def dependencies; ["issue_tracking"]; end
+      def record_label; :label_mirror_statistic_issues; end
+      def catalog_statistics(record); { "tags" => record.fetch("tags").size }; end
 
       # The destination needs the Redmine Tags plugin too.
       def available?
