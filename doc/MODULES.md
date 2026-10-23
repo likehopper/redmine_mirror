@@ -311,6 +311,24 @@ destination project first. Writes go through local models and send no notificati
   are added on later runs, and a comment edited on the source is updated; in mirror mode,
   comments and files removed on the source are removed locally.
 
+## Tags
+
+Copies the current tags of imported issues, for the **Redmine Tags** plugin (RedmineUP;
+tested with the Light version 2.0.8), which both Redmines need. Tags are written without saving the issue: no
+journal, no notification.
+
+- Redmine's REST API does not provide tags: the source must run Redmine Mirror
+  1.0.0-beta.28 or later and share Tags through **Mirror source**
+  ([configuration](CONFIGURATION.md#mirror-source-on-the-source-redmine)). The source
+  API key needs *View issues*; only the issues it can see are listed.
+- Tag changes need nothing more: they are journal details, imported with the history of
+  the issues.
+- Additive, like watchers: local tags are kept, and a tag added from the source then
+  removed locally while the source still has it is a conflict. Mirror mode sets exactly
+  the source tags, so tags removed on the source are removed locally.
+- Names compare without case, as Redmine Tags finds them. Tags on wiki pages or contacts
+  are not copied.
+
 ## Files
 
 Imports the files of the source project's Files module: name, description, author,

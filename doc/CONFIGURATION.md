@@ -64,6 +64,7 @@ projects with a read-only role:
 | View members (public by default) | Members |
 | View documents | Documents ([Mirror source](#mirror-source-on-the-source-redmine) on the source) |
 | View files | Files |
+| View issues | Tags ([Mirror source](#mirror-source-on-the-source-redmine) on the source, Redmine Tags plugin on both sides) |
 | View news | News ([Mirror source](#mirror-source-on-the-source-redmine) on the source) |
 | Manage issue categories (optional) | Category default assignees; without it, categories come from the issues that use them |
 
@@ -325,11 +326,11 @@ AI* with a confidence. Check them, then save.
 
 ## Mirror source (on the source Redmine)
 
-Only for the **Documents** and **News** modules: Redmine's REST API provides no
-documents, and no news comments nor files. On the source Redmine:
+Only for the **Documents**, **News** and **Tags** modules: Redmine's REST API provides
+no documents, no news comments nor files, and no tags. On the source Redmine:
 
-1. Install Redmine Mirror (1.0.0-beta.19 or later for Documents, 1.0.0-beta.26 for News)
-   and run its migration (see the README).
+1. Install Redmine Mirror (1.0.0-beta.19 or later for Documents, 1.0.0-beta.26 for News,
+   1.0.0-beta.28 for Tags) and run its migration (see the README).
    Nothing else of Mirror needs configuring there. On Redmine 4.0 to 4.2, Mirror runs as
    a source only: Mirror source and its administration page, no Mirror project module.
 2. `Administration → Plugins → Redmine Mirror → Configure`: check **Allow Mirror
@@ -337,12 +338,12 @@ documents, and no news comments nor files. On the source Redmine:
 
    ![Mirror source allowed](screenshots/configuration/27-source-allowed.png)
 3. In the project: `Settings → Modules`, enable **Mirror source** (the **Mirror** module
-   is not needed), then in `Settings → Mirror source` check **Documents** and/or **News**
-   and save.
+   is not needed), then in `Settings → Mirror source` check **Documents**, **News** and/or
+   **Tags** and save.
 
    ![Shared data](screenshots/configuration/28-source-sharing.png)
-4. Give the source API account *View documents* (Documents) or *View news* (News) in
-   that project. Anonymous access is refused, even on public projects.
+4. Give the source API account *View documents* (Documents), *View news* (News) or
+   *View issues* (Tags) in that project. Anonymous access is refused, even on public projects.
 
 The **Access log** below the sharing lists one session per destination run or reference
 refresh: account, address, purpose, objects listed, files sent and refusals. **Details**

@@ -18,7 +18,7 @@ Document Mirror setup, operation, extension points or validation evidence.
 
 # <img src="assets/images/synchronisation-des-donnees-64.png" width="64" height="64" alt=""> Redmine Mirror
 
-![Version](https://img.shields.io/badge/Version-1.0.0--beta.27-orange)
+![Version](https://img.shields.io/badge/Version-1.0.0--beta.28-orange)
 ![Destination tested](https://img.shields.io/badge/Destination_tested-5.1_%7C_6.1-blue)
 ![Source tested](https://img.shields.io/badge/Source_tested-4.0_%7C_4.2_%7C_5.0_%7C_6.1-blue)
 ![Database tested](https://img.shields.io/badge/Database_tested-SQLite_3-blue)
@@ -32,7 +32,7 @@ existing destination project, through the destination REST API and native models
 
 Use it to migrate projects to a new instance, or to keep a regularly updated secondary
 copy. Each project has its own connection, mappings, schedule, history and conflicts.
-Version **1.0.0-beta.27** is a pre-release for testing before 1.0.0, not a stable release.
+Version **1.0.0-beta.28** is a pre-release for testing before 1.0.0, not a stable release.
 
 ## Features
 
@@ -53,6 +53,7 @@ Version **1.0.0-beta.27** is a pre-release for testing before 1.0.0, not a stabl
 | Documents | Title, description, category, date and files; the source shares them (Mirror source) |
 | Files | Files of the Files module with their version, author, date and download count |
 | News | Title, summary, description, author, date, comments and files; the source shares them (Mirror source) |
+| Tags | Current issue tags (Redmine Tags plugin on both sides); the source shares them (Mirror source) |
 
 - Preview before writing, manual runs and automatic schedules.
 - Logs with remote and local IDs, links, filters and progress.
@@ -101,9 +102,9 @@ these rules in full: data sent, setup, credit, security and limits.
 - Destination: Redmine with this plugin, the REST API enabled, a `database_cipher_key`,
   and a worker sharing its database, attachment storage and cipher key.
 - Source: any Redmine with the REST API enabled; Mirror is not needed there, except for
-  the Documents and News modules, which Redmine's API does not cover (documents, news
-  comments and files): install Mirror 1.0.0-beta.19 or later (1.0.0-beta.26 for News)
-  on the source too (on Redmine 4.0 to 4.2, Mirror then runs as a source only),
+  the Documents, News and Tags modules, which Redmine's API does not cover (documents,
+  news comments and files, tags): install Mirror 1.0.0-beta.19 or later (1.0.0-beta.26
+  for News, 1.0.0-beta.28 for Tags) on the source too (on Redmine 4.0 to 4.2, Mirror then runs as a source only),
   then share them through its **Mirror source** module
   (see [Mirror source](doc/CONFIGURATION.md#mirror-source-on-the-source-redmine)).
   Use the key of a dedicated, read-only account member of the source projects
