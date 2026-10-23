@@ -405,3 +405,12 @@ n'est pas publique (Redmine 4.0.3 comme 6.1) : test de refus rétabli. Instance 
 (beta.26 installée en source) → 5 : 4 annonces, commentaires (auteur anonymisé, auteur
 verrouillé mappé), fichiers et images, références réécrites. Runner CI 6.1.4 : 210 tests
 Redmine / 1119 assertions.
+
+1.0.0-beta.28 (23 octobre 2026) : module Tags (plugin Redmine Tags de RedmineUP, Light
+2.0.8 des deux côtés), par Mirror source (type partagé « issue_tags », Voir les demandes,
+demandes visibles seulement, listes vides comprises). Tags écrits sans enregistrer la
+demande. Instance de validation 4.0.3 (candidat beta.28 installé en source) → 5 : 8 demandes avec
+tags (dont la demande privée et des tags existants d'une autre casse, « LOT 1 »,
+« Urgent ») copiées, 0 journal créé et 0 demande modifiée pendant le run. Runner CI 6.1.4
+sans le plugin Tags : 217 tests Redmine / 1154 assertions (adaptateur testé avec des tags
+en mémoire, endpoint « unavailable »).
