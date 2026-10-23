@@ -16,6 +16,15 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.24 — 2026-10-23
+
+- Wiki: the source start page becomes the destination's. A new project's wiki starts on
+  "Wiki", a page that does not exist, so the imported wiki looked empty. A start page
+  that exists locally is kept, unless the source wins (mirror mode).
+- A run that meets a source value missing from the references read earlier (a user, a
+  status, a document category first used since) reads the references again, so the
+  mapping tabs list it instead of reporting a mapping they do not offer.
+
 ## 1.0.0-beta.23 — 2026-10-21
 
 - Mirror installs on Redmine 4.0 to 4.2 as a source only: Mirror source shares Documents

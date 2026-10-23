@@ -376,3 +376,11 @@ quatorze (dont `documents_smoke.rb` et `documents_source_check.rb`). Pages sourc
 rendues sur 4.0.3 (administration Source, configuration du plugin, onglet projet).
 Installation, désinstallation (`VERSION=0`) et réinstallation sur 4.0.3. Runner CI 6.1.4 :
 197 tests Redmine / 1049 assertions.
+
+1.0.0-beta.24 (23 octobre 2026) : Wiki, la page d'accueil source devient celle de la
+destination quand la sienne n'existe pas (« Wiki » d'un projet neuf) ou en mode miroir ;
+un run qui rencontre une valeur source absente des références les relit. Préprod réelle :
+source Redmine 4.0.3 (MySQL) → destination Redmine 5 (PostgreSQL, CKEditor), projet de
+démonstration avec cas particuliers (images intégrées, PDF, wiki hiérarchique avec version
+supprimée et page renommée, auteur verrouillé) : page d'accueil « Accueil » importée.
+Runner CI 6.1.4 : 201 tests Redmine / 1060 assertions.

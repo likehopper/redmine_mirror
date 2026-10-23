@@ -38,12 +38,17 @@ class MirrorWikiTest < ActiveSupport::TestCase
     OLD = { "text" => "First", "version" => 1, "comments" => "Created", "author" => { "id" => 8, "name" => "Other" }, "updated_on" => "2026-01-10T09:00:00Z" }.freeze
 
     # Redmine 4.0 answers a deleted version with the current one, Redmine 5 with 404.
-    def initialize(deleted_as_current: false)
+    # The start page is Mirror_home; without one, the wiki's URL answers 404.
+    def initialize(deleted_as_current: false, start_page: true)
       @deleted_as_current = deleted_as_current
+      @start_page = start_page
     end
 
     def get(path, _params = {})
       case path
+      when "projects/9/wiki.json"
+        raise RedmineMirror::Error, "Redmine API returned HTTP 404 for GET #{path}" unless @start_page
+        { "wiki_page" => PAGES.fetch("Mirror_home") }
       when "projects/9/wiki/index.json" then { "wiki_pages" => PAGES.values.reverse.map { |page| page.slice("title", "parent", "version") } }
       when "projects/9/wiki/Mirror_home/1.json" then { "wiki_page" => PAGES.fetch("Mirror_home").merge(OLD) }
       when "projects/9/wiki/Mirror_home/2.json"
@@ -118,6 +123,36 @@ class MirrorWikiTest < ActiveSupport::TestCase
     assert_equal "h1. Home\n\nFinal", home.content.text
     assert_equal home.id, child.reload.parent_id
     assert_equal %w[unchanged unchanged], sync.map { |event| event[:action] }
+  end
+
+  # A new project's wiki starts on "Wiki", a page that does not exist: the source start
+  # page replaces it. A start page that exists locally is kept, unless the source wins.
+  def test_source_start_page_replaces_a_missing_local_one
+    wiki = @project.wiki
+    wiki.update!(start_page: "Wiki")
+    assert_equal %w[create create], sync(apply: false).map { |event| event[:action] }
+    assert_equal "Wiki", wiki.reload.start_page
+    sync
+    assert_equal "Mirror_home", wiki.reload.start_page
+    assert_equal %w[unchanged unchanged], sync.map { |event| event[:action] }
+  end
+
+  def test_existing_local_start_page_is_kept_unless_the_source_wins
+    wiki = @project.wiki
+    local = wiki.start_page
+    assert wiki.find_page(local)
+    sync
+    assert_equal local, wiki.reload.start_page
+    assert_equal %w[update unchanged], RedmineMirror::Policy.with(source_wins: true) { sync(apply: false) }.map { |event| event[:action] }
+    RedmineMirror::Policy.with(source_wins: true) { sync }
+    assert_equal "Mirror_home", wiki.reload.start_page
+  end
+
+  def test_source_without_start_page_leaves_the_local_one
+    wiki = @project.wiki
+    wiki.update!(start_page: "Wiki")
+    sync(source: Source.new(start_page: false))
+    assert_equal "Wiki", wiki.reload.start_page
   end
 
   def test_missing_version_author_mapping_fails_in_preview
