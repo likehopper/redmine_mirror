@@ -17,7 +17,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 # Preparing a release
 
 This document prepares publication; it does not automatically publish, push or deploy.
-The current source is **1.0.0-beta.26**, a pre-release. The repository root must be
+The current source is **1.0.0-beta.27**, a pre-release. The repository root must be
 this plugin directory, with `init.rb` directly at its root.
 
 ## Before tagging

@@ -66,7 +66,8 @@ Done once by a Redmine 4.2 administrator.
 - **Issues visibility**: *All issues*; **Time logs visibility**: *All time entries*;
 - untick **Issues can be assigned to users with this role**;
 - tick only what Mirror reads: *View issues*, *View private notes*, *View spent time*,
-  *View watchers list*, *View wiki*, *View wiki history*, *View files*, *View documents*.
+  *View watchers list*, *View wiki*, *View wiki history*, *View files*, *View documents*,
+  *View news*.
 
 ![Read-only role](screenshots/migration/03-source-role.png)
 

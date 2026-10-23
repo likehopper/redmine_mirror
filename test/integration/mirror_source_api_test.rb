@@ -98,8 +98,12 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
       document_file = Attachment.create!(container: Document.find(1), file: uploaded_test_file("testfile.txt", "text/plain"), author: User.find(2))
       get "/mirror/source/attachments/#{document_file.id}/download", headers: mirror_headers
       assert_equal "not_shared", response.headers["X-Mirror-Source-Refusal"]
+      # View news is not public: without it, the account is refused.
+      Role.all.each { |role| role.remove_permission!(:view_news) }
+      get "/projects/ecookbook/mirror/source/news.json", headers: mirror_headers
+      assert_equal "permission", response.headers["X-Mirror-Source-Refusal"]
     end
-    assert_equal %w[refused list show download refused], MirrorSourceAccess.where(session_key: SESSION).order(:id).pluck(:action)
+    assert_equal %w[refused list show download refused refused], MirrorSourceAccess.where(session_key: SESSION).order(:id).pluck(:action)
     assert_equal file.id, MirrorSourceAccess.find_by(action: "download").details.dig("attachment", "id")
   end
 

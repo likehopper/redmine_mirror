@@ -397,3 +397,11 @@ assertions ; tests autonomes 39 / 159.
 commentaires et fichiers ; commentaires modifiés mis à jour, suppressions en mode miroir.
 Journal d'accès générique (documents ou annonces). Runner CI 6.1.4 : 210 tests Redmine /
 1118 assertions (dont `news_test.rb` et l'API source des annonces) ; tests autonomes 39 / 159.
+
+1.0.0-beta.27 (23 octobre 2026) : correctif Annonces. Une annonce avec commentaires faisait
+échouer tout le run (correspondance de commentaire sans empreinte destination) ; le magasin
+des tests exige désormais les deux empreintes, comme `DatabaseStore`. *Voir les annonces*
+n'est pas publique (Redmine 4.0.3 comme 6.1) : test de refus rétabli. Préprod réelle 4.0.3
+(beta.26 installée en source) → 5 : 4 annonces, commentaires (auteur anonymisé, auteur
+verrouillé mappé), fichiers et images, références réécrites. Runner CI 6.1.4 : 210 tests
+Redmine / 1119 assertions.
