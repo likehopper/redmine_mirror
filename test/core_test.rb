@@ -361,13 +361,30 @@ class MirrorCoreTest < Minitest::Test
     end
     records = RedmineMirror::Adapters::Categories.new.records(client, 7)
     assert_equal [{ "project" => { "id" => 7 }, "id" => 4, "name" => "Backend" }], records
-    # Categories of other projects used by the issues are added to the project's own.
+    # Categories of other projects used by the issues are added to the project's own,
+    # all in source ID order.
     def client.get(path, _params = {})
       { "issue_categories" => [{ "id" => 9, "name" => "Own", "project" => { "id" => 7 } }] }
     end
-    assert_equal [9, 4], RedmineMirror::Adapters::Categories.new.records(client, 7).map { |category| category.fetch("id") }
+    assert_equal [4, 9], RedmineMirror::Adapters::Categories.new.records(client, 7).map { |category| category.fetch("id") }
     def client.get(path, _params = {}) = raise(RedmineMirror::Error, "Redmine API returned HTTP 500 for GET #{path}")
     assert_raises(RedmineMirror::Error) { RedmineMirror::Adapters::Categories.new.records(client, 7) }
+  end
+
+  # Local IDs grow in the source order: time entries are requested by ID (the default
+  # order is by date, newest first); lists read in one request are sorted by ID.
+  def test_source_lists_are_imported_in_source_id_order
+    assert_equal "id:asc", RedmineMirror::Adapters::TimeEntries.new.filters(7).fetch("sort")
+    assert_equal "id:asc", RedmineMirror::Adapters::Issues.new.filters(7).fetch("sort")
+    client = Object.new
+    def client.get(path, _params = {})
+      rows = [{ "id" => 12, "name" => "B", "project" => { "id" => 7 } }, { "id" => 3, "name" => "A", "project" => { "id" => 7 } }]
+      { path[%r{/(\w+)\.json\z}, 1] => rows }
+    end
+    def client.each_record(_collection, _params) = [].each
+    assert_equal [3, 12], RedmineMirror::Adapters::Versions.new.records(client, 7).map { |row| row.fetch("id") }
+    assert_equal [3, 12], RedmineMirror::Adapters::Categories.new.records(client, 7).map { |row| row.fetch("id") }
+    assert_equal [3, 12], RedmineMirror::Adapters::Files.new.records(client, 7).map { |row| row.fetch("id") }
   end
 
   def test_collect_mode_reports_every_failing_object_and_continues

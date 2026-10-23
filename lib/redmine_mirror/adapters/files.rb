@@ -30,7 +30,9 @@ module RedmineMirror
       def referenced_users(record); [record["author"]].compact; end
 
       def records(client, project_id)
-        client.get("projects/#{Integer(project_id)}/files.json").fetch("files").map { |row| { "project" => { "id" => Integer(project_id) } }.merge(row) }
+        # Listed by version and file name: imported in source ID order instead.
+        client.get("projects/#{Integer(project_id)}/files.json").fetch("files").sort_by { |row| row.fetch("id") }
+          .map { |row| { "project" => { "id" => Integer(project_id) } }.merge(row) }
       rescue Error => error
         raise unless error.message.match?(/HTTP 40[13]/)
         raise Error, "The source project does not list its files: enable the Files module on the source project and give the source API key View files; #{error.message}"
