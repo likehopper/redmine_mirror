@@ -122,7 +122,8 @@ module RedmineMirror
                 comment.assign_attributes(author_id: values.fetch("author_id"), comments: values.fetch("content"))
                 comment.save!
                 comment.update_columns(created_on: Time.iso8601(values.fetch("created_on")), updated_on: Time.iso8601(values.fetch("updated_on")))
-                store.save(COMMENTS, source_id, "destination_id" => comment.id, "source_fingerprint" => digest(values))
+                store.save(COMMENTS, source_id, "destination_id" => comment.id, "source_fingerprint" => digest(values),
+                  "destination_fingerprint" => digest(comment.reload.attributes.slice("author_id", "comments")))
               end
               new_attachments.each do |attachment|
                 file_attributes = attachment_attributes.fetch(attachment.fetch("id"))

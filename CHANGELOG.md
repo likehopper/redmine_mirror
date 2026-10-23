@@ -16,6 +16,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.27 — 2026-10-23
+
+- News: a news item with comments failed the whole run with an internal error (a comment
+  correspondence was saved without its destination fingerprint).
+- *View news* is not a public permission: the source API key needs it (configuration
+  table and migration guide corrected).
+
 ## 1.0.0-beta.26 — 2026-10-23
 
 - **News** module: news are imported with their summary, author, date, comments and

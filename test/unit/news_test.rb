@@ -24,7 +24,11 @@ class MirrorNewsTest < ActiveSupport::TestCase
     attr_reader :rows
     def initialize; @rows = {}; end
     def find(key, id); @rows[[key, id]]; end
-    def save(key, id, values); @rows[[key, id]] = values; end
+    # Like DatabaseStore: every correspondence carries both fingerprints.
+    def save(key, id, values)
+      raise ActiveRecord::RecordInvalid, MirrorMapping.new if %w[destination_id source_fingerprint destination_fingerprint].any? { |field| values[field].blank? }
+      @rows[[key, id]] = values
+    end
     def delete(key, id); @rows.delete([key, id]); end
     def mappings(key); @rows.filter_map { |(row_key, id), values| [id, values.fetch("destination_id")] if row_key == key }; end
   end

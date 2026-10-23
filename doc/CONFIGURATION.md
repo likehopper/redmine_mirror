@@ -64,7 +64,7 @@ projects with a read-only role:
 | View members (public by default) | Members |
 | View documents | Documents ([Mirror source](#mirror-source-on-the-source-redmine) on the source) |
 | View files | Files |
-| View news (public by default) | News ([Mirror source](#mirror-source-on-the-source-redmine) on the source) |
+| View news | News ([Mirror source](#mirror-source-on-the-source-redmine) on the source) |
 | Manage issue categories (optional) | Category default assignees; without it, categories come from the issues that use them |
 
 Projects the account is not a member of are not visible. **Issue custom fields** also
