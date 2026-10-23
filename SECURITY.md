@@ -18,7 +18,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 ## Supported versions
 
-Mirror is currently in beta (1.0.0-beta.27). Security fixes are considered for the
+Mirror is currently in beta (1.0.0-beta.28). Security fixes are considered for the
 latest pre-release and, after 1.0.0, the latest maintained release.
 No response or remediation deadline is promised.
 

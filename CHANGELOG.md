@@ -16,6 +16,15 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.28 — 2026-10-23
+
+- **Tags** module, for the Redmine Tags plugin (RedmineUP) on both sides: the current
+  tags of imported issues are copied without saving the issues (no journal, no
+  notification). Redmine's API has no tags, so the source shares them through **Mirror
+  source** (Redmine Mirror 1.0.0-beta.28 or later on the source, *View issues*). Tag
+  changes already come with the issue history. Additive like watchers; mirror mode sets
+  exactly the source tags.
+
 ## 1.0.0-beta.27 — 2026-10-23
 
 - News: a news item with comments failed the whole run with an internal error (a comment

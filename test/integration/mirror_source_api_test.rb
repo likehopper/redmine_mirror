@@ -107,6 +107,21 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     assert_equal file.id, MirrorSourceAccess.find_by(action: "download").details.dig("attachment", "id")
   end
 
+  # Tags need the Redmine Tags plugin on the source: without it, the shared kind answers
+  # 404 and names the missing piece.
+  def test_issue_tags_need_the_tags_plugin_on_the_source
+    skip "Redmine Tags is installed" if RedmineMirror::Source.tags_available?
+    enabled do
+      @project.mirror_source_setting.update!(shared_modules: %w[issue_tags])
+      get "/projects/ecookbook/mirror/source/issue_tags.json", headers: mirror_headers
+      assert_response :not_found
+      assert_equal "unavailable", response.headers["X-Mirror-Source-Refusal"]
+      @project.mirror_source_setting.update!(shared_modules: [])
+      get "/projects/ecookbook/mirror/source/issue_tags.json", headers: mirror_headers
+      assert_equal "not_shared", response.headers["X-Mirror-Source-Refusal"]
+    end
+  end
+
   # Each lock refuses with its reason, logged; the destination reads the header.
   def test_each_lock_refuses_and_names_itself
     get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers

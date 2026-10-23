@@ -223,14 +223,16 @@ class MirrorWrappingTabsSystemTest < ApplicationSystemTestCase
     project = Project.find(1)
     project.enable_module!(:mirror)
     setting = MirrorProjectSetting.new(project: project, source_url: "https://source.example", source_project_id: 12)
-    setting.selected_modules = RedmineMirror::REGISTRY.keys
+    # Every module this Redmine can run (Tags needs the Redmine Tags plugin).
+    keys = RedmineMirror::REGISTRY.keys.select { |key| RedmineMirror::REGISTRY[key].available? }
+    setting.selected_modules = keys
     setting.api_key = "hidden-tabs-key"
     setting.save!
     log_user("admin", "admin")
     visit "/projects/ecookbook/settings/mirror?mirror_tab=users"
     [800, 1280, 1920].each do |width|
       page.driver.browser.manage.window.resize_to(width, 900)
-      assert_selector "#mirror-settings-subtabs a", count: RedmineMirror::REGISTRY.keys.size + 2
+      assert_selector "#mirror-settings-subtabs a", count: keys.size + 2
       assert page.evaluate_script(<<~JS), "Tabs overflow at width #{width}"
         (() => {
           const group = document.querySelector('#mirror-settings-subtabs').getBoundingClientRect();

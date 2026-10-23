@@ -21,10 +21,11 @@ module RedmineMirror
   module Source
     module_function
 
-    # Data a project can share. News have a REST API, but not their comments nor files.
-    KINDS = %w[documents news].freeze
+    # Data a project can share. News have a REST API, but not their comments nor files;
+    # issue tags (Redmine Tags plugin by RedmineUP) have none.
+    KINDS = %w[documents news issue_tags].freeze
     # Native permission the API account needs for each kind.
-    PERMISSIONS = { "documents" => :view_documents, "news" => :view_news }.freeze
+    PERMISSIONS = { "documents" => :view_documents, "news" => :view_news, "issue_tags" => :view_issues }.freeze
     # The kind a shared file belongs to, by its container.
     CONTAINERS = { "Document" => "documents", "News" => "news" }.freeze
     # Sent by Mirror clients; the source keeps it only when it has this exact form.
@@ -44,6 +45,11 @@ module RedmineMirror
     def retention_days
       days = settings["source_log_days"].to_i
       days.positive? ? days : 180
+    end
+
+    # Issue tags need the Redmine Tags plugin on this Redmine.
+    def tags_available?
+      Issue.method_defined?(:tag_list)
     end
 
     def shared?(project, kind)

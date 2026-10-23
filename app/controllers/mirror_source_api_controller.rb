@@ -17,8 +17,8 @@
 # administrator, the project and its sharing allow it, and logged request by request.
 
 class MirrorSourceApiController < ApplicationController
-  accept_api_auth :documents, :document, :news, :news_item, :download
-  before_action :find_project_by_project_id, only: %i[documents news]
+  accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :download
+  before_action :find_project_by_project_id, only: %i[documents news issue_tags]
   before_action :find_document, only: :document
   before_action :find_news, only: :news_item
   before_action :find_attachment, only: :download
@@ -52,6 +52,22 @@ class MirrorSourceApiController < ApplicationController
   def news_item
     RedmineMirror::Source.log(@project, request, User.current, "show", object_count: 1,
       details: { "news" => [{ "id" => @news_item.id, "title" => @news_item.title }] })
+    respond_to { |format| format.api }
+  end
+
+  # The current tags of every issue of the project the account can see, empty lists
+  # included, so that a destination also learns which tags were removed.
+  def issue_tags
+    unless RedmineMirror::Source.tags_available?
+      response.headers[RedmineMirror::Source::REFUSAL_HEADER] = "unavailable"
+      return render_404
+    end
+    scope = Issue.visible.where(project_id: @project.id)
+    ids = scope.order(:id).pluck(:id)
+    names = scope.joins(:tags).pluck(:id, "#{RedmineCrm::Tag.table_name}.name").group_by(&:first)
+    @issue_tags = ids.map { |id| [id, names.fetch(id, []).map(&:last).sort] }
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @issue_tags.size,
+      details: { "issue_tags" => { "issues" => @issue_tags.count { |_, tags| tags.any? }, "tags" => @issue_tags.flat_map(&:last).uniq.size } })
     respond_to { |format| format.api }
   end
 
@@ -97,6 +113,7 @@ class MirrorSourceApiController < ApplicationController
   def kind
     case action_name
     when "news", "news_item" then "news"
+    when "issue_tags" then "issue_tags"
     when "download" then RedmineMirror::Source::CONTAINERS.fetch(@attachment.container_type)
     else "documents"
     end

@@ -1,0 +1,24 @@
+# File: redmine_mirror/app/views/mirror_source_api/issue_tags.api.rsb
+#
+# Redmine Mirror - modular project import and asynchronous replication.
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 2 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+#
+# The tag names of every visible issue of the project, sorted.
+
+api.array :issue_tags, api_meta(total_count: @issue_tags.size) do
+  @issue_tags.each do |id, tags|
+    api.issue do
+      api.id id
+      api.array(:tags) { tags.each { |name| api.tag name } }
+    end
+  end
+end

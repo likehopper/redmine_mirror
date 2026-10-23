@@ -41,4 +41,5 @@ get "projects/:project_id/mirror/source/documents", to: "mirror_source_api#docum
 get "mirror/source/documents/:id", to: "mirror_source_api#document", as: "mirror_source_document"
 get "projects/:project_id/mirror/source/news", to: "mirror_source_api#news", as: "mirror_source_news"
 get "mirror/source/news/:id", to: "mirror_source_api#news_item", as: "mirror_source_news_item"
+get "projects/:project_id/mirror/source/issue_tags", to: "mirror_source_api#issue_tags", as: "mirror_source_issue_tags"
 get "mirror/source/attachments/:id/download", to: "mirror_source_api#download", as: "mirror_source_download"
