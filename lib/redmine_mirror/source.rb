@@ -21,10 +21,12 @@ module RedmineMirror
   module Source
     module_function
 
-    # Data a project can share; Files will follow.
-    KINDS = %w[documents].freeze
+    # Data a project can share. News have a REST API, but not their comments nor files.
+    KINDS = %w[documents news].freeze
     # Native permission the API account needs for each kind.
-    PERMISSIONS = { "documents" => :view_documents }.freeze
+    PERMISSIONS = { "documents" => :view_documents, "news" => :view_news }.freeze
+    # The kind a shared file belongs to, by its container.
+    CONTAINERS = { "Document" => "documents", "News" => "news" }.freeze
     # Sent by Mirror clients; the source keeps it only when it has this exact form.
     SESSION = /\A[0-9a-f]{32}\z/
     PURPOSES = %w[references preview synchronization].freeze

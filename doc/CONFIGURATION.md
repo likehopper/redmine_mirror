@@ -64,6 +64,7 @@ projects with a read-only role:
 | View members (public by default) | Members |
 | View documents | Documents ([Mirror source](#mirror-source-on-the-source-redmine) on the source) |
 | View files | Files |
+| View news (public by default) | News ([Mirror source](#mirror-source-on-the-source-redmine) on the source) |
 | Manage issue categories (optional) | Category default assignees; without it, categories come from the issues that use them |
 
 Projects the account is not a member of are not visible. **Issue custom fields** also
@@ -324,10 +325,11 @@ AI* with a confidence. Check them, then save.
 
 ## Mirror source (on the source Redmine)
 
-Only for the **Documents** module, which Redmine's REST API does not provide. On the
-source Redmine:
+Only for the **Documents** and **News** modules: Redmine's REST API provides no
+documents, and no news comments nor files. On the source Redmine:
 
-1. Install Redmine Mirror 1.0.0-beta.19 or later and run its migration (see the README).
+1. Install Redmine Mirror (1.0.0-beta.19 or later for Documents, 1.0.0-beta.26 for News)
+   and run its migration (see the README).
    Nothing else of Mirror needs configuring there. On Redmine 4.0 to 4.2, Mirror runs as
    a source only: Mirror source and its administration page, no Mirror project module.
 2. `Administration → Plugins → Redmine Mirror → Configure`: check **Allow Mirror
@@ -335,14 +337,15 @@ source Redmine:
 
    ![Mirror source allowed](screenshots/configuration/27-source-allowed.png)
 3. In the project: `Settings → Modules`, enable **Mirror source** (the **Mirror** module
-   is not needed), then in `Settings → Mirror source` check **Documents** and save.
+   is not needed), then in `Settings → Mirror source` check **Documents** and/or **News**
+   and save.
 
    ![Shared data](screenshots/configuration/28-source-sharing.png)
-4. Give the source API account *View documents* in that project. Anonymous access is
-   refused, even on public projects.
+4. Give the source API account *View documents* (Documents) or *View news* (News) in
+   that project. Anonymous access is refused, even on public projects.
 
 The **Access log** below the sharing lists one session per destination run or reference
-refresh: account, address, purpose, documents listed, files sent and refusals. **Details**
+refresh: account, address, purpose, objects listed, files sent and refusals. **Details**
 lists each request and what it sent. Refused requests name the lock that refused them.
 
 ![Access log](screenshots/configuration/29-source-log.png)
@@ -387,8 +390,8 @@ and **Cancel this execution** withdraws a queued run.
 | A local user is missing from the choices | Add them to the project, or select **Members** and map them as a user with *Manage members*. |
 | Run stays **Queued**, "already queued or running" | The worker is not running: schedule `redmine_mirror:tick`, or cancel the run in **Overview**. |
 | "HTTP 403 for GET …" | The source account lacks the permission for that request (step 2). |
-| "The source Redmine does not list documents" | Install Redmine Mirror 1.0.0-beta.19 or later on the source and restart it. |
-| "Mirror source is disabled…", "Enable the Mirror source module…", "Share Documents…" | Open that lock on the source: [Mirror source](#mirror-source-on-the-source-redmine). |
+| "The source Redmine does not list documents" (or news) | Install Redmine Mirror 1.0.0-beta.19 or later (1.0.0-beta.26 for news) on the source and restart it. |
+| "Mirror source is disabled…", "Enable the Mirror source module…", "Share Documents…", "Share News…" | Open that lock on the source: [Mirror source](#mirror-source-on-the-source-redmine). |
 | "The source project does not list its files" | Enable the Files module on the source project and give the source account *View files*. |
 | "MIRROR_DESTINATION_URL is not configured" | Set both variables in the worker's environment. |
 | Preview ends Partial or Failed on a mapping | Complete the module tabs with a red counter (steps 7 and 8); with *Skip it*, the rest is synchronized meanwhile. |

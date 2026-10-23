@@ -19,7 +19,7 @@ require_relative "../test_helper"
 
 class MirrorSourceApiTest < Redmine::ApiTest::Base
   fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules,
-    :documents, :enumerations, :attachments
+    :documents, :enumerations, :attachments, :news, :comments
 
   SESSION = "0123456789abcdef0123456789abcdef"
 
@@ -69,6 +69,38 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     assert_equal 1, sessions.size
     session = sessions.first
     assert_equal [3, 3, 1, 0], [session.requests, session.documents, session.files, session.refused]
+  end
+
+  # News share their own lock: comments and files come with them, logged as documents are.
+  def test_lists_shows_and_downloads_shared_news_with_comments
+    file = nil
+    enabled do
+      get "/projects/ecookbook/mirror/source/news.json", headers: mirror_headers
+      assert_response :forbidden
+      assert_equal "not_shared", response.headers["X-Mirror-Source-Refusal"]
+      @project.mirror_source_setting.update!(shared_modules: %w[documents news])
+      get "/projects/ecookbook/mirror/source/news.json", headers: mirror_headers
+      assert_response :success
+      listed = JSON.parse(response.body).fetch("news")
+      assert_equal @project.news.order(:id).pluck(:id), listed.map { |item| item.fetch("id") }
+      first = listed.first
+      news = News.find(first.fetch("id"))
+      assert_equal [news.title, news.summary, news.description, news.author_id], first.values_at("title", "summary", "description").push(first.dig("author", "id"))
+      assert_equal news.comments.map(&:comments), first.fetch("comments").map { |comment| comment.fetch("content") }
+      get "/mirror/source/news/#{news.id}.json", headers: mirror_headers
+      assert_equal news.title, JSON.parse(response.body).dig("news", "title")
+      file = Attachment.create!(container: news, file: uploaded_test_file("testfile.txt", "text/plain"), author: User.find(2))
+      get "/mirror/source/attachments/#{file.id}/download", headers: mirror_headers
+      assert_response :success
+      assert_equal File.binread(file.diskfile), response.body
+      # Shared news do not open document files, and the reverse.
+      @project.mirror_source_setting.update!(shared_modules: %w[news])
+      document_file = Attachment.create!(container: Document.find(1), file: uploaded_test_file("testfile.txt", "text/plain"), author: User.find(2))
+      get "/mirror/source/attachments/#{document_file.id}/download", headers: mirror_headers
+      assert_equal "not_shared", response.headers["X-Mirror-Source-Refusal"]
+    end
+    assert_equal %w[refused list show download refused], MirrorSourceAccess.where(session_key: SESSION).order(:id).pluck(:action)
+    assert_equal file.id, MirrorSourceAccess.find_by(action: "download").details.dig("attachment", "id")
   end
 
   # Each lock refuses with its reason, logged; the destination reads the header.

@@ -391,3 +391,9 @@ décroissante, qui l'importait à l'envers ; fichiers, catégories et versions t
 identifiant. Instance de validation 4.0.3 → 5 : 12 temps passés supprimés puis réimportés, numéros
 locaux croissants dans l'ordre source. Runner CI 6.1.4 : 201 tests Redmine / 1060
 assertions ; tests autonomes 39 / 159.
+
+1.0.0-beta.26 (23 octobre 2026) : module Annonces, par Mirror source (nouveau type partagé
+« news », permission Voir les annonces) : titre, résumé, description, auteur, date,
+commentaires et fichiers ; commentaires modifiés mis à jour, suppressions en mode miroir.
+Journal d'accès générique (documents ou annonces). Runner CI 6.1.4 : 210 tests Redmine /
+1118 assertions (dont `news_test.rb` et l'API source des annonces) ; tests autonomes 39 / 159.
