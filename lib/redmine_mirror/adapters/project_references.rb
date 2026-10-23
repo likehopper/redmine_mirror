@@ -21,8 +21,10 @@ module RedmineMirror
     class ProjectReferences < Base
       def dependencies; ["users"]; end
       def phase; :references; end
+      # Listed by name or date: imported in source ID order instead.
       def records(client, project_id)
-        client.get("projects/#{Integer(project_id)}/#{collection}.json").fetch(collection).map { |row| { "project" => { "id" => project_id } }.merge(row) }
+        client.get("projects/#{Integer(project_id)}/#{collection}.json").fetch(collection).sort_by { |row| row.fetch("id") }
+          .map { |row| { "project" => { "id" => project_id } }.merge(row) }
       end
       # Match only through persisted IDs, never by name. Native uniqueness and
       # sharing validations determine whether a new category or version is acceptable.
@@ -93,7 +95,8 @@ module RedmineMirror
         known = listed.map { |category| category.fetch("id") }
         used = Issues.new.records(client, project_id).filter_map { |issue| issue["category"] }
           .uniq { |category| category.fetch("id") }.reject { |category| known.include?(category.fetch("id")) }
-        listed + used.map { |category| { "project" => { "id" => project_id }, "id" => category.fetch("id"), "name" => category.fetch("name") } }
+        (listed + used.map { |category| { "project" => { "id" => project_id }, "id" => category.fetch("id"), "name" => category.fetch("name") } })
+          .sort_by { |category| category.fetch("id") }
       end
       def attributes(record, mappings)
         { "name" => record.fetch("name"), "assigned_to_id" => record["assigned_to"] ? Users.new.resolve(mappings, record["assigned_to"].fetch("id")) : nil }

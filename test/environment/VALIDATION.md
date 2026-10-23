@@ -384,3 +384,10 @@ source Redmine 4.0.3 (MySQL) → destination Redmine 5 (PostgreSQL, CKEditor), p
 démonstration avec cas particuliers (images intégrées, PDF, wiki hiérarchique avec version
 supprimée et page renommée, auteur verrouillé) : page d'accueil « Accueil » importée.
 Runner CI 6.1.4 : 201 tests Redmine / 1060 assertions.
+
+1.0.0-beta.25 (23 octobre 2026) : les identifiants locaux suivent l'ordre source. Le temps
+passé est lu par identifiant (`sort=id:asc`, accepté par Redmine 4.0.3) au lieu de la date
+décroissante, qui l'importait à l'envers ; fichiers, catégories et versions triés par
+identifiant. Instance de validation 4.0.3 → 5 : 12 temps passés supprimés puis réimportés, numéros
+locaux croissants dans l'ordre source. Runner CI 6.1.4 : 201 tests Redmine / 1060
+assertions ; tests autonomes 39 / 159.

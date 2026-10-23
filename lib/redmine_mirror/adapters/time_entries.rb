@@ -43,6 +43,12 @@ module RedmineMirror
       def ignored_reference(record, mappings); "activity" if ignored_mapping?(mappings, "activity", record.dig("activity", "id")); end
       def fields; %w[hours comments spent_on activity_id user_id issue_id]; end
 
+      # Source order: local IDs grow as on the source. The default order (date, newest
+      # first) reversed them, and its ties made offset pages skip or repeat entries.
+      def filters(project_id)
+        super.merge("sort" => "id:asc")
+      end
+
       def payload(record, project_id, mappings, lookup, options: {})
         result = record.slice("hours", "comments", "spent_on")
         result["activity_id"] = map(mappings, "activity", record.fetch("activity").fetch("id"))

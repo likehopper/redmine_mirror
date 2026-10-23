@@ -16,6 +16,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.25 — 2026-10-23
+
+- Local IDs grow in the source order: time entries are read by ID instead of by date,
+  newest first, which imported them in reverse order (and whose ties could make a page
+  skip or repeat entries on large projects). Files, categories and versions are imported
+  in source ID order too.
+
 ## 1.0.0-beta.24 — 2026-10-23
 
 - Wiki: the source start page becomes the destination's. A new project's wiki starts on

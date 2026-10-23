@@ -145,7 +145,9 @@ references to map.
 ### 11. Run a preview
 
 On the project's **Mirror** page, **Run preview**: Mirror checks every object without
-writing anything. Fix what the log reports.
+writing anything. Fix what the log reports until the preview has no error: objects are
+created in the source order, so issue and time entry numbers grow as on the source, but
+an object skipped by one run and imported by a later one gets a higher number.
 
 ![Preview](screenshots/migration/13-preview.png)
 
