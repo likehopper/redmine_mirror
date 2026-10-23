@@ -28,6 +28,7 @@ module RedmineMirror
       def phase; :history; end
       def dependencies; %w[users project_versions]; end
       def referenced_users(record); [record["author"]].compact; end
+      def catalog_statistics(record); { "bytes" => record["filesize"].to_i }; end
 
       def records(client, project_id)
         # Listed by version and file name: imported in source ID order instead.

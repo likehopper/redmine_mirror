@@ -247,6 +247,12 @@ Once a synchronization has succeeded, **Overview** no longer shows Getting start
 
 ![Object mappings](screenshots/configuration/18-object-mappings.png)
 
+Each module tab starts with an overview: what is left to map, in the tab or in the
+modules it relies on, the source objects against those linked in the project, and the
+last synchronization. Source figures are read with the references.
+
+![Module overview](screenshots/configuration/37-module-overview.png)
+
 Imported issues keep their author, dates, notes and attachments. Members who can view
 Mirror see a **Mirror source issue** link.
 

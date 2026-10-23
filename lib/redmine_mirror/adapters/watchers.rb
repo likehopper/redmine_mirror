@@ -20,6 +20,7 @@ module RedmineMirror
     class Watchers < IssueState
       def key; "issue_watchers"; end
       def referenced_users(record); record.fetch("watchers", []); end
+      def catalog_statistics(record); { "watchers" => record.fetch("watchers", []).size }; end
       def empty_state; []; end
       def accept_existing_state?; true; end
       def local_state(issue); issue.watcher_users.pluck(:id).sort; end

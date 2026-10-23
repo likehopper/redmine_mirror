@@ -29,6 +29,7 @@ module RedmineMirror
       def phase; :history; end
       def dependencies; ["users"]; end
       def text_samples(record); [record["text"]]; end
+      def record_label; :label_mirror_statistic_pages; end
 
       def referenced_users(record)
         ([record["author"]] + record.fetch("attachments", []).map { |attachment| attachment["author"] }).compact

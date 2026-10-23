@@ -493,6 +493,19 @@ class MirrorCoreTest < Minitest::Test
     assert_equal "Unused status", catalog.dig("status", "80")
     assert_equal "Remote user", catalog.dig("user", "8")
     assert catalog.dig("tracker", "1")
+    assert_equal({ "records" => 1 }, catalog.dig("module_statistics", "issue_tracking"))
+    assert Time.iso8601(catalog.fetch("read_at"))
+  end
+
+  def test_module_catalog_adds_up_adapter_statistics
+    client = Object.new
+    issues = [@issue.merge("parent" => { "id" => 9 }), @issue.merge("id" => 2), @issue.merge("id" => 3, "project" => { "id" => 4 })]
+    client.define_singleton_method(:each_record) { |_collection, _params| issues.each }
+    client.define_singleton_method(:get) { |path, _params = {}| path == "projects/1.json" ? { "project" => { "id" => 1 } } : raise("Unexpected path #{path}") }
+    catalog = RedmineMirror::SourceCatalog.new(client: client, project_id: 1,
+      adapters: [RedmineMirror::Adapters::Hierarchy.new]).fetch
+    # The issue of another project is not counted.
+    assert_equal({ "records" => 2, "with_parent" => 1 }, catalog.dig("module_statistics", "issue_hierarchy"))
   end
 
   def test_invalid_url_is_reported_as_a_mirror_error

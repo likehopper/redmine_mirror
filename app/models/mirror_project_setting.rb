@@ -110,6 +110,15 @@ class MirrorProjectSetting < ActiveRecord::Base
     adapters.flat_map(&:mapping_tables).uniq(&:key)
   end
 
+  # The project's object correspondences; the oldest ones have only the connection key.
+  def object_mappings
+    destination = ENV["MIRROR_DESTINATION_URL"]
+    scope = MirrorMapping.where(project_id: project_id)
+    return scope if destination.blank?
+    key = Digest::SHA256.hexdigest(JSON.generate([source_url.sub(%r{/+\z}, ""), source_project_id, destination.sub(%r{/+\z}, ""), project_id]))
+    scope.or(MirrorMapping.where(connection_key: key, project_id: nil))
+  end
+
   # Build an execution snapshot from project-owned reference mappings. Literal
   # anonymous/ignore modes remain distinct from a missing mapping.
   def synchronization_config(destination_url:)

@@ -174,9 +174,38 @@ module MirrorHelper
     Redmine::WikiFormatting.formats_for_select.find { |_, name| name.to_s == format.to_s }&.first || format
   end
 
+  # Wiki, document and news files and news comments have their own correspondences, inside their module.
+  MODULE_PARTS = { "wiki" => %w[wiki_attachments], "documents" => %w[document_attachments], "news" => %w[news_comments news_attachments] }.freeze
+
   def mirror_module_label(key)
-    # Wiki, document and news files and news comments have their own correspondences, inside their module.
-    RedmineMirror::REGISTRY.keys.include?(key) || %w[wiki_attachments document_attachments news_attachments news_comments].include?(key) ? l("label_mirror_module_#{key}".to_sym) : key
+    RedmineMirror::REGISTRY.keys.include?(key) || MODULE_PARTS.values.flatten.include?(key) ? l("label_mirror_module_#{key}".to_sym) : key
+  end
+
+  RUN_ACTIONS = %w[create update delete unchanged ignored note error].freeze
+
+  # Top of a module tab: what the source holds against the objects linked here, the
+  # last run that wrote the module, its open conflicts, and the correspondences of the
+  # modules it relies on. Source figures come from the last reference refresh.
+  def mirror_module_overview(project, setting, adapter)
+    catalog = setting.source_catalog
+    linked = setting.object_mappings.where(module_key: [adapter.key] + MODULE_PARTS.fetch(adapter.key, [])).group(:module_key).count
+    run = project.mirror_sync_runs.where(apply: true, status: %w[succeeded partial failed]).for_module(adapter.key).order(id: :desc).first
+    unmapped = mirror_unmapped_counts(project, setting)
+    dependencies = setting.adapters.select { |entry| adapter.dependencies.include?(entry.key) && entry.mapping_tables.any? }
+    { source: catalog.dig("module_statistics", adapter.key),
+      read_at: catalog["read_at"] && Time.iso8601(catalog["read_at"]),
+      linked: linked.fetch(adapter.key, 0),
+      parts: MODULE_PARTS.fetch(adapter.key, []).to_h { |key| [key, linked.fetch(key, 0)] },
+      run: run,
+      actions: run ? run.log_events.select { |event| event["module"] == adapter.key }.map { |event| event["action"] }.tally : {},
+      conflicts: project.mirror_conflicts.where(module_key: adapter.key, status: "open").count,
+      unmapped: unmapped[adapter.key].to_i,
+      dependencies: dependencies.map { |entry| [entry, unmapped[entry.key].to_i] } }
+  end
+
+  # A source statistic: a byte count is shown as a size.
+  def mirror_statistic_value(name, value)
+    name == "bytes" ? number_to_human_size(value) : value
   end
 
   MAPPING_TABS = { "status" => "issue_tracking", "tracker" => "issue_tracking", "priority" => "issue_tracking",

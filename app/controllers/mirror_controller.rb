@@ -68,20 +68,14 @@ class MirrorController < ApplicationController
         @runs = @runs.none
       end
     end
-    if RedmineMirror::REGISTRY.keys.include?(params[:module_key])
-      key = MirrorSyncRun.sanitize_sql_like(JSON.generate(params[:module_key]), "!")
-      @runs = @runs.where("module_totals LIKE :manifest ESCAPE '!' OR events LIKE :event ESCAPE '!'", manifest: "%#{key}:%", event: "%\"module\":#{key}%")
-    end
+    @runs = @runs.for_module(params[:module_key]) if RedmineMirror::REGISTRY.keys.include?(params[:module_key])
     @run_count = @runs.count
     @run_pages = Paginator.new(@run_count, 25, params[:page])
     @runs = @runs.limit(25).offset(@run_pages.offset)
   end
 
   def prepare_objects
-    destination = ENV["MIRROR_DESTINATION_URL"]
-    key = destination.present? ? Digest::SHA256.hexdigest(JSON.generate([@setting.source_url.sub(%r{/+\z}, ""), @setting.source_project_id, destination.sub(%r{/+\z}, ""), @project.id])) : nil
-    @objects = MirrorMapping.where(project_id: @project.id)
-    @objects = @objects.or(MirrorMapping.where(connection_key: key, project_id: nil)) if key
+    @objects = @setting.object_mappings
     @objects = @objects.where(module_key: params[:module_key]) if params[:module_key].present?
     @objects = @objects.where(source_id: params[:source_id]) if params[:source_id].present?
     @objects = @objects.where(destination_id: params[:destination_id]) if params[:destination_id].present?

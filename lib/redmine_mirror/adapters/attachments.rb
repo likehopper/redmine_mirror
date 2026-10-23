@@ -22,6 +22,7 @@ module RedmineMirror
     class Attachments < IssueChildren
       def key; "issue_attachments"; end
       def association; "attachments"; end
+      def catalog_statistics(record); { "bytes" => record["filesize"].to_i }; end
 
       def imported_attributes(record, mappings)
         { "author_id" => author_id(record, mappings), "created_on" => Time.iso8601(record.fetch("created_on")).utc.iso8601,

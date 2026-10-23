@@ -414,3 +414,9 @@ tags (dont la demande privée et des tags existants d'une autre casse, « LOT 1 
 « Urgent ») copiées, 0 journal créé et 0 demande modifiée pendant le run. Runner CI 6.1.4
 sans le plugin Tags : 217 tests Redmine / 1154 assertions (adaptateur testé avec des tags
 en mémoire, endpoint « unavailable »).
+
+1.0.0-beta.29 (23 octobre 2026) : vue d'ensemble en tête de chaque onglet de module
+(rien à mapper / N à établir, modules dont il dépend, objets de la source face aux objets
+liés dans le projet, dernière synchronisation du module, conflits ouverts). Chiffres de
+la source comptés au rechargement des références. Runner CI 6.1.4 : 221 tests Redmine /
+1182 assertions ; parcours de la documentation régénéré (capture 37-module-overview).
