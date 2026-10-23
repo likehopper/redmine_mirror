@@ -151,6 +151,14 @@ module RedmineMirror
           end
         end
         errors = run.log_events.select { |event| event["action"] == "error" }
+        # A value first used on the source after the last reference refresh is missing from
+        # the mapping tabs: read the references again, so that they list it.
+        catalog = setting.source_catalog
+        stale = errors.any? do |event|
+          code, params = Diagnosis.cause(event["reason"], event["details"])
+          code == "missing_mapping" && !catalog.fetch(params["kind"], {}).key?(params["id"])
+        end
+        setting.request_catalog_refresh! if stale && !setting.reload.catalog_refreshing?
         if errors.empty?
           run.finish!(status: "succeeded")
         else

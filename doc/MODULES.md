@@ -263,6 +263,8 @@ local models and send no notification.
   same gap. New source versions are added on later runs.
 - Texts follow the destination format and issue references are rewritten, as for issues.
   Wiki links (`[[Page]]`) keep their titles, which are the same on both sides.
+- The source start page becomes the destination's when the destination start page does
+  not exist (a new project's wiki starts on "Wiki"), or in mirror mode.
 - A local edit of an imported page, or a local page with the same title but no
   correspondence, is a conflict.
 - The API identifies a page by its title: a page renamed on the source is imported as a

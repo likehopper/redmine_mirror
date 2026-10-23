@@ -51,6 +51,13 @@ module RedmineMirror
           raise unless error.message.match?(/HTTP 40[34]/)
           raise Error, "The source project has no wiki, or the source API key cannot view it"
         end
+        # The wiki's own URL answers its start page; 404 when that page does not exist.
+        start_page = begin
+          client.get("projects/#{Integer(project_id)}/wiki.json").dig("wiki_page", "title")
+        rescue Error => error
+          raise unless error.message.match?(/HTTP 40[34]/)
+          nil
+        end
         parents = index.to_h { |page| [page.fetch("title"), page.dig("parent", "title")] }
         depth = lambda do |title, seen|
           parent = parents[title]
@@ -59,7 +66,8 @@ module RedmineMirror
         Enumerator.new do |output|
           index.sort_by { |page| [depth.call(page.fetch("title"), []), page.fetch("title")] }.each do |page|
             detail = client.get("#{page_path(project_id, page.fetch('title'))}.json", "include" => "attachments").fetch("wiki_page")
-            output << detail.merge("id" => self.class.source_id(detail.fetch("title")), "project" => { "id" => Integer(project_id) })
+            output << detail.merge("id" => self.class.source_id(detail.fetch("title")), "project" => { "id" => Integer(project_id) },
+              "start_page" => detail.fetch("title").casecmp?(start_page.to_s))
           end
         end
       end
@@ -130,7 +138,11 @@ module RedmineMirror
           store.mappings("wiki_attachments").select { |source_id, local_id| !listed.include?(source_id) && page.attachments.exists?(id: local_id) } : []
         attachment_attributes = new_attachments.to_h { |attachment| [attachment.fetch("id"), Attachments.new.imported_attributes(attachment, mappings)] }
         moved = page && (parent_title ? parent_id && page.parent_id != parent_id : !page.parent_id.nil?)
-        changed = page.nil? || reset || pending.any? || page.content.text != text || moved || new_attachments.any? || removed.any?
+        # The source start page becomes the local one, unless the local start page is a
+        # page of its own (not the default "Wiki" of a new project) and the source does not win.
+        start = record["start_page"] && !wiki.start_page.casecmp?(title) &&
+          (Policy.source_wins? || !wiki.find_page(wiki.start_page))
+        changed = page.nil? || reset || pending.any? || page.content.text != text || moved || new_attachments.any? || removed.any? || start
         event = { module: key, source_id: record.fetch("id"), destination_id: page&.id, action: page ? (changed ? "update" : "unchanged") : "create" }
         return event unless apply && changed
         # Imported pages and versions send no notification (inline jobs, deliveries off).
@@ -152,6 +164,7 @@ module RedmineMirror
               page.update_columns(created_on: Time.iso8601(record.fetch("created_on"))) if imported.zero?
               rewrite_current_text(page.content, text) unless page.content.text == text
               page.update_columns(parent_id: parent_id) unless page.parent_id == parent_id
+              wiki.update_columns(start_page: title) if start
               new_attachments.each do |attachment|
                 attributes = attachment_attributes.fetch(attachment.fetch("id"))
                 local = Attachments.new.import(attachment, attributes, page, source)

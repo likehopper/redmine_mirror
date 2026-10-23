@@ -198,6 +198,17 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     assert_equal 100, run.progress_percentage
   end
 
+  # User 7 is missing from the references read before the run: they are read again so
+  # that the Users tab lists it. A value the references already list needs no refresh.
+  def test_missing_mapping_of_an_unlisted_value_refreshes_the_references
+    @setting.update_columns(catalog_status: "ready", source_catalog: JSON.generate("user" => { "5" => "Known" }))
+    execute_with(PartialRunner.new, on_error: "skip")
+    assert_equal "pending", @setting.reload.catalog_status
+    @setting.update_columns(catalog_status: "ready", source_catalog: JSON.generate("user" => { "7" => "Listed" }))
+    execute_with(PartialRunner.new, on_error: "skip")
+    assert_equal "ready", @setting.reload.catalog_status
+  end
+
   def test_stop_mode_writes_nothing_and_lists_every_error
     runner = PartialRunner.new
     run = execute_with(runner, on_error: "stop")
