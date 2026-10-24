@@ -77,9 +77,10 @@ class MirrorSourceApiController < ApplicationController
     field_id = (Scrum::Setting.story_points_custom_field_id if defined?(Scrum::Setting)).presence
     points = field_id ? CustomValue.where(custom_field_id: field_id, customized_type: "Issue", customized_id: issues.select(:id))
       .where.not(value: [nil, ""]).pluck(:customized_id, :value).to_h : {}
-    @scrum_issues = issues.order(:id).pluck(:id, :sprint_id, :position).filter_map do |id, sprint_id, position|
+    # Ruby 2.6 (Redmine 4): no filter_map on the source side.
+    @scrum_issues = issues.order(:id).pluck(:id, :sprint_id, :position).map do |id, sprint_id, position|
       [id, sprint_id, position, points[id]] if sprint_id || position || points[id]
-    end
+    end.compact
     RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @sprints.size + @scrum_issues.size,
       details: { "scrum" => { "sprints" => @sprints.size, "issues" => @scrum_issues.size } })
     respond_to { |format| format.api }

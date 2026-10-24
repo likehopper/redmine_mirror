@@ -551,4 +551,20 @@ class MirrorCoreTest < Minitest::Test
     end
     assert_equal keys.fetch("en"), keys.fetch("fr")
   end
+
+  # Mirror source runs on Redmine 4.0 (Ruby 2.6): the code it loads must not use
+  # Ruby 2.7+ methods nor endless methods.
+  def test_source_side_code_runs_on_ruby_2_6
+    root = File.expand_path("..", __dir__)
+    files = %w[app/controllers/mirror_source_api_controller.rb app/controllers/mirror_source_settings_controller.rb
+      app/helpers/mirror_source_api_helper.rb app/models/mirror_source_access.rb app/models/mirror_source_setting.rb
+      lib/redmine_mirror/source.rb] + Dir[File.join(root, "app/views/mirror_source_{api,settings}/*")].map { |path| path.delete_prefix("#{root}/") }
+    offenders = files.flat_map do |file|
+      File.readlines(File.join(root, file)).each_with_index.select do |line, _|
+        code = line.sub(/#.*/, "")
+        code.match?(/\.(filter_map|tally)\b/) || code.match?(/\bdef [\w.?!]+(\([^)]*\))?\s+=\s*[^=\s]/)
+      end.map { |line, index| "#{file}:#{index + 1}: #{line.strip}" }
+    end
+    assert_empty offenders
+  end
 end
