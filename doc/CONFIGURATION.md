@@ -200,7 +200,9 @@ A reference without correspondence is marked in red. When a single local referen
 the same name (ignoring case, accents, punctuation and word order), it is preselected and
 marked in yellow: check it, then save. With [AI proposals](AI.md) enabled, a table with
 many references without correspondence offers **Propose with AI**: the proposals are
-preselected the same way, marked *proposed by AI* with a confidence.
+preselected the same way, marked *proposed by AI* with a confidence. Correspondences
+marked *administrator default* come from the
+[default correspondences](#default-correspondences-optional).
 
 ![Issue mappings](screenshots/configuration/11-issues.png)
 
@@ -351,6 +353,16 @@ The worker asks the AI; the proposals are preselected in yellow, marked *propose
 AI* with a confidence. Check them, then save.
 
 ![AI proposals](screenshots/configuration/34-ai-proposals.png)
+
+## Default correspondences (optional)
+
+When many projects come from the same source, an administrator sets their common
+correspondences once in **Administration → Mirror → Default correspondences**: source
+names and their local reference, a fallback per table, custom field list values, with a
+CSV import and export. Each project saves them when it reads its source references. See
+[Default correspondences](DEFAULT_MAPPINGS.md).
+
+![Default correspondences](screenshots/configuration/39-default-mappings.png)
 
 ## Mirror source (on the source Redmine)
 

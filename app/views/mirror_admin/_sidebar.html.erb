@@ -24,6 +24,7 @@ configuration.
     <% end %>
     <li><%= link_to l(:label_mirror_admin_source), mirror_admin_source_path, class: ("selected" if action_name == "source") %></li>
     <% unless RedmineMirror.source_only? %>
+      <li><%= link_to l(:label_mirror_admin_defaults), mirror_admin_defaults_path, class: ("selected" if action_name == "defaults") %></li>
       <li><%= link_to l(:label_mirror_admin_ai), mirror_admin_ai_path, class: ("selected" if %w[ai update_ai].include?(action_name)) %></li>
     <% end %>
     <li><%= link_to l(:label_mirror_admin_configuration), plugin_settings_path("redmine_mirror") %></li>

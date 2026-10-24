@@ -25,6 +25,7 @@ class MirrorAdminController < ApplicationController
   before_action :require_migrated_schema, only: :index
   before_action :require_source_schema, only: :source
   before_action :require_ai_schema, only: [:ai, :update_ai, :test_ai]
+  before_action :require_defaults_schema, only: [:defaults, :create_default, :destroy_default, :import_defaults, :apply_defaults]
 
   helper :queries
   include QueriesHelper
@@ -108,7 +109,87 @@ class MirrorAdminController < ApplicationController
     redirect_to mirror_admin_ai_path
   end
 
+  # Administration > Mirror > Default correspondences (doc/DEFAULT_MAPPINGS.md), or their CSV.
+  def defaults
+    @rules = MirrorDefaultMapping.sorted.preload(:custom_field).to_a
+    respond_to do |format|
+      format.html do
+        @list_fields = MirrorDefaultMapping.list_fields
+        @field = @list_fields.find { |field| field.id.to_s == params[:custom_field_id].to_s } || @list_fields.first
+      end
+      format.csv do
+        send_data(RedmineMirror::DefaultMappings.to_csv(@rules), type: "text/csv; header=present", filename: "mirror-default-mappings.csv")
+      end
+    end
+  end
+
+  # One default per source name, all with the same destination; no name gives the fallback.
+  def create_default
+    input = params.require(:default_mapping).permit(:reference_type, :source_names, :source_url, :destination, :custom_field_id)
+    names = input[:source_names].to_s.split(/\r?\n/).map(&:strip).reject(&:empty?).uniq { |name| RedmineMirror::NameMatch.key(name) }
+    destination = input[:destination].to_s
+    rules = (names.presence || [nil]).map do |name|
+      rule = MirrorDefaultMapping.new(reference_type: input[:reference_type], source_name: name, source_url: input[:source_url],
+        custom_field_id: input[:custom_field_id].presence)
+      if rule.reference_type == "custom_field_value"
+        rule.destination_value = destination
+      elsif %w[ignore anonymous].include?(destination)
+        rule.mode = destination
+      else
+        rule.destination_id = destination.match?(/\A\d+\z/) ? destination.to_i : nil
+      end
+      rule
+    end
+    invalid = rules.reject(&:valid?)
+    if invalid.empty?
+      MirrorDefaultMapping.transaction { rules.each(&:save!) }
+      flash[:notice] = l(:notice_successful_create)
+    else
+      flash[:error] = invalid.map { |rule| "#{rule.source_name || l(:label_mirror_default_fallback)}: #{rule.errors.full_messages.to_sentence}" }.join("; ")
+    end
+    redirect_to defaults_path(input[:reference_type], input[:custom_field_id])
+  end
+
+  def destroy_default
+    rule = MirrorDefaultMapping.find(params[:id])
+    rule.destroy
+    flash[:notice] = l(:notice_successful_delete)
+    redirect_to defaults_path(rule.reference_type, rule.custom_field_id)
+  end
+
+  def import_defaults
+    file = params[:file]
+    if file.respond_to?(:read)
+      count, errors = RedmineMirror::DefaultMappings.import(file.read)
+      if errors.empty?
+        flash[:notice] = l(:text_mirror_defaults_imported, count: count)
+      else
+        flash[:error] = l(:text_mirror_defaults_import_failed, errors: errors.first(20).join("; "))
+      end
+    else
+      flash[:error] = l(:text_mirror_defaults_import_failed, errors: l(:label_no_data))
+    end
+    redirect_to mirror_admin_defaults_path
+  rescue RedmineMirror::Error => error
+    flash[:error] = l(:text_mirror_defaults_import_failed, errors: error.message)
+    redirect_to mirror_admin_defaults_path
+  end
+
+  # Fills the projects from the source references they already read; no source is read.
+  def apply_defaults
+    flash[:notice] = l(:text_mirror_defaults_applied, count: RedmineMirror::DefaultMappings.apply_all)
+    redirect_to mirror_admin_defaults_path
+  end
+
   private
+
+  def defaults_path(type, custom_field_id)
+    mirror_admin_defaults_path(custom_field_id: (custom_field_id.presence if type == "custom_field_value"), anchor: "mirror-defaults-#{type}")
+  end
+
+  def require_defaults_schema
+    render_error message: l(:text_mirror_pending_migrations), status: 503 unless MirrorDefaultMapping.schema_current?
+  end
 
   # A source-only Redmine (below Redmine 5) has no destination or AI pages.
   def require_destination

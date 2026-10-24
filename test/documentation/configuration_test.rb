@@ -365,6 +365,30 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     assert User.find_by!(login: "cmartin").registered?
   end
 
+  # Default correspondences (doc/DEFAULT_MAPPINGS.md), removed afterwards: the mirror copy
+  # guide runs next on the same database.
+  def test_21_default_mappings
+    visit "/admin/mirror/defaults"
+    within("#mirror-default-form-tracker") do
+      fill_in "mirror-default-tracker-names", with: "Enhancement\nChange request"
+      select "Feature (##{Tracker.find_by!(name: 'Feature').id})", from: "mirror-default-tracker-destination"
+      click_button "Add"
+    end
+    assert_selector "#flash_notice"
+    within("#mirror-default-form-priority") do
+      fill_in "mirror-default-priority-names", with: "Haute\nUrgente"
+      select "High (##{IssuePriority.find_by!(name: 'High').id})", from: "mirror-default-priority-destination"
+      click_button "Add"
+    end
+    within("#mirror-default-form-status") do
+      select "Do not import its issues", from: "mirror-default-status-destination"
+      click_button "Add"
+    end
+    assert_selector "#mirror-defaults-table-status td", text: "Otherwise (fallback)"
+    screenshot "39-default-mappings", "#content", max_height: 1100
+    MirrorDefaultMapping.delete_all
+  end
+
   FAKE_AI_SYNONYMS = { "New" => "To do", "In Progress" => "Doing", "Resolved" => "Done", "Feedback" => "Waiting for reply",
                        "Closed" => "Finished", "Rejected" => "Won't do" }.freeze
 

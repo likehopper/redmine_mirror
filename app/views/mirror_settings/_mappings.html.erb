@@ -116,6 +116,7 @@ end %>
               class: "mirror-special-choice" %> <%= special.last %></label>
           <% end %>
           <% if suggestion %><em class="info mirror-suggestion"><%= l(mail_match ? :label_mirror_suggested_mail : :label_mirror_suggested) %></em><% end %>
+          <% if @default_mappings.include?([table.key, id]) %><em class="info mirror-default-mapping"><%= l(:label_mirror_from_default) %></em><% end %>
           <% if ai_proposal %><em class="info mirror-suggestion mirror-ai-suggestion"><%= l(:label_mirror_ai_suggested, confidence: (ai_proposal["confidence"].to_f * 100).round) %></em><% end %>
           <%= mirror_object_link(table.key, selected) if selected.present? && !%w[anonymous ignore].include?(selected) %>
         </td></tr>

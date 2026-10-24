@@ -200,6 +200,8 @@ Redmine 5 project stays an exact copy (see [Keep an exact copy](MIRROR_COPY.md))
 
 Projects are migrated one at a time, each with its own connection and mappings. Shared
 versions and cross-project relations are resolved once both projects are migrated.
+Set the correspondences every project shares once, as
+[default correspondences](DEFAULT_MAPPINGS.md): each project starts with them.
 
 ## Regenerating the screenshots
 

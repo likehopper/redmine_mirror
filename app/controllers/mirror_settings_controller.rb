@@ -119,6 +119,8 @@ class MirrorSettingsController < ApplicationController
             row = scope.first_or_initialize
             row.mode = %w[anonymous ignore].include?(selection) ? selection : "existing"
             row.destination_id = %w[anonymous ignore].include?(selection) ? nil : Integer(selection)
+            # A correspondence changed by hand no longer comes from an administrator's default.
+            row.from_default = false if row.changed?
             row.save!
           end
         end
