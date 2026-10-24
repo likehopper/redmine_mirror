@@ -39,6 +39,11 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   them for its references without correspondence when it reads its source references,
   marked *administrator default*; **Apply to configured projects** fills the others
   without reading the sources. Database migration 17. See doc/DEFAULT_MAPPINGS.md.
+- **Cross-field correspondences**, besides the standard mappings: a single-value source
+  list field can feed the issue priority (value by value, with a priority for issues
+  without a value), and the source priority can be copied into a local single-value list
+  field. Current values, history and saved queries follow. Existing configurations are
+  unchanged.
 - A write refused by the destination (HTTP 422) gives Redmine's validation messages in
   the log ("User is invalid", a locked period…) instead of the status code alone. Other
   response bodies stay hidden.

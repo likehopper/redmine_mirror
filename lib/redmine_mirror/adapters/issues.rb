@@ -65,9 +65,10 @@ module RedmineMirror
       def payload(record, project_id, mappings, lookup, options: {})
         result = record.slice("subject", "description", "start_date", "due_date", "done_ratio", "estimated_hours")
         result["description"] = TextFormat.convert(result["description"]) if result.key?("description")
-        %w[tracker status priority].each do |kind|
+        %w[tracker status].each do |kind|
           result["#{kind}_id"] = map(mappings, kind, record.fetch(kind).fetch("id"))
         end
+        result["priority_id"] = priority_id(record, project_id, mappings)
         result["assigned_to_id"] = record["assigned_to"] ? @user_adapter.resolve(mappings, record["assigned_to"].fetch("id")) : nil
         { "category" => "issue_categories", "fixed_version" => "project_versions" }.each do |field, module_key|
           result["#{field}_id"] = record[field] && lookup.call(module_key, record[field].fetch("id"))
@@ -89,6 +90,16 @@ module RedmineMirror
           end
         end
         result.merge("project_id" => project_id)
+      end
+
+      # The Priorities table, unless a source custom field feeds the priority.
+      def priority_id(record, project_id, mappings)
+        fields = CustomFields.new
+        project = mappings.fetch("custom_field", {}).value?(CustomFields::PRIORITY) && Project.find(project_id)
+        source_id = project && fields.priority_source(mappings, project)
+        return map(mappings, "priority", record.fetch("priority").fetch("id")) unless source_id
+        value = record.fetch("custom_fields", []).find { |field| field["id"].to_s == source_id }&.fetch("value", nil)
+        fields.priority_for(value, source_id: source_id, project: project)
       end
 
       # Redmine's REST API refuses a locked assignee and a version that is not open,

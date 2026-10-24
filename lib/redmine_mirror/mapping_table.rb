@@ -40,6 +40,9 @@ module RedmineMirror
       key == "user"
     end
 
+    # Destinations other than a local object, offered after them (a field feeding the priority).
+    def extra_choices; []; end
+
     def local_records(project)
       case key
       when "tracker" then project.trackers.sorted

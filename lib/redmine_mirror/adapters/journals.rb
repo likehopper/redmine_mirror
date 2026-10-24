@@ -33,8 +33,26 @@ module RedmineMirror
       end
 
       def imported_attributes(record, mappings, lookup: nil, project: nil)
+        fields = CustomFields.new
         details = record.fetch("details", []).filter_map do |detail|
           property, name = detail.values_at("property", "name")
+          # Cross-field correspondences: a change of the field feeding the priority becomes a
+          # priority change, a source priority change a change of the field receiving it.
+          begin
+            if property == "cf" && fields.feeds_priority?(name, mappings) && fields.priority_source(mappings, project)
+              next ["attr", "priority_id", *%w[old_value new_value].map { |key| fields.priority_for(detail[key], source_id: name, project: project).to_s }]
+            elsif property == "attr" && name == "priority_id" && project
+              if (field = fields.priority_field(project))
+                next ["cf", field.id.to_s, *%w[old_value new_value].map { |key| fields.priority_value(detail[key], field: field, project: project) }]
+              elsif fields.priority_source(mappings, project)
+                # Otherwise the source priority is left out when a field feeds the priority.
+                next
+              end
+            end
+          rescue Error => error
+            TextFormat.warning("#{error.message}; the history change was not imported")
+            next
+          end
           if property == "cf"
             # As for current values, a custom field change Mirror cannot translate is
             # skipped with a warning; the journal and its notes are still imported.

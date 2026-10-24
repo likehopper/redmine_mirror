@@ -34,6 +34,12 @@ the Users tab then offers to create the missing accounts (mirror_settings/_user_
   <p><%= l("text_mirror_#{adapter.key}".to_sym) %></p>
 <% end %>
 <% if adapter.mapping_tables.any? %><p><%= l(:text_mirror_mapping_help) %></p><% end %>
+<%# A source field feeding the priority leaves the Priorities table unused. %>
+<% source = adapter.key == "issue_tracking" && @setting.selected_modules.include?("issue_custom_fields") &&
+     @mapping_values.find { |(kind, _), value| kind == "custom_field" && value == "priority" }&.first&.last %>
+<% if source %>
+  <p class="warning" id="mirror-priority-from-field"><%= l(:text_mirror_priority_from_field, field: @setting.source_catalog.fetch("custom_field", {})[source] || "##{source}") %></p>
+<% end %>
 <% suggested = 0 %>
 <% ai_suggested = 0 %>
 <% catalog = @setting.source_catalog %>
@@ -61,6 +67,7 @@ the Users tab then offers to create the missing accounts (mirror_settings/_user_
   local_choices = [[l(:label_mirror_unmapped), ""]]
   records = table.local_records(@project).to_a
   local_choices += records.map { |record| [record.is_a?(User) ? mirror_user_label(record, company_field) : "#{record.name} (##{record.id})", record.id.to_s] }
+  local_choices += table.extra_choices.map { |choice| [l("label_mirror_destination_#{choice}"), choice] }
   used = @setting.source_catalog["#{table.key}_used"]&.to_set
   rows = @setting.source_catalog.fetch(table.key, {}).sort_by { |id, name| [name.downcase, id.to_i] }
   hidden, rows = rows.partition { |id, _| used && params[:all_references] != "1" && !used.include?(id) && @mapping_values[[table.key, id]].blank? }
@@ -118,7 +125,7 @@ end %>
           <% if suggestion %><em class="info mirror-suggestion"><%= l(mail_match ? :label_mirror_suggested_mail : :label_mirror_suggested) %></em><% end %>
           <% if @default_mappings.include?([table.key, id]) %><em class="info mirror-default-mapping"><%= l(:label_mirror_from_default) %></em><% end %>
           <% if ai_proposal %><em class="info mirror-suggestion mirror-ai-suggestion"><%= l(:label_mirror_ai_suggested, confidence: (ai_proposal["confidence"].to_f * 100).round) %></em><% end %>
-          <%= mirror_object_link(table.key, selected) if selected.present? && !%w[anonymous ignore].include?(selected) %>
+          <%= mirror_object_link(table.key, selected) if selected.present? && !%w[anonymous ignore].include?(selected) && !table.extra_choices.include?(selected) %>
         </td></tr>
       <% end %>
       </tbody>

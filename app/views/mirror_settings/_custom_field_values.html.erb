@@ -19,8 +19,30 @@ Render project-scoped Mirror controls and diagnostics using native Redmine helpe
 <% if definitions.values.any? { |definition| definition["observed"] } %>
   <p class="warning" id="mirror-observed-custom-fields"><%= l(:text_mirror_observed_custom_fields) %></p>
 <% end %>
+<% options = @setting.module_options.fetch(adapter.key, {}) %>
+<% priorities = IssuePriority.active.sorted.map { |priority| [priority.name, priority.id.to_s] } %>
 <% definitions.each do |source_id, definition| %>
   <% local_id = @mapping_values[["custom_field", source_id]] %>
+  <% if local_id == RedmineMirror::Adapters::CustomFields::PRIORITY %>
+    <%# A source field feeding the priority: its values become priorities. %>
+    <h3><%= @setting.source_catalog.fetch("custom_field").fetch(source_id) %> → <%= l(:label_mirror_destination_priority) %></h3>
+    <table class="list mirror-custom-field-values" id="mirror-priority-values-<%= source_id %>"><thead><tr><th><%= l(:label_mirror_source) %></th><th><%= l(:label_mirror_destination) %></th></tr></thead><tbody>
+    <% definition.fetch("possible_values", []).each do |value| %>
+      <% hash = adapter.value_key(value.fetch("value")) %>
+      <% selected = options.dig("value_mappings", source_id, hash) %>
+      <% choices = [[l(:label_mirror_unmapped), ""]] + priorities %>
+      <% choices << [l(:label_mirror_invalid_destination), selected] if selected.present? && choices.none? { |choice| choice.last == selected } %>
+      <tr><td><%= value.fetch("label", value.fetch("value")) %></td><td>
+      <%= label_tag "mirror-cf-value-#{source_id}-#{hash}", l(:label_mirror_destination), class: "hidden-for-sighted" %>
+      <%= select_tag "module_options[value_mappings][#{source_id}][#{hash}]", options_for_select(choices, selected), id: "mirror-cf-value-#{source_id}-#{hash}" %>
+      </td></tr>
+    <% end %>
+    </tbody></table>
+    <p><%= label_tag "mirror-priority-fallback", l(:label_mirror_priority_fallback) %>
+    <%= select_tag "module_options[priority_fallback]", options_for_select(priorities, options["priority_fallback"] || IssuePriority.default&.id.to_s), id: "mirror-priority-fallback" %>
+    <em class="info"><%= l(:text_mirror_priority_fallback) %></em></p>
+    <% next %>
+  <% end %>
   <% field = adapter.mapping_tables.first.local_records(@project).find { |candidate| candidate.id.to_s == local_id } %>
   <% next unless field && adapter.list_values?(definition, field) %>
   <h3><%= @setting.source_catalog.fetch("custom_field").fetch(source_id) %> → <%= field.name %></h3>
@@ -33,6 +55,26 @@ Render project-scoped Mirror controls and diagnostics using native Redmine helpe
     <tr><td><%= value.fetch("label", value.fetch("value")) %></td><td>
     <%= label_tag "mirror-cf-value-#{source_id}-#{hash}", l(:label_mirror_destination), class: "hidden-for-sighted" %>
     <%= select_tag "module_options[value_mappings][#{source_id}][#{hash}]", options_for_select(choices, selected), id: "mirror-cf-value-#{source_id}-#{hash}" %>
+    </td></tr>
+  <% end %>
+  </tbody></table>
+<% end %>
+<%# The source priority can also go to a single-value list field, besides the Priorities table. %>
+<% targets = adapter.mapping_tables.first.local_records(@project).select { |field| adapter.priority_target?(field) } %>
+<% target = targets.find { |field| field.id.to_s == options["priority_field"].to_s } %>
+<h3><%= l(:label_mirror_source_priority) %></h3>
+<p><%= label_tag "mirror-priority-field", l(:label_mirror_priority_field) %>
+<%= select_tag "module_options[priority_field]", options_for_select([[l(:label_mirror_priority_field_none), ""]] + targets.map { |field| ["#{field.name} (##{field.id})", field.id.to_s] }, target&.id.to_s), id: "mirror-priority-field" %>
+<em class="info"><%= l(:text_mirror_priority_field) %></em></p>
+<% if target %>
+  <table class="list mirror-custom-field-values" id="mirror-source-priority-values"><thead><tr><th><%= l(:label_mirror_source) %></th><th><%= l(:label_mirror_destination) %></th></tr></thead><tbody>
+  <% @setting.source_catalog.fetch("priority", {}).sort_by { |id, _| id.to_i }.each do |id, name| %>
+    <% selected = options.dig("priority_values", id) %>
+    <% choices = [[l(:label_mirror_unmapped), ""]] + target.possible_values_options.map { |label, value| [label, (value || label).to_s] } %>
+    <% choices << [l(:label_mirror_invalid_destination), selected] if selected.present? && choices.none? { |choice| choice.last == selected } %>
+    <tr><td><%= name %></td><td>
+    <%= label_tag "mirror-priority-value-#{id}", l(:label_mirror_destination), class: "hidden-for-sighted" %>
+    <%= select_tag "module_options[priority_values][#{id}]", options_for_select(choices, selected), id: "mirror-priority-value-#{id}" %>
     </td></tr>
   <% end %>
   </tbody></table>
