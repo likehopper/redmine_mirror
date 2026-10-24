@@ -99,7 +99,9 @@ class MirrorCrossFieldMappingsTest < ActiveSupport::TestCase
   def test_configuration_checks_the_crossed_fields
     input = { "value_mappings" => {}, "priority_fallback" => @low.id.to_s, "priority_field" => @criticity.id.to_s, "priority_values" => { "61" => "Mineure" } }
     assert_equal input, @fields.configuration_options(input, @project)
-    assert_raises(RedmineMirror::Error) { @fields.configuration_options(input.except("priority_fallback"), @project) }
+    # The first save offers no choice yet: the default priority until one is chosen.
+    assert_equal IssuePriority.default.id.to_s, @fields.configuration_options(input.except("priority_fallback"), @project).fetch("priority_fallback")
+    assert_raises(RedmineMirror::Error) { @fields.configuration_options(input.merge("priority_fallback" => "999"), @project) }
     assert_raises(RedmineMirror::Error) { @fields.configuration_options(input.merge("priority_values" => { "99" => "Mineure" }), @project) }
     multiple = IssueCustomField.create!(name: "Multiple", field_format: "list", possible_values: %w[A], multiple: true, is_for_all: true)
     assert_raises(RedmineMirror::Error) { @fields.configuration_options(input.merge("priority_field" => multiple.id.to_s), @project) }
