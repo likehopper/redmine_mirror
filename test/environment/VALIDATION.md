@@ -436,6 +436,16 @@ non mappés remplacés par les rôles qui modifient le projet), 2 ignorées avec
 7 inchangées. Runner CI 6.1.4 : 235 tests Redmine / 1264 assertions ; tests autonomes
 41 / 164.
 
+1.0.0-beta.32 (25 octobre 2026) : données partageables choisies par l'administrateur de
+la source, comptes créés depuis les utilisateurs d'une source Mirror, correspondances par
+défaut (migration 17). Archive installée sur les deux préprods (sha256 47a2bba9…7715) :
+migration 17 passée sur 4.0.3 / MySQL (source seule) et sur 5 / PostgreSQL, services
+redémarrés, pages de connexion en 200, worker sans erreur. Prévisualisation du projet de
+démonstration 4.0.3 → 5 : 2998 inchangés, aucune régression ; 3 erreurs de données
+(version partagée système, sprint d'un autre projet). Point d'accès Users de la source
+4.0.3 : refus « not_shared » attendu tant que le partage n'est pas activé. Runner CI
+6.1.4 : 247 tests Redmine / 1392 assertions ; guides : 21 + 7 tests.
+
 1.0.0-beta.29 (23 octobre 2026) : vue d'ensemble en tête de chaque onglet de module
 (rien à mapper / N à établir, modules dont il dépend, objets de la source face aux objets
 liés dans le projet, dernière synchronisation du module, conflits ouverts). Chiffres de
