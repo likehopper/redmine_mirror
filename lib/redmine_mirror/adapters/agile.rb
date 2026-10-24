@@ -29,7 +29,7 @@ module RedmineMirror
       # active 1, closed 2; only one sprint per project may be active).
       STATUSES = { "open" => 0, "locked" => 0, "closed" => 2 }.freeze
       REFUSALS = {
-        "disabled" => "Mirror source is disabled on the source Redmine: its administrator must allow it (Administration → Plugins → Redmine Mirror)",
+        "disabled" => "Mirror source is disabled on the source Redmine: its administrator must allow it, and this data (Administration → Plugins → Redmine Mirror)",
         "module" => "Enable the Mirror source module on the source project",
         "not_shared" => "Share Scrum sprints in the source project's Settings → Mirror source",
         "permission" => "The source API key needs View sprint board in the source project",

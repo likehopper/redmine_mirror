@@ -14,14 +14,16 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Plugin settings: the source Redmine URLs that project managers may connect to, the
-user field shown as the company in the user mappings, and Mirror source (this Redmine
-as a source): its global switch and log retention. Its activity is in Administration >
-Mirror > Source. AI proposals have their own page, Administration > Mirror > AI.
+user field shown as the company in the user mappings, whether members managers may create
+accounts from the users a source shares, and Mirror source (this Redmine as a source):
+its global switch, the data projects may share and log retention. Its activity is in
+Administration > Mirror > Source. AI proposals have their own page, Administration > Mirror > AI.
 Below Redmine 5 (source only), only Mirror source is shown.
 %><% if RedmineMirror.source_only? %>
   <%# Destination settings, unused below Redmine 5: kept as they are. %>
   <%= hidden_field_tag "settings[allowed_source_urls]", @settings["allowed_source_urls"] %>
   <%= hidden_field_tag "settings[user_company_field_id]", @settings["user_company_field_id"] %>
+  <%= hidden_field_tag "settings[user_creation_enabled]", @settings["user_creation_enabled"] %>
   <p class="info" id="mirror-source-only"><%= l(:text_mirror_source_only) %></p>
 <% else %>
 <p>
@@ -37,6 +39,12 @@ Below Redmine 5 (source only), only Mirror source is shown.
         id: "settings_user_company_field_id" %>
   <em class="info"><%= l(:text_mirror_user_company_field) %></em>
 </p>
+<p>
+  <%= label_tag "settings_user_creation_enabled", l(:label_mirror_user_creation_enabled) %>
+  <%= hidden_field_tag "settings[user_creation_enabled]", "", id: nil %>
+  <%= check_box_tag "settings[user_creation_enabled]", "1", @settings["user_creation_enabled"].to_s == "1", id: "settings_user_creation_enabled" %>
+  <em class="info"><%= l(:text_mirror_user_creation_enabled) %></em>
+</p>
 <p id="mirror-ai-settings-link"><label><%= l(:label_mirror_admin_ai) %></label>
   <%= link_to l(:label_mirror_ai_settings_open), mirror_admin_ai_path, class: "icon icon-arrow-right" %>
   <em class="info"><%= l(:text_mirror_ai_settings_link) %></em>
@@ -48,6 +56,15 @@ Below Redmine 5 (source only), only Mirror source is shown.
     <%= label_tag "settings_source_enabled", l(:label_mirror_source_enabled) %>
     <%= hidden_field_tag "settings[source_enabled]", "" %>
     <%= check_box_tag "settings[source_enabled]", "1", @settings["source_enabled"].to_s == "1", id: "settings_source_enabled" %>
+  </p>
+  <%# Only the data this Redmine can serve: tags and sprints need their plugin. %>
+  <p id="mirror-source-kinds"><label><%= l(:label_mirror_source_kinds) %></label>
+    <%= hidden_field_tag "settings[source_kinds][]", "", id: nil %>
+    <% allowed = RedmineMirror::Source.allowed_kinds %>
+    <% RedmineMirror::Source.available_kinds.each do |kind| %>
+      <label class="block"><%= check_box_tag "settings[source_kinds][]", kind, allowed.include?(kind), id: "settings_source_kind_#{kind}" %> <%= l("label_mirror_module_#{kind}".to_sym) %></label>
+    <% end %>
+    <em class="info"><%= l(:text_mirror_source_kinds) %></em>
   </p>
   <p>
     <%= label_tag "settings_source_log_days", l(:label_mirror_source_log_days) %>

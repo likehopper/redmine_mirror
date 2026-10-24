@@ -1,0 +1,69 @@
+<%#
+File: redmine_mirror/app/views/mirror_settings/_user_creation.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Users tab: the registered accounts (awaiting activation, as a self-registration) to create
+for the unmapped source users whose email the source shares (Mirror source) and that have
+no account here. Created by MirrorSettingsController#create_users, mapped, and optionally
+added as members. Without user details from the source, only those who may create
+accounts see why.
+%><% catalog = @setting.source_catalog %>
+<% creation = RedmineMirror.user_creation?(@project) %>
+<% if (refusal = catalog["user_details_refusal"]) %>
+  <% if creation %>
+    <h3 id="mirror-user-creation"><%= l(:label_mirror_user_creation) %></h3>
+    <p class="info" id="mirror-user-details-refused"><%= l(:text_mirror_user_details_refused, reason: l("text_mirror_source_refusal_#{refusal}", default: refusal)) %></p>
+  <% end %>
+<% elsif !catalog.key?("user_details") %>
+  <% if creation %>
+    <h3 id="mirror-user-creation"><%= l(:label_mirror_user_creation) %></h3>
+    <p class="info" id="mirror-user-details-missing"><%= l(:text_mirror_user_details_missing) %></p>
+  <% end %>
+<% else %>
+  <h3 id="mirror-user-creation"><%= l(:label_mirror_user_creation) %></h3>
+  <% mapped = @project.mirror_reference_mappings.where(reference_type: "user").pluck(:source_id).map(&:to_s).to_set %>
+  <% candidates = catalog.fetch("user_details").select { |id, info| !mapped.include?(id) && info["mail"].present? } %>
+  <% taken = candidates.empty? ? Set.new : EmailAddress.where("LOWER(address) IN (?)", candidates.values.map { |info| info["mail"].downcase }).pluck(:address).map(&:downcase).to_set %>
+  <% candidates = candidates.reject { |_, info| taken.include?(info["mail"].downcase) }.sort_by { |id, _| [catalog.fetch("user", {})[id].to_s.downcase, id.to_i] } %>
+  <% if candidates.empty? %>
+    <p class="nodata" id="mirror-user-creation-none"><%= l(:text_mirror_user_creation_none) %></p>
+  <% elsif !creation %>
+    <p class="info" id="mirror-user-creation-off"><%= l(:text_mirror_user_creation_off, count: candidates.size) %></p>
+  <% else %>
+    <p><%= l(:text_mirror_user_creation_help) %></p>
+    <%= form_tag project_mirror_users_path(@project), method: :post, id: "mirror-user-creation-form" do %>
+      <table class="list mirror-user-creation">
+        <thead><tr><th></th><th><%= l(:label_mirror_source) %></th><th><%= l(:field_login) %></th><th><%= l(:field_mail) %></th><th><%= l(:label_mirror_user_company) %></th></tr></thead>
+        <tbody>
+          <% candidates.each do |id, info| %>
+            <tr>
+              <td><%= check_box_tag "source_user_ids[]", id, false, id: "mirror-create-user-#{id}" %></td>
+              <td><%= label_tag "mirror-create-user-#{id}", "#{info['firstname']} #{info['lastname']} (##{id})" %></td>
+              <td><%= info["login"] %></td>
+              <td><%= info["mail"] %></td>
+              <td><%= info["company"] %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+      <div class="box tabular"><p><label><%= l(:label_mirror_user_creation_roles) %></label>
+        <% User.current.managed_roles(@project).sort.each do |role| %>
+          <label class="block"><%= check_box_tag "role_ids[]", role.id, false, id: "mirror-create-user-role-#{role.id}" %> <%= role.name %></label>
+        <% end %>
+        <em class="info"><%= l(:text_mirror_user_creation_roles) %></em>
+      </p></div>
+      <%= submit_tag l(:button_mirror_create_users) %>
+    <% end %>
+  <% end %>
+<% end %>

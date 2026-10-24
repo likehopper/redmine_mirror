@@ -43,7 +43,7 @@ module RedmineMirror
 
       # What the source must change, for each lock it names (Source.refusal).
       REFUSALS = {
-        "disabled" => "Mirror source is disabled on the source Redmine: its administrator must allow it (Administration → Plugins → Redmine Mirror)",
+        "disabled" => "Mirror source is disabled on the source Redmine: its administrator must allow it, and this data (Administration → Plugins → Redmine Mirror)",
         "module" => "Enable the Mirror source module on the source project",
         "not_shared" => "Share News in the source project's Settings → Mirror source",
         "permission" => "The source API key needs View news in the source project"

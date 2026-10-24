@@ -89,6 +89,33 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
     assert_not RedmineMirror::Source.enabled?
   end
 
+  # Only the data this Redmine can serve is offered; projects see only the allowed data,
+  # and keep their choice for the rest.
+  def test_administrator_chooses_the_data_projects_may_share
+    log_user("admin", "admin")
+    get "/settings/plugin/redmine_mirror"
+    RedmineMirror::Source.available_kinds.each { |kind| assert_select "#settings_source_kind_#{kind}[checked]" }
+    assert_select "#settings_source_kind_scrum", count: RedmineMirror::Source.scrum_available? ? 1 : 0
+    post "/settings/plugin/redmine_mirror", params: { settings: { source_enabled: "1", source_kinds: ["", "news", "queries"] } }
+    assert_equal %w[news queries], RedmineMirror::Source.allowed_kinds
+    get "/settings/plugin/redmine_mirror"
+    assert_select "#settings_source_kind_documents:not([checked])"
+    assert_select "#settings_source_kind_news[checked]"
+
+    @project.enable_module!(:mirror_source)
+    MirrorSourceSetting.create!(project: @project, shared_modules: %w[documents news])
+    get "/projects/ecookbook/settings", params: { tab: "mirror_source" }
+    assert_select "#mirror-source-share-documents", count: 0
+    assert_select "#mirror-source-share-news[checked]"
+    patch "/projects/ecookbook/mirror_source", params: { shared_modules: ["", "queries", "documents"] }
+    assert_equal %w[documents queries], @project.reload.mirror_source_setting.shared_modules.sort
+
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_kinds" => [""] }) do
+      get "/projects/ecookbook/settings", params: { tab: "mirror_source" }
+      assert_select "#mirror-source-no-kind"
+    end
+  end
+
   # Administration > Mirror > Source: projects, sessions of every project, filters, one session.
   def test_administration_lists_sharing_projects_and_sessions_across_projects
     @project.enable_module!(:mirror_source)

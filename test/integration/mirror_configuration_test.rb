@@ -225,6 +225,61 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
   # the page must render every tab. A 500 on the project settings went unnoticed once.
   COMPAT_PLUGINS = %w[aaa_mirror_compat_alias zzz_mirror_compat_alias zzz_mirror_compat_prepend].freeze
 
+  # Source users whose email the source shares: preselected by email, or created by a
+  # members manager as registered accounts when the administrator allows it.
+  def test_members_managers_create_registered_accounts_from_shared_source_users
+    Role.find(1).add_permission!(:manage_mirror)
+    company = UserCustomField.create!(name: "Company", field_format: "string")
+    details = {
+      "7" => { "login" => "ralice", "firstname" => "Alice", "lastname" => "Remote", "mail" => "alice@source.example", "company" => "ACME" },
+      "8" => { "login" => "jsmith", "firstname" => "Bob", "lastname" => "Remote", "mail" => "bob@source.example" },
+      "9" => { "login" => "john", "firstname" => "John", "lastname" => "Smith", "mail" => "JSmith@somenet.foo" } }
+    @setting.update!(source_catalog: @setting.source_catalog.merge(
+      "user" => { "7" => "Remote Alice", "8" => "Remote Bob", "9" => "Remote John" }, "user_details" => details))
+    log_user("jsmith", "jsmith")
+    settings("users")
+    assert_select "#mirror-table-user em.mirror-source-user", text: "ralice · alice@source.example · ACME"
+    # Same email first: John is jsmith here.
+    assert_select "#mirror-user-9 option[selected][value='2']"
+    assert_select "#mirror-table-user em.mirror-suggestion", text: "proposed: same email"
+    assert_select "#mirror-user-creation-off"
+    # Without details from the source, only those who may create accounts see why.
+    @setting.update!(source_catalog: @setting.source_catalog.except("user_details").merge("user_details_refusal" => "not_shared"))
+    settings("users")
+    assert_select "#mirror-user-creation", count: 0
+    with_settings(plugin_redmine_mirror: { "user_creation_enabled" => "1" }) do
+      settings("users")
+      assert_select "#mirror-user-details-refused", text: /Data not shared/
+    end
+    @setting.update!(source_catalog: @setting.source_catalog.except("user_details_refusal").merge("user_details" => details))
+    post "/projects/ecookbook/mirror/settings/users", params: { source_user_ids: ["7"] }
+    assert_equal 0, User.where(login: "ralice").count
+
+    with_settings(plugin_redmine_mirror: { "user_creation_enabled" => "1" }) do
+      settings("users")
+      assert_select "table.mirror-user-creation tbody tr", count: 2
+      assert_select "#mirror-create-user-9", count: 0
+      ActionMailer::Base.deliveries.clear
+      post "/projects/ecookbook/mirror/settings/users", params: { source_user_ids: %w[7 8], role_ids: ["2"] }
+      assert_redirected_to "/projects/ecookbook/settings/mirror?mirror_tab=users#mirror-user-creation"
+      alice = User.find_by(login: "ralice")
+      assert alice, flash[:error]
+      assert_equal [User::STATUS_REGISTERED, "alice@source.example", "ACME"], [alice.status, alice.mail, alice.custom_field_value(company)]
+      assert_equal alice.id, @project.mirror_reference_mappings.find_by(reference_type: "user", source_id: 7).destination_id
+      assert_equal [2], @project.memberships.find_by(user_id: alice.id).role_ids
+      assert ActionMailer::Base.deliveries.any? { |mail| mail.bcc.to_a.include?("admin@somenet.foo") || mail.to.to_a.include?("admin@somenet.foo") }
+      # Bob's login is taken: nothing is created for him.
+      assert_match(/Bob Remote/, flash[:error])
+      assert_nil @project.mirror_reference_mappings.find_by(reference_type: "user", source_id: 8)
+      post "/projects/ecookbook/mirror/settings/users", params: { source_user_ids: %w[7] }
+      assert_match(/already mapped/, flash[:error])
+      # A role the user may not give is refused.
+      Role.find(1).update!(all_roles_managed: false)
+      post "/projects/ecookbook/mirror/settings/users", params: { source_user_ids: %w[8], role_ids: ["2"] }
+      assert_equal 1, User.where(status: User::STATUS_REGISTERED, firstname: %w[Alice Bob]).count
+    end
+  end
+
   def test_settings_page_keeps_the_tabs_of_other_plugins
     installed = COMPAT_PLUGINS.select { |name| Redmine::Plugin.installed?(name) }
     assert_equal COMPAT_PLUGINS, installed, "compatibility plugins missing" if ENV["MIRROR_COMPAT_PLUGINS"] == "1"

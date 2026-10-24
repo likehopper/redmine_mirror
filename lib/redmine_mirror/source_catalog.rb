@@ -74,6 +74,7 @@ module RedmineMirror
           end
         end
       end
+      user_details(tables) if tables.fetch("user", {}).any?
       # "<table>_used" lists the source IDs that the project's records reference.
       used.each { |kind, ids| tables["#{kind}_used"] = ids.uniq.sort_by(&:to_i) }
       # Detected markup of descriptions and notes, shown next to the source text format.
@@ -83,6 +84,23 @@ module RedmineMirror
       tables["module_statistics"] = statistics
       tables["read_at"] = Time.now.utc.iso8601
       tables
+    end
+
+    private
+
+    # Login, names, email and company of the source users, when the source project shares
+    # them (Mirror source); else why not, shown in the Users tab. Never sent to AI.
+    def user_details(tables)
+      details = {}
+      tables.fetch("user").keys.each_slice(100) do |ids|
+        users = @client.get("projects/#{Integer(@project_id)}/mirror/source/users.json", "ids" => ids.join(",")).fetch("users")
+        users.each do |user|
+          details[Integer(user.fetch("id")).to_s] = user.slice("login", "firstname", "lastname", "mail", "company", "status")
+        end
+      end
+      tables["user_details"] = details
+    rescue Error => error
+      tables["user_details_refusal"] = error.message[/\(Mirror source: ([a-z_]+)\)/, 1] || (error.message.include?("HTTP 404") ? "unavailable" : "error")
     end
   end
 end

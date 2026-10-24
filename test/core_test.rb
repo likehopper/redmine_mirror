@@ -482,6 +482,10 @@ class MirrorCoreTest < Minitest::Test
       when "projects/1.json" then { "project" => { "id" => 1, "trackers" => [{ "id" => 77, "name" => "Unused tracker" }] } }
       when "issue_statuses.json" then { "issue_statuses" => [{ "id" => 80, "name" => "Unused status" }] }
       when "enumerations/issue_priorities.json" then { "issue_priorities" => [] }
+      # Mirror source shares the users' email and company.
+      when "projects/1/mirror/source/users.json"
+        raise "Unexpected IDs #{_params}" unless _params.fetch("ids").split(",").include?("8")
+        { "users" => [{ "id" => 8, "login" => "ruser", "mail" => "user@source.example", "company" => "ACME", "status" => 1 }] }
       else raise "Unexpected path #{path}"
       end
     end
@@ -492,9 +496,27 @@ class MirrorCoreTest < Minitest::Test
     assert_equal "Unused tracker", catalog.dig("tracker", "77")
     assert_equal "Unused status", catalog.dig("status", "80")
     assert_equal "Remote user", catalog.dig("user", "8")
+    assert_equal({ "login" => "ruser", "mail" => "user@source.example", "company" => "ACME", "status" => 1 }, catalog.dig("user_details", "8"))
     assert catalog.dig("tracker", "1")
     assert_equal({ "records" => 1 }, catalog.dig("module_statistics", "issue_tracking"))
     assert Time.iso8601(catalog.fetch("read_at"))
+  end
+
+  # A source that does not share its users still gives a catalog, with the reason.
+  def test_module_catalog_notes_why_user_details_are_missing
+    client = Object.new
+    def client.get(path, _params = {})
+      return { "project" => { "id" => 1, "trackers" => [] } } if path == "projects/1.json"
+      raise RedmineMirror::Error, "Redmine API returned HTTP 403 for GET #{path} (Mirror source: not_shared)" if path.include?("mirror/source/users")
+      { path.split("/").last.delete_suffix(".json") => [] }
+    end
+    record = @issue.merge("assigned_to" => { "id" => 8, "name" => "Remote user" })
+    client.define_singleton_method(:each_record) { |_collection, _params| [record].each }
+    catalog = RedmineMirror::SourceCatalog.new(client: client, project_id: 1,
+      adapters: RedmineMirror::REGISTRY.resolve(["issue_tracking"])).fetch
+    assert_equal "Remote user", catalog.dig("user", "8")
+    assert_nil catalog["user_details"]
+    assert_equal "not_shared", catalog["user_details_refusal"]
   end
 
   def test_module_catalog_adds_up_adapter_statistics
