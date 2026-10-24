@@ -77,6 +77,18 @@ class MirrorClientTest < Minitest::Test
     end
   end
 
+  # A refused write gives Redmine's validation messages; other bodies stay hidden.
+  def test_refused_write_reports_validation_messages
+    responses = [["422 Unprocessable Entity", JSON.generate("errors" => ["User is invalid", "Date  is\nlocked"])],
+      ["422 Unprocessable Entity", "not json"], ["500 Internal Server Error", JSON.generate("errors" => ["private trace"])]]
+    serve(responses) do |client, _requests|
+      assert_equal "Redmine API returned HTTP 422 for POST time_entries.json: User is invalid; Date is locked",
+        assert_raises(RedmineMirror::Error) { client.create("time_entries.json", {}) }.message
+      assert_equal "Redmine API returned HTTP 422 for POST time_entries.json", assert_raises(RedmineMirror::Error) { client.create("time_entries.json", {}) }.message
+      refute_includes assert_raises(RedmineMirror::Error) { client.get("issues.json") }.message, "private"
+    end
+  end
+
   def test_empty_incomplete_page_fails_instead_of_looping
     serve([["200 OK", JSON.generate("issues" => [], "total_count" => 1)]]) do |client, _requests|
       assert_raises(RedmineMirror::Error) { client.each_record("issues", {}).to_a }
