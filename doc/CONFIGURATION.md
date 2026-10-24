@@ -210,6 +210,19 @@ marked *administrator default* come from the
 
 ![Time tracking mappings](screenshots/configuration/12-time-tracking.png)
 
+**Issue custom fields** maps each source field to a local field of the same format,
+and list values one by one. Two cross-field correspondences come on top of these:
+
+- a single-value source list (a *severity*) can feed the issue priority: choose
+  **Priority (standard field)**, map its values to priorities, and choose the
+  **Priority without a value**, given to issues with an empty or unmapped value. The
+  Priorities table of **Issues** is then not used;
+- the **Source priority** can also be copied into a local single-value list (a
+  *criticity*): choose the field, save, then map the priorities to its values.
+
+History and saved queries follow: a severity change becomes a priority change, a
+source priority change a change of the field receiving it.
+
 Save each tab. A reference left unmapped (an empty field, or **To configure** in short
 lists) stops the objects that use it.
 

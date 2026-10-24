@@ -21,11 +21,17 @@ module RedmineMirror
     def ignore_allowed?; true; end
     def metadata_fields; %w[field_format multiple possible_values observed]; end
     def local_records(project); project.all_issue_custom_fields.select { |field| field.visible_by?(project, User.current) }; end
+    # A source field can also feed the destination priority.
+    def extra_choices; [Adapters::CustomFields::PRIORITY]; end
   end
 
   module Adapters
     class CustomFields < IssueState
       SCALAR_FORMATS = %w[string text int float date bool link].freeze
+      # Cross-field correspondences, besides the standard ones: a source list field mapped
+      # to "priority" feeds the destination priority, and the source priority can also go
+      # to a destination list field (option "priority_field").
+      PRIORITY = "priority"
       def key; "issue_custom_fields"; end
       def mapping_tables; [CustomFieldMappingTable.new]; end
 
@@ -99,17 +105,89 @@ module RedmineMirror
       end
 
       def configuration_options(input, project)
-        raise Error, "Unsupported custom field options" unless (input.keys - ["value_mappings"]).empty?
+        raise Error, "Unsupported custom field options" unless (input.keys - %w[value_mappings priority_fallback priority_field priority_values]).empty?
         values = input.fetch("value_mappings", {})
         raise Error, "Invalid custom field value mappings" unless values.is_a?(Hash)
-        definitions = project.mirror_project_setting.source_catalog.fetch("custom_field_definitions", {})
+        catalog = project.mirror_project_setting.source_catalog
+        definitions = catalog.fetch("custom_field_definitions", {})
         values.each do |id, entries|
           definition = definitions.fetch(id) { raise Error, "Unknown source custom field" }
           raise Error, "Invalid value mappings" unless entries.is_a?(Hash) && (definition["observed"] || %w[list enumeration].include?(definition["field_format"]))
           allowed = definition.fetch("possible_values", []).map { |value| value_key(value.fetch("value")) }
           raise Error, "Unknown source custom field value" unless (entries.keys - allowed).empty?
         end
-        { "value_mappings" => values }
+        options = { "value_mappings" => values }
+        rows = project.mirror_reference_mappings.where(reference_type: "custom_field")
+        # A field feeding the priority needs the priority of issues without a value.
+        if rows.where(mode: PRIORITY).exists?
+          fallback = Integer(input["priority_fallback"].to_s, exception: false)
+          raise Error, "Choose the fallback priority" unless fallback && IssuePriority.active.exists?(id: fallback)
+          options["priority_fallback"] = fallback.to_s
+        end
+        if input["priority_field"].present?
+          field = CustomFieldMappingTable.new.local_records(project).find { |candidate| candidate.id.to_s == input["priority_field"].to_s }
+          raise Error, "The source priority needs a single-value list field" unless field && priority_target?(field)
+          raise Error, "Another source field already goes to this field" if rows.where(mode: "existing", destination_id: field.id).exists?
+          entries = input.fetch("priority_values", {})
+          raise Error, "Invalid priority value mappings" unless entries.is_a?(Hash)
+          raise Error, "Unknown source priority" unless (entries.keys - catalog.fetch("priority", {}).keys).empty?
+          options.merge!("priority_field" => field.id.to_s, "priority_values" => entries)
+        end
+        options
+      end
+
+      # Only a single-value list can stand for a priority, on either side.
+      def priority_choice?(definition)
+        !definition["multiple"] && (!!definition["observed"] || %w[list enumeration].include?(definition["field_format"]))
+      end
+
+      def priority_target?(field)
+        %w[list enumeration].include?(field.field_format) && !field.multiple?
+      end
+
+      # Cross-field options, only while this module is selected.
+      def cross_options(project)
+        setting = project&.mirror_project_setting
+        setting && setting.selected_modules.include?(key) ? setting.module_options.fetch(key, {}) : nil
+      end
+
+      # The source field feeding the destination priority, or nil when the priority
+      # follows the Priorities table.
+      def priority_source(mappings, project)
+        source_id = mappings.fetch("custom_field", {}).key(PRIORITY)
+        source_id if source_id && cross_options(project)
+      end
+
+      # The destination field receiving the source priority, or nil.
+      def priority_field(project)
+        id = cross_options(project)&.fetch("priority_field", nil)
+        return nil if id.blank?
+        project.all_issue_custom_fields.find { |field| field.id.to_s == id.to_s } ||
+          raise(Error, "The destination custom field chosen for the source priority is not enabled in this project")
+      end
+
+      # The destination priority for a value of the field feeding it. An empty value takes
+      # the fallback priority, as does a value without correspondence, with a warning.
+      def priority_for(value, source_id:, project:)
+        options = cross_options(project) || {}
+        value = value.first if value.is_a?(Array)
+        target = value.to_s.empty? ? nil : options.dig("value_mappings", source_id.to_s, value_key(value))
+        if !value.to_s.empty? && target.blank?
+          TextFormat.warning("Missing value mapping for custom field source ID #{source_id}; the fallback priority was used")
+        end
+        id = Integer((target.presence || options["priority_fallback"]).to_s, exception: false)
+        raise Error, "Choose the fallback priority for source custom field ##{source_id}" unless id && IssuePriority.active.exists?(id: id)
+        id
+      end
+
+      # The destination field value for a source priority, when the priority goes to a field.
+      def priority_value(source_priority, field:, project:)
+        return source_priority if source_priority.to_s.empty?
+        target = cross_options(project).to_h.dig("priority_values", source_priority.to_s)
+        raise Error, "Missing value mapping for source priority ##{source_priority}" if target.blank?
+        permitted = field.possible_values_options.map { |label, id| (id || label).to_s }
+        raise Error, "Invalid destination custom field value" unless permitted.include?(target.to_s)
+        target.to_s
       end
 
       def digest(value); super(value.is_a?(Hash) ? value.sort.to_h : value); end
@@ -117,6 +195,8 @@ module RedmineMirror
       def value_key(value); Digest::SHA256.hexdigest(value.to_s); end
 
       def ignored?(id, mappings); mappings.fetch("custom_field", {})[id.to_s] == "ignore"; end
+
+      def feeds_priority?(id, mappings); mappings.fetch("custom_field", {})[id.to_s] == PRIORITY; end
 
       # Field definitions are administration-owned. Only resolve an existing field
       # available to this project; this adapter never creates definitions.
@@ -214,31 +294,43 @@ module RedmineMirror
         setting = project.mirror_project_setting
         definitions = setting.source_catalog.fetch("custom_field_definitions", {})
         options = setting.module_options.fetch(key, {})
-        references = record.fetch("custom_fields", []).reject { |reference| ignored?(reference.fetch("id"), mappings) }
+        # A field feeding the priority is written by the issue itself.
+        references = record.fetch("custom_fields", []).reject { |reference| ignored?(reference.fetch("id"), mappings) || feeds_priority?(reference.fetch("id"), mappings) }
         # A value Mirror cannot write must not block the issue, its time entries and its
         # history: it is skipped with a warning, grouped by cause in the execution log.
         # Redmine still rejects an issue whose required field is left without a value.
         pairs = references.filter_map do |reference|
           id = reference.fetch("id")
           field = target_field(id, mappings, project)
-          unavailable = if issue
-            !issue.available_custom_fields.include?(field)
-          elsif record["tracker"]
-            !field.trackers.exists?(id: map(mappings, "tracker", record.fetch("tracker").fetch("id")))
-          end
-          if unavailable
-            tracker = issue&.tracker || Tracker.find_by(id: map(mappings, "tracker", record.fetch("tracker").fetch("id")))
-            raise Error, "Custom field \"#{field.name}\" is not enabled for destination tracker \"#{tracker&.name}\": enable it, or ignore source field ##{id}"
-          end
+          check_available(field, record, issue, mappings, "ignore source field ##{id}")
           definition = definitions.fetch(id.to_s) { raise Error, "Refresh custom field references" }
           [field.id.to_s, translate_value((reference["value"] || (field.multiple? ? [] : "")), source_id: id, field: field, definition: definition, options: options, mappings: mappings, lookup: lookup)]
         rescue Error => error
           TextFormat.warning("#{error.message}; the value was not imported")
           nil
         end
+        begin
+          if record["priority"] && (field = priority_field(project))
+            check_available(field, record, issue, mappings, "choose another field for the source priority")
+            pairs << [field.id.to_s, priority_value(record.dig("priority", "id"), field: field, project: project)]
+          end
+        rescue Error => error
+          TextFormat.warning("#{error.message}; the value was not imported")
+        end
         desired = pairs.to_h
         raise Error, "Multiple source fields map to the same destination field" if desired.size != pairs.size
         desired
+      end
+
+      def check_available(field, record, issue, mappings, remedy)
+        unavailable = if issue
+          !issue.available_custom_fields.include?(field)
+        elsif record["tracker"]
+          !field.trackers.exists?(id: map(mappings, "tracker", record.fetch("tracker").fetch("id")))
+        end
+        return unless unavailable
+        tracker = issue&.tracker || Tracker.find_by(id: map(mappings, "tracker", record.fetch("tracker").fetch("id")))
+        raise Error, "Custom field \"#{field.name}\" is not enabled for destination tracker \"#{tracker&.name}\": enable it, or #{remedy}"
       end
 
       def state(issue, ids)

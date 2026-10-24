@@ -18,7 +18,7 @@
 class MirrorReferenceMapping < ActiveRecord::Base
   belongs_to :project
   validates :source_id, numericality: { only_integer: true, greater_than: 0 }
-  validates :mode, inclusion: { in: %w[existing anonymous ignore] }
+  validates :mode, inclusion: { in: %w[existing anonymous ignore priority] }
   validates :destination_id, numericality: { only_integer: true, greater_than: 0 }, if: -> { mode == "existing" }
   validates :source_id, uniqueness: { scope: [:project_id, :reference_type] }
   validate :validate_reference
@@ -35,6 +35,12 @@ class MirrorReferenceMapping < ActiveRecord::Base
     if mode == "ignore"
       errors.add(:base, "Ignoring is not supported for #{reference_type} references") unless table.ignore_allowed?
       errors.add(:destination_id, :invalid) unless destination_id.nil?
+    elsif !%w[existing anonymous ignore].include?(mode)
+      # A source field feeding the priority: a single-value list, one per project.
+      definition = setting.source_catalog.fetch("custom_field_definitions", {})[source_id.to_s]
+      errors.add(:mode, :invalid) unless table.extra_choices.include?(mode) && definition && RedmineMirror::Adapters::CustomFields.new.priority_choice?(definition)
+      errors.add(:destination_id, :invalid) unless destination_id.nil?
+      errors.add(:base, "Only one source field can feed the priority") if project.mirror_reference_mappings.where(reference_type: reference_type, mode: mode).where.not(id: id).exists?
     elsif mode == "anonymous"
       errors.add(:base, "Anonymization is only supported for users") unless table.anonymous_allowed?
       errors.add(:destination_id, :invalid) unless destination_id.nil?

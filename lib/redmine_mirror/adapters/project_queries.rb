@@ -155,8 +155,15 @@ module RedmineMirror
         query.project = project
         filters = record.fetch("filters").each_with_object({}) do |(field, filter), result|
           field = RENAMED.fetch(field, field)
+          values = Array(filter["values"])
+          if (crossed = cross_field(field, project, mappings, filter: true))
+            raise UNTRANSLATABLE, "filter \"#{field}\" names the source priority, which is not imported" unless crossed.first
+            field, values = crossed.first, cross_values(field, values, project, mappings)
+            raise UNTRANSLATABLE, "filter \"#{field}\" does not exist here" unless query.available_filters.key?(field)
+            next result[field] = { operator: filter.fetch("operator"), values: values }
+          end
           raise UNTRANSLATABLE, "filter \"#{field}\" does not exist here" unless query.available_filters.key?(field)
-          result[field] = { operator: filter.fetch("operator"), values: translate_values(field, filter.fetch("operator"), Array(filter["values"]), project, mappings, lookup) }
+          result[field] = { operator: filter.fetch("operator"), values: translate_values(field, filter.fetch("operator"), values, project, mappings, lookup) }
         end
         columns = Array(record["column_names"]).map { |name| translate_column(name.to_s, project, mappings) }.compact
         columns &= query.available_columns.map { |column| column.name.to_s }
@@ -224,10 +231,48 @@ module RedmineMirror
       # Columns, sorts and groups: custom fields are renamed, Scrum names become agile ones.
       def translate_column(name, project, mappings)
         name = RENAMED.fetch(name, name)
+        crossed = cross_field(name, project, mappings)
+        return crossed.first if crossed
         prefix, source_id = name.match(/\A((?:issue\.)?)cf_(\d+)\z/)&.captures
         return name unless source_id
         local = mappings.fetch("custom_field", {})[source_id]
         local.to_s.match?(/\A\d+\z/) ? "#{prefix}cf_#{local}" : nil
+      end
+
+      # Cross-field correspondences (CustomFields::PRIORITY): the source field feeding the
+      # priority becomes the priority, the source priority the field receiving it. A filter
+      # (priority_id) or column (priority) name, with an optional "issue." prefix; nil when
+      # unchanged, else [destination name or nil when the source priority is not imported].
+      def cross_field(name, project, mappings, filter: false)
+        fields = CustomFields.new
+        prefix, field = name.match(/\A((?:issue\.)?)(.*)\z/).captures
+        source = fields.priority_source(mappings, project)
+        if field == (filter ? "priority_id" : "priority")
+          target = fields.priority_field(project)
+          return nil unless target || source
+          [target && "#{prefix}cf_#{target.id}"]
+        elsif source && field == "cf_#{source}"
+          [prefix + (filter ? "priority_id" : "priority")]
+        end
+      rescue Error => error
+        raise UNTRANSLATABLE, error.message
+      end
+
+      # Filter values of a crossed field, as values of the destination field.
+      def cross_values(name, values, project, mappings)
+        return values if values.all? { |value| value.to_s.empty? }
+        fields = CustomFields.new
+        options = fields.cross_options(project).to_h
+        if name.delete_prefix("issue.") == "priority_id"
+          values.map do |value|
+            options.dig("priority_values", value.to_s).presence || raise(UNTRANSLATABLE, "priority #{value} of filter \"#{name}\" is not mapped")
+          end
+        else
+          source = fields.priority_source(mappings, project)
+          values.map do |value|
+            options.dig("value_mappings", source, fields.value_key(value)).presence || raise(UNTRANSLATABLE, "value \"#{value}\" of filter \"#{name}\" is not mapped")
+          end
+        end
       end
 
       # Roles mapped in Members; without any, the roles that manage the project settings.

@@ -117,15 +117,16 @@ class MirrorSettingsController < ApplicationController
             scope.destroy_all
           else
             row = scope.first_or_initialize
-            row.mode = %w[anonymous ignore].include?(selection) ? selection : "existing"
-            row.destination_id = %w[anonymous ignore].include?(selection) ? nil : Integer(selection)
+            literal = %w[anonymous ignore].include?(selection) || table.extra_choices.include?(selection)
+            row.mode = literal ? selection : "existing"
+            row.destination_id = literal ? nil : Integer(selection)
             # A correspondence changed by hand no longer comes from an administrator's default.
             row.from_default = false if row.changed?
             row.save!
           end
         end
       end
-      options = adapter.configuration_options(params.fetch(:module_options, ActionController::Parameters.new).permit(:anonymous_user_id, :missing_target, :unmapped, value_mappings: {}).to_h, @project)
+      options = adapter.configuration_options(params.fetch(:module_options, ActionController::Parameters.new).permit(:anonymous_user_id, :missing_target, :unmapped, :priority_fallback, :priority_field, value_mappings: {}, priority_values: {}).to_h, @project)
       @setting.update!(module_options: @setting.module_options.merge(adapter.key => options))
     end
     flash[:notice] = l(:notice_successful_update)

@@ -171,6 +171,33 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     assert_select "#mirror-custom_field-901 option[value=ignore]", count: 0
   end
 
+  # Cross-field correspondences, besides the standard ones: a source field feeding the
+  # priority, and the source priority copied into a list field.
+  def test_a_source_field_can_feed_the_priority_and_the_priority_a_field
+    field = IssueCustomField.create!(name: "Criticité", field_format: "list", possible_values: %w[Mineure Majeure], is_for_all: true)
+    @setting.selected_modules = %w[issue_tracking issue_custom_fields]
+    @setting.source_catalog = @setting.source_catalog.merge("custom_field" => { "900" => "severity" }, "custom_field_definitions" => {
+      "900" => { "field_format" => "list", "multiple" => false, "possible_values" => [{ "value" => "blocker", "label" => "blocker" }] } })
+    @setting.save!
+    log_user("admin", "admin")
+    settings("issue_custom_fields")
+    assert_select "#mirror-custom_field-900 option[value=priority]", text: "Priority (standard field)"
+    assert_select "#mirror-source-priority-values", count: 0
+    hash = RedmineMirror::Adapters::CustomFields.new.value_key("blocker")
+    patch "/projects/ecookbook/mirror/settings/modules/issue_custom_fields", params: { mappings: { custom_field: { "900" => "priority" } },
+      module_options: { value_mappings: { "900" => { hash => "6" } }, priority_fallback: "4", priority_field: field.id.to_s, priority_values: { "1" => "Majeure" } } }
+    assert_nil flash[:error]
+    assert_equal "priority", @project.mirror_reference_mappings.find_by(source_id: 900).mode
+    assert_equal({ "value_mappings" => { "900" => { hash => "6" } }, "priority_fallback" => "4", "priority_field" => field.id.to_s,
+      "priority_values" => { "1" => "Majeure" } }, @setting.reload.module_options.fetch("issue_custom_fields"))
+    settings("issue_custom_fields")
+    assert_select "#mirror-priority-values-900 select option[selected]", text: IssuePriority.find(6).name
+    assert_select "#mirror-priority-fallback option[selected][value='4']"
+    assert_select "#mirror-source-priority-values select option[selected]", text: "Majeure"
+    settings("issue_tracking")
+    assert_select "#mirror-priority-from-field", text: /severity/
+  end
+
   def test_catalog_refresh_progress_reloads_the_page
     @setting.update_columns(catalog_status: "refreshing", catalog_requested_at: Time.current,
       catalog_progress: JSON.generate("step" => 1, "steps" => 2, "module" => "issue_tracking", "records" => 40, "at" => Time.current.iso8601))
