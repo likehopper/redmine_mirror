@@ -126,11 +126,6 @@ Without a REST API, so through **Mirror source**, like Documents:
 - **Watchers outside issues**: boards, topics and wiki pages. The `watchers` API covers
   issues only.
 - **Reactions** (new in Redmine 6.1).
-- **Saved queries of the project** (requested 2026-10-23, after the agile steps). The
-  API lists only their names (`queries#index`): filters, columns, sorts, grouping and
-  visibility go through Mirror source, and are recreated locally with statuses, trackers,
-  users, versions and custom fields translated by the mappings. Agile boards (saved
-  redmine_agile queries) follow the same path.
 - **Repositories and changesets.** Only the links between a changeset and an issue have
   an API. Repository settings depend on the server: probably out of scope.
 

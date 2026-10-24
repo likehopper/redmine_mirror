@@ -28,7 +28,7 @@ preselected; nothing is saved until the form is. AI proposals are asked for per 
     <% if User.current.allowed_to?(:select_project_modules, @project) %><%= link_to l(:label_mirror_enable_project_module), settings_project_path(@project, tab: "modules") %><% end %></p>
 <% end %>
 <%= render adapter.settings_partial, adapter: adapter if adapter.settings_partial %>
-<% if %w[issue_hierarchy issue_watchers wiki project_members documents project_files news issue_tags agile_sprints agile_issues].include?(adapter.key) %>
+<% if %w[issue_hierarchy issue_watchers wiki project_members documents project_files news issue_tags agile_sprints agile_issues project_queries].include?(adapter.key) %>
   <p><%= l("text_mirror_#{adapter.key}".to_sym) %></p>
 <% end %>
 <% if adapter.mapping_tables.any? %><p><%= l(:text_mirror_mapping_help) %></p><% end %>

@@ -19,7 +19,7 @@ require_relative "../test_helper"
 
 class MirrorSourceApiTest < Redmine::ApiTest::Base
   fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules,
-    :documents, :enumerations, :attachments, :news, :comments
+    :documents, :enumerations, :attachments, :news, :comments, :queries
 
   SESSION = "0123456789abcdef0123456789abcdef"
 
@@ -132,6 +132,23 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
       assert_response :not_found
       assert_equal "unavailable", response.headers["X-Mirror-Source-Refusal"]
     end
+  end
+
+  # Saved queries: every query of the project, private ones of other users included,
+  # with plain JSON definitions; queries of other projects never.
+  def test_lists_the_project_saved_queries
+    enabled do
+      @project.mirror_source_setting.update!(shared_modules: %w[queries])
+      get "/projects/ecookbook/mirror/source/queries.json", headers: mirror_headers
+      assert_response :success
+      listed = JSON.parse(response.body).fetch("queries")
+      expected = Query.where(project_id: @project.id, type: %w[IssueQuery TimeEntryQuery]).order(:id)
+      assert_equal expected.pluck(:id), listed.map { |row| row.fetch("id") }
+      assert listed.any? { |row| row["visibility"] == Query::VISIBILITY_PRIVATE && row.dig("user", "id") != 2 }
+      first = listed.find { |row| row.fetch("filters").any? }
+      assert_equal %w[operator values], first.fetch("filters").values.first.keys.sort
+    end
+    assert_equal "list", MirrorSourceAccess.where(session_key: SESSION).last.action
   end
 
   # Each lock refuses with its reason, logged; the destination reads the header.

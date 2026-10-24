@@ -1,0 +1,33 @@
+# File: redmine_mirror/app/views/mirror_source_api/queries.api.rsb
+#
+# Redmine Mirror - modular project import and asynchronous replication.
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 2 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+#
+# Saved queries of the project with their full definition, as plain JSON values.
+
+api.array :queries, api_meta(total_count: @queries.size) do
+  @queries.each do |query|
+    api.query do
+      api.id query.id
+      api.type query.type
+      api.name query.name
+      api.visibility query.visibility
+      api.user(id: query.user_id, name: query.user.name) if query.user
+      api.array(:roles) { query.roles.each { |role| api.role(id: role.id, name: role.name) } }
+      api.filters RedmineMirror::Source.plain(query.filters || {})
+      api.column_names RedmineMirror::Source.plain(query.read_attribute(:column_names) || [])
+      api.sort_criteria RedmineMirror::Source.plain(query.read_attribute(:sort_criteria) || [])
+      api.group_by query.group_by
+      api.options RedmineMirror::Source.plain(query.options || {})
+    end
+  end
+end

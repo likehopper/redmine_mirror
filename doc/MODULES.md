@@ -351,10 +351,35 @@ the destination. Enable the Agile module on the destination project.
   becomes 1); the field itself is copied by the custom fields module. A sprint owned by
   another project (shared with subprojects) is found once that project is synchronized,
   as for shared versions.
+- redmine_agile refuses overlapping sprints and closing a sprint that holds open
+  issues; Scrum allowed both and production data has them, so these two rules are not
+  applied to imported sprints. Every other redmine_agile validation applies.
 - Not copied: the remaining effort history (redmine_agile has no equivalent), and the
-  redmine_agile data of the source itself (card colors, saved boards).
+  card colors of the source (per-issue colors are usually empty; tracker, priority and
+  user colors are administration settings). Saved agile boards come with **Saved
+  queries**.
 - A local change of an imported sprint or of an issue's agile data is a conflict, except
   in mirror mode.
+
+## Saved queries
+
+Recreates the project's saved queries of issues, time entries and agile boards (the
+latter with redmine_agile on both sides), through **Mirror source**: Redmine's API lists
+only their names. The source API key needs *View issues*; private queries are included.
+
+- Filters, columns, sorts, grouping and board options (status columns, work-in-progress
+  limits, sprint) are translated through the mappings of the other tabs (statuses,
+  trackers, priorities, activities, users, roles, groups, custom fields) and the imported
+  versions, categories, issues and sprints. The Scrum filter on sprints becomes the
+  redmine_agile one.
+- A query with a filter that cannot be translated (unmapped or ignored value, anonymized
+  user, project filter with values, filter of a plugin missing here) is **not created**
+  and is logged as ignored, with the reason: it would show other issues than its name
+  says. Columns, sorts and groups that do not exist here are left out.
+- A private query goes to its mapped owner, locked or not, and is ignored when the owner
+  is anonymized. A query shown to roles gets the roles mapped in Members, or else the
+  roles of the project that can edit it.
+- A local edit or deletion of an imported query is a conflict, except in mirror mode.
 
 ## Files
 

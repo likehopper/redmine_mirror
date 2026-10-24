@@ -16,6 +16,17 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.31 — 2026-10-24
+
+- **Saved queries** module: the project's saved queries of issues, time entries and
+  agile boards are recreated through **Mirror source** (Redmine Mirror 1.0.0-beta.31 or
+  later on the source, *View issues*), filters, columns, sorts, grouping and board
+  options translated through the mappings. A query with an untranslatable filter is not
+  created and is logged as ignored; private queries go to their mapped owner; queries
+  shown to roles get the mapped roles, or else the roles that can edit the project.
+- Agile sprints: the documentation now says that overlapping sprints and closed sprints
+  holding open issues are kept, as on the source.
+
 ## 1.0.0-beta.30 — 2026-10-23
 
 - **Agile sprints** and **Agile issue data** modules: the Scrum plugin of a source becomes
