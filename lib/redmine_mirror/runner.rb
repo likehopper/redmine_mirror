@@ -47,11 +47,11 @@ module RedmineMirror
       planned_correspondences = {}
       results = []
       # A planned correspondence lets later adapters validate a first import. Shared
-      # versions may already belong to a separately synchronized source project.
+      # versions and sprints may already belong to a separately synchronized source project.
       lookup = lambda do |key, id|
         mapping = @mapping_store.find(key, id)
         result = mapping ? mapping.fetch("destination_id") : planned_correspondences[[key, id]]
-        if !result && key == "project_versions" && @mapping_store.respond_to?(:find_related_mapping)
+        if !result && %w[project_versions agile_sprints].include?(key) && @mapping_store.respond_to?(:find_related_mapping)
           shared = @mapping_store.find_related_mapping(key, id)
           result = shared && shared.fetch("destination_id")
         end

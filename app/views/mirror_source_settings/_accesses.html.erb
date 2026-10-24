@@ -44,6 +44,9 @@ One Mirror source session: each request, served or refused, and what it sent.
               <% if (tags = details["issue_tags"]).is_a?(Hash) %>
                 <strong><%= l(:label_mirror_module_issue_tags) %></strong> <%= l(:text_mirror_source_tags_listed, issues: tags["issues"].to_i, tags: tags["tags"].to_i) %>
               <% end %>
+              <% if (scrum = details["scrum"]).is_a?(Hash) %>
+                <strong><%= l(:label_mirror_module_scrum) %></strong> <%= l(:text_mirror_source_scrum_listed, sprints: scrum["sprints"].to_i, issues: scrum["issues"].to_i) %>
+              <% end %>
               <% %w[documents news].each do |kind| %>
                 <% next if details.fetch(kind, []).empty? %>
                 <strong><%= l("label_mirror_module_#{kind}".to_sym) %></strong> <%= safe_join(details.fetch(kind).map { |row| "#{row['title']} (##{row['id']})" }, ", ") %>

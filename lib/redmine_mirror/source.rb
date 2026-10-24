@@ -22,10 +22,11 @@ module RedmineMirror
     module_function
 
     # Data a project can share. News have a REST API, but not their comments nor files;
-    # issue tags (Redmine Tags plugin by RedmineUP) have none.
-    KINDS = %w[documents news issue_tags].freeze
+    # issue tags (Redmine Tags plugin by RedmineUP) and Scrum sprints (Scrum plugin) have none.
+    KINDS = %w[documents news issue_tags scrum].freeze
     # Native permission the API account needs for each kind.
-    PERMISSIONS = { "documents" => :view_documents, "news" => :view_news, "issue_tags" => :view_issues }.freeze
+    PERMISSIONS = { "documents" => :view_documents, "news" => :view_news, "issue_tags" => :view_issues,
+      "scrum" => :view_sprint_board }.freeze
     # The kind a shared file belongs to, by its container.
     CONTAINERS = { "Document" => "documents", "News" => "news" }.freeze
     # Sent by Mirror clients; the source keeps it only when it has this exact form.
@@ -50,6 +51,11 @@ module RedmineMirror
     # Issue tags need the Redmine Tags plugin on this Redmine.
     def tags_available?
       Issue.method_defined?(:tag_list)
+    end
+
+    # Sprints need the Scrum plugin on this Redmine.
+    def scrum_available?
+      defined?(::Sprint) && Issue.column_names.include?("sprint_id") ? true : false
     end
 
     def shared?(project, kind)
