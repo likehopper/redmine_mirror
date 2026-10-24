@@ -53,13 +53,15 @@ module RedmineMirror
       end
     end
 
-    # Locked accounts keep the history of people who left (authors, past assignees).
-    # With the Members module, members managers choose among all accounts, as Redmine
-    # offers them when adding a member; others see the members and the users mapped.
+    # Locked accounts keep the history of people who left (authors, past assignees);
+    # registered ones await activation, such as accounts created from a Mirror source.
+    # With the Members module, or when they may create accounts from the source, members
+    # managers choose among all accounts, as Redmine offers them when adding a member;
+    # others see the members and the users mapped.
     def local_users(project)
       # Labels show the login, email and company (MirrorHelper#mirror_user_label).
-      users = User.where(status: [User::STATUS_ACTIVE, User::STATUS_LOCKED]).preload(:email_address, :preference, :custom_values)
-      return users.sorted if RedmineMirror.members_manager?(project)
+      users = User.where(status: [User::STATUS_ACTIVE, User::STATUS_LOCKED, User::STATUS_REGISTERED]).preload(:email_address, :preference, :custom_values)
+      return users.sorted if RedmineMirror.members_manager?(project) || RedmineMirror.user_creation?(project)
       mapped = project.mirror_reference_mappings.where(reference_type: "user", mode: "existing").select(:destination_id)
       users.where(id: project.memberships.select(:user_id)).or(users.where(id: mapped)).sorted
     end

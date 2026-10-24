@@ -17,8 +17,8 @@
 # administrator, the project and its sharing allow it, and logged request by request.
 
 class MirrorSourceApiController < ApplicationController
-  accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :scrum, :queries, :download
-  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries]
+  accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :scrum, :queries, :users, :download
+  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users]
   before_action :find_document, only: :document
   before_action :find_news, only: :news_item
   before_action :find_attachment, only: :download
@@ -96,6 +96,20 @@ class MirrorSourceApiController < ApplicationController
     respond_to { |format| format.api }
   end
 
+  # Login, names, email and company of the requested users (?ids=1,2) who are members of
+  # the project or appear in its data; the others are left out without a word. Redmine's
+  # users API gives logins and emails to administrators only.
+  def users
+    ids = params[:ids].to_s.split(",").map { |id| Integer(id, exception: false) }.compact.uniq
+      .first(RedmineMirror::Source::USERS_PER_REQUEST)
+    @users = User.where(type: "User", id: RedmineMirror::Source.project_user_ids(@project, ids))
+      .preload(:email_address, :custom_values).order(:id).to_a
+    @company_field = RedmineMirror.user_company_field
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @users.size,
+      details: { "users" => @users.map { |user| { "id" => user.id, "title" => user.name } } })
+    respond_to { |format| format.api }
+  end
+
   # Shared files go through here, not the attachments API, so that sharing applies
   # and the transfer is logged.
   def download
@@ -148,6 +162,7 @@ class MirrorSourceApiController < ApplicationController
     when "issue_tags" then "issue_tags"
     when "scrum" then "scrum"
     when "queries" then "queries"
+    when "users" then "users"
     when "download" then RedmineMirror::Source::CONTAINERS.fetch(@attachment.container_type)
     else "documents"
     end

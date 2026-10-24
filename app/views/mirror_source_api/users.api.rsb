@@ -1,0 +1,30 @@
+# File: redmine_mirror/app/views/mirror_source_api/users.api.rsb
+#
+# Redmine Mirror - modular project import and asynchronous replication.
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 2 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+#
+# The requested users the project knows, with what a destination needs to create or
+# recognize their account: login, names, email, company and status.
+
+api.array :users, api_meta(total_count: @users.size) do
+  @users.each do |user|
+    api.user do
+      api.id user.id
+      api.login user.login
+      api.firstname user.firstname
+      api.lastname user.lastname
+      api.mail user.mail
+      api.company(@company_field ? user.custom_field_value(@company_field).to_s.presence : nil)
+      api.status user.status
+    end
+  end
+end

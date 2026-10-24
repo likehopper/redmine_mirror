@@ -27,6 +27,7 @@ patch "projects/:project_id/mirror/settings/connection", to: "mirror_settings#up
 post "projects/:project_id/mirror/settings/refresh", to: "mirror_settings#refresh", as: "project_mirror_refresh"
 patch "projects/:project_id/mirror/settings/modules/:module_key", to: "mirror_settings#update_mappings", as: "project_mirror_mappings"
 post "projects/:project_id/mirror/settings/modules/:module_key/ai/:table", to: "mirror_settings#request_ai", as: "project_mirror_ai"
+post "projects/:project_id/mirror/settings/users", to: "mirror_settings#create_users", as: "project_mirror_users"
 
 patch "projects/:project_id/mirror/schedule", to: "mirror_synchronizations#update", as: "project_mirror_schedule"
 post "projects/:project_id/mirror/synchronizations", to: "mirror_synchronizations#create", as: "project_mirror_enqueue"
@@ -44,4 +45,5 @@ get "mirror/source/news/:id", to: "mirror_source_api#news_item", as: "mirror_sou
 get "projects/:project_id/mirror/source/issue_tags", to: "mirror_source_api#issue_tags", as: "mirror_source_issue_tags"
 get "projects/:project_id/mirror/source/scrum", to: "mirror_source_api#scrum", as: "mirror_source_scrum"
 get "projects/:project_id/mirror/source/queries", to: "mirror_source_api#queries", as: "mirror_source_queries"
+get "projects/:project_id/mirror/source/users", to: "mirror_source_api#users", as: "mirror_source_users"
 get "mirror/source/attachments/:id/download", to: "mirror_source_api#download", as: "mirror_source_download"

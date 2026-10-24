@@ -18,6 +18,19 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 ## Unreleased
 
+- **Mirror source**: the administrator chooses the data projects may share, among the
+  data this Redmine can provide (Tags and Scrum sprints only with their plugin). Projects
+  see only the allowed data; the rest is refused to destinations as a disabled Mirror
+  source. Until the choice is saved, all available data stays allowed.
+- **Create accounts from the source**: a source project can share **Users** through
+  Mirror source (login, name, email and company of its members and of the users in its
+  data). In the destination's Users tab, a local account with the same email is
+  preselected first, and members managers can create the missing accounts as registered
+  accounts awaiting activation, mapped and optionally added as members, when the
+  administrator allows it (**Create accounts from Mirror sources**, off by default).
+  Administrators receive Redmine's activation request.
+- Registered accounts (awaiting activation) are handled like locked ones: kept as
+  assignee, author or time entry user, members allowed, never watchers.
 - A write refused by the destination (HTTP 422) gives Redmine's validation messages in
   the log ("User is invalid", a locked period…) instead of the status code alone. Other
   response bodies stay hidden.

@@ -110,7 +110,13 @@ module MirrorHelper
     label = "#{user.name} (##{user.id})"
     label += " — #{details.join(' · ')}" if details.any?
     label += " - #{l(:status_locked)}" if user.locked?
+    label += " - #{l(:status_registered)}" if user.registered?
     label
+  end
+
+  # "login · email · company" of a source user, when the source shares them (Mirror source).
+  def mirror_source_user_details(info)
+    info ? info.values_at("login", "mail", "company").reject(&:blank?).join(" · ") : ""
   end
 
   # Administration overview cells: the project links to its Mirror page, durations read
@@ -369,7 +375,7 @@ module MirrorHelper
         { text: l(:text_mirror_guide_priority_inactive, name: priority.name), label: :label_mirror_guide_edit_enumeration,
           path: User.current.admin? && edit_enumeration_path(priority) }
     when "user"
-      user = same.call(User.where(status: [User::STATUS_ACTIVE, User::STATUS_LOCKED]).to_a)
+      user = same.call(User.where(status: [User::STATUS_ACTIVE, User::STATUS_LOCKED, User::STATUS_REGISTERED]).to_a)
       user && !RedmineMirror::MappingTable.new("user").local_records(@project).include?(user) &&
         { text: l(:text_mirror_guide_user_not_member, name: user.name), label: :label_mirror_guide_add_member,
           path: User.current.allowed_to?(:manage_members, @project) && settings_project_path(@project, tab: "members") }
