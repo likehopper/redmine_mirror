@@ -50,6 +50,7 @@ mkdir -p /mirror-data/files
   bundle exec rake db:migrate
   REDMINE_LANG=en bundle exec rake redmine:load_default_data
   bundle exec rails runner /mirror-environment/seed.rb
+  bundle exec rails runner /mirror-environment/severity_seed.rb
   bundle exec rails runner /mirror-environment/api_token.rb
   bundle exec rails server -b 127.0.0.1 -p 3001 -d
 )

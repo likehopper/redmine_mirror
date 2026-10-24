@@ -35,7 +35,7 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
   ADMIN_LOGIN = "mirror-doc-admin"
   ADMIN_PASSWORD = "Mirror-doc-123!"
   # Modules shown in the guide; the others are described in doc/MODULES.md.
-  MODULES = %w[issue_categories project_versions issue_tracking time_tracking
+  MODULES = %w[issue_categories project_versions issue_tracking issue_custom_fields time_tracking
                issue_journals issue_attachments issue_relations].freeze
 
   setup do
@@ -144,6 +144,27 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     assert_selector "#flash_notice"
   end
 
+  # Cross-field correspondences: the source Severity feeds the priority, the source
+  # priority goes to the local Criticity field.
+  def test_08b_cross_field_mappings
+    open_module_tab "issue_custom_fields"
+    within("#mirror-table-custom_field") { find("tbody tr", text: "Severity").find("select").select("Priority (standard field)") }
+    select find("#mirror-priority-field option", text: /\ACriticity/).text, from: "mirror-priority-field"
+    click_button "Save"
+    assert_selector "#flash_notice"
+    severity = project.mirror_reference_mappings.find_by!(reference_type: "custom_field", mode: "priority").source_id
+    within("#mirror-priority-values-#{severity}") do
+      { "minor" => "Low", "major" => "High", "blocker" => "Urgent" }.each { |value, priority| map_row(value, priority) }
+    end
+    select "Normal", from: "mirror-priority-fallback"
+    within("#mirror-source-priority-values") do
+      { "Low" => "Minor", "Normal" => "Minor", "High" => "Major", "Urgent" => "Critical", "Immediate" => "Critical" }.each { |priority, value| map_row(priority, value) }
+    end
+    screenshot "40-cross-field-mappings", "#tab-content-mirror"
+    click_button "Save"
+    assert_selector "#flash_notice"
+  end
+
   def test_09_relation_policy
     open_module_tab "issue_relations"
     select "Add a private note", from: "missing_target"
@@ -173,6 +194,14 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     run = run_worker
     assert_equal "succeeded", run.status, run.error_message
     assert_equal 12, project.issues.count
+    # Step 8b: the severity gave the priority, the source priority the Criticity.
+    criticity = IssueCustomField.find_by!(name: "Criticity")
+    first, second, _, fourth = project.issues.order(:id).first(4)
+    assert_equal [["Urgent", "Major"], ["High", "Minor"], ["Normal", "Minor"]],
+                 [first, second, fourth].map { |issue| [issue.priority.name, issue.custom_field_value(criticity)] }
+    raised = first.journals.find_by!(notes: "Mirror fixture: severity raised")
+    assert_equal [["attr", "priority_id", IssuePriority.find_by!(name: "Low").id.to_s, first.priority_id.to_s], ["cf", criticity.id.to_s, "Minor", "Major"]],
+                 raised.details.order(:id).map { |detail| [detail.property, detail.prop_key, detail.old_value, detail.value] }
     visit current_path
     screenshot "16-import-log", "#content", max_height: 760
     # README illustration.
@@ -442,10 +471,18 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
                           language: "en", password: ADMIN_PASSWORD, password_confirmation: ADMIN_PASSWORD)
       Member.create!(project: project, user: user, roles: [manager])
     end
+    # Receives the source priority (step 8, cross-field correspondences).
+    IssueCustomField.create!(name: "Criticity", field_format: "list", possible_values: %w[Minor Major Critical],
+                             is_for_all: true, is_filter: true, trackers: Tracker.all)
   end
 
   def project
     Project.find_by!(identifier: PROJECT)
+  end
+
+  # A value table row: source value in the first cell, its correspondence in the select.
+  def map_row(source, destination)
+    find("td", text: source, exact_text: true).ancestor("tr").find("select").select(destination)
   end
 
   def open_module_tab(key)

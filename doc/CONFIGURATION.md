@@ -223,6 +223,8 @@ and list values one by one. Two cross-field correspondences come on top of these
 History and saved queries follow: a severity change becomes a priority change, a
 source priority change a change of the field receiving it.
 
+![Cross-field correspondences](screenshots/configuration/40-cross-field-mappings.png)
+
 Save each tab. A reference left unmapped (an empty field, or **To configure** in short
 lists) stops the objects that use it.
 

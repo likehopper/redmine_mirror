@@ -118,9 +118,10 @@ module RedmineMirror
         end
         options = { "value_mappings" => values }
         rows = project.mirror_reference_mappings.where(reference_type: "custom_field")
-        # A field feeding the priority needs the priority of issues without a value.
+        # A field feeding the priority needs the priority of issues without a value: the
+        # default priority until one is chosen (the choice appears once the field is saved).
         if rows.where(mode: PRIORITY).exists?
-          fallback = Integer(input["priority_fallback"].to_s, exception: false)
+          fallback = Integer((input["priority_fallback"].presence || IssuePriority.default&.id).to_s, exception: false)
           raise Error, "Choose the fallback priority" unless fallback && IssuePriority.active.exists?(id: fallback)
           options["priority_fallback"] = fallback.to_s
         end
