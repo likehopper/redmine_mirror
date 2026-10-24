@@ -23,10 +23,12 @@ module RedmineMirror
 
     # Data a project can share. News have a REST API, but not their comments nor files;
     # issue tags (Redmine Tags plugin by RedmineUP) and Scrum sprints (Scrum plugin) have none.
-    KINDS = %w[documents news issue_tags scrum].freeze
+    KINDS = %w[documents news issue_tags scrum queries].freeze
     # Native permission the API account needs for each kind.
     PERMISSIONS = { "documents" => :view_documents, "news" => :view_news, "issue_tags" => :view_issues,
-      "scrum" => :view_sprint_board }.freeze
+      "scrum" => :view_sprint_board, "queries" => :view_issues }.freeze
+    # Saved queries a project shares: issues, time entries and agile boards.
+    QUERY_TYPES = %w[IssueQuery TimeEntryQuery AgileQuery].freeze
     # The kind a shared file belongs to, by its container.
     CONTAINERS = { "Document" => "documents", "News" => "news" }.freeze
     # Sent by Mirror clients; the source keeps it only when it has this exact form.
@@ -51,6 +53,17 @@ module RedmineMirror
     # Issue tags need the Redmine Tags plugin on this Redmine.
     def tags_available?
       Issue.method_defined?(:tag_list)
+    end
+
+    # Plain JSON values of a saved query option (Rails parameters, symbols).
+    def plain(value)
+      value = value.to_unsafe_h if value.respond_to?(:to_unsafe_h)
+      case value
+      when Hash then value.each_with_object({}) { |(key, item), result| result[key.to_s] = plain(item) }
+      when Array then value.map { |item| plain(item) }
+      when Symbol then value.to_s
+      else value
+      end
     end
 
     # Sprints need the Scrum plugin on this Redmine.

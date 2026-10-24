@@ -43,4 +43,5 @@ get "projects/:project_id/mirror/source/news", to: "mirror_source_api#news", as:
 get "mirror/source/news/:id", to: "mirror_source_api#news_item", as: "mirror_source_news_item"
 get "projects/:project_id/mirror/source/issue_tags", to: "mirror_source_api#issue_tags", as: "mirror_source_issue_tags"
 get "projects/:project_id/mirror/source/scrum", to: "mirror_source_api#scrum", as: "mirror_source_scrum"
+get "projects/:project_id/mirror/source/queries", to: "mirror_source_api#queries", as: "mirror_source_queries"
 get "mirror/source/attachments/:id/download", to: "mirror_source_api#download", as: "mirror_source_download"
