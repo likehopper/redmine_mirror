@@ -22,7 +22,7 @@ class MirrorProjectSetting < ActiveRecord::Base
   ON_ERROR = %w[skip stop].freeze
 
   def self.schema_current?
-    (LATEST_COLUMNS - column_names).empty?
+    (LATEST_COLUMNS - column_names).empty? && MirrorDefaultMapping.schema_current?
   end
   validates :sync_interval_minutes, inclusion: { in: SYNC_INTERVALS }
   belongs_to :project

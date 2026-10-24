@@ -43,6 +43,8 @@ module MirrorHelper
     @mapping_values = project.mirror_reference_mappings.to_h do |row|
       [[row.reference_type, row.source_id.to_s], row.mode == "existing" ? row.destination_id.to_s : row.mode]
     end
+    # Correspondences saved from an administrator's default (doc/DEFAULT_MAPPINGS.md).
+    @default_mappings = project.mirror_reference_mappings.where(from_default: true).pluck(:reference_type, :source_id).to_set { |kind, id| [kind, id.to_s] }
   end
 
   # Source references used by the project that have no correspondence yet, per module.

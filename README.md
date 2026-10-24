@@ -187,6 +187,8 @@ Without correspondences, a new import would duplicate them.
 - [Adapter tutorial](doc/ADAPTERS.md): write a module, in Mirror or in another plugin.
 - [Developer guide](doc/DEVELOPMENT.md): architecture and conventions.
 - [AI usage](doc/AI.md): the rules for the optional AI mapping proposals.
+- [Default correspondences](doc/DEFAULT_MAPPINGS.md): correspondences an administrator
+  sets once for every project, with CSV import and export.
 
 ## Scope and limitations
 

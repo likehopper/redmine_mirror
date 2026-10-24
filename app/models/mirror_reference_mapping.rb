@@ -38,8 +38,14 @@ class MirrorReferenceMapping < ActiveRecord::Base
     elsif mode == "anonymous"
       errors.add(:base, "Anonymization is only supported for users") unless table.anonymous_allowed?
       errors.add(:destination_id, :invalid) unless destination_id.nil?
-    elsif !table.local_records(project).any? { |record| record.id == destination_id }
+    elsif !table.local_records(project).any? { |record| record.id == destination_id } && !default_account?
       errors.add(:destination_id, :invalid)
     end
+  end
+
+  # An administrator's default may name an account outside the project, such as a generic
+  # one (doc/DEFAULT_MAPPINGS.md); it stays valid until someone changes the correspondence.
+  def default_account?
+    from_default? && reference_type == "user" && User.where(id: destination_id, status: [User::STATUS_ACTIVE, User::STATUS_LOCKED]).exists?
   end
 end

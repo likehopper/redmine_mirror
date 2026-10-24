@@ -1,0 +1,125 @@
+<%#
+File: redmine_mirror/app/views/mirror_admin/defaults.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Administration > Mirror > Default correspondences (doc/DEFAULT_MAPPINGS.md): per reference
+table, the local reference of source names and the fallback; then the list values of a
+local custom field. CSV export and import, and filling the projects already configured.
+%><% content_for :header_tags do %>
+  <%= stylesheet_link_tag "mirror", plugin: "redmine_mirror" %>
+<% end %>
+<% html_title(l(:label_mirror_admin_defaults)) %>
+<%= render "mirror_admin/sidebar" %>
+<h2><%= link_to l(:label_mirror_admin), mirror_admin_path %> » <%= l(:label_mirror_admin_defaults) %></h2>
+<p class="info"><%= l(:text_mirror_admin_defaults) %></p>
+
+<div class="box" id="mirror-defaults-tools">
+  <p><%= link_to l(:button_mirror_defaults_export), mirror_admin_defaults_path(format: "csv"), class: "icon icon-download" %></p>
+  <%= form_tag mirror_admin_defaults_import_path, multipart: true, id: "mirror-defaults-import" do %>
+    <p><%= label_tag "mirror-defaults-file", l(:label_mirror_defaults_import) %>
+      <%= file_field_tag :file, accept: ".csv,text/csv", id: "mirror-defaults-file" %>
+      <%= submit_tag l(:button_import) %><br>
+      <em class="info"><%= l(:text_mirror_defaults_import) %></em></p>
+  <% end %>
+  <p><%= button_to l(:button_mirror_defaults_apply), mirror_admin_defaults_apply_path, method: :post, form_class: "mirror-inline-form", id: "mirror-defaults-apply" %>
+    <em class="info"><%= l(:text_mirror_defaults_apply) %></em></p>
+</div>
+
+<% (MirrorDefaultMapping::TYPES - ["custom_field_value"]).each do |type| %>
+  <% table = MirrorDefaultMapping.table(type) %>
+  <% next unless table %>
+  <% destinations = MirrorDefaultMapping.destinations(type) %>
+  <% specials = [] %>
+  <% specials << [l(table.ignore_label), "ignore"] if table.ignore_allowed? %>
+  <% specials << [l(:label_mirror_anonymous), "anonymous"] if table.anonymous_allowed? %>
+  <% rules = @rules.select { |rule| rule.reference_type == type } %>
+  <h3 id="mirror-defaults-<%= type %>"><%= l(table.label) %></h3>
+  <% if type == "user" %><p class="info"><%= l(:text_mirror_default_user_fallback) %></p><% end %>
+  <% if rules.any? %>
+    <table class="list mirror-defaults" id="mirror-defaults-table-<%= type %>">
+      <thead><tr><th><%= l(:label_mirror_source) %></th><th><%= l(:label_mirror_admin_source_url) %></th><th><%= l(:label_mirror_destination) %></th><th></th></tr></thead>
+      <tbody>
+      <% rules.each do |rule| %>
+        <tr class="<%= 'mirror-default-fallback' if rule.fallback? %>">
+          <td><%= rule.fallback? ? content_tag(:em, l(:label_mirror_default_fallback)) : rule.source_name %></td>
+          <td><%= rule.source_url || l(:label_mirror_default_any_source) %></td>
+          <td><%= (specials.find { |_, value| value == rule.mode } || []).first || rule.destination_label || l(:label_mirror_invalid_destination) %></td>
+          <td class="buttons"><%= link_to l(:button_delete), mirror_admin_default_path(rule), method: :delete, data: { confirm: l(:text_are_you_sure) }, class: "icon icon-del" %></td>
+        </tr>
+      <% end %>
+      </tbody>
+    </table>
+  <% end %>
+  <%= form_tag mirror_admin_defaults_path, class: "mirror-default-form", id: "mirror-default-form-#{type}" do %>
+    <%= hidden_field_tag "default_mapping[reference_type]", type, id: nil %>
+    <div class="box tabular">
+      <% unless MirrorDefaultMapping::FALLBACK_ONLY.include?(type) %>
+        <p><%= label_tag "mirror-default-#{type}-names", l(:label_mirror_default_source_names) %>
+          <%= text_area_tag "default_mapping[source_names]", nil, rows: 2, cols: 50, id: "mirror-default-#{type}-names" %>
+          <em class="info"><%= l(:text_mirror_default_source_names) %></em></p>
+      <% end %>
+      <p><%= label_tag "mirror-default-#{type}-url", l(:label_mirror_admin_source_url) %>
+        <%= text_field_tag "default_mapping[source_url]", nil, size: 50, id: "mirror-default-#{type}-url", placeholder: "https://redmine.example.com" %>
+        <em class="info"><%= l(:text_mirror_default_source_url) %></em></p>
+      <p><%= label_tag "mirror-default-#{type}-destination", l(:label_mirror_destination) %>
+        <%= select_tag "default_mapping[destination]", options_for_select(specials + destinations.map { |record| ["#{record.name} (##{record.id})", record.id] }),
+          id: "mirror-default-#{type}-destination", include_blank: true, required: true %></p>
+    </div>
+    <%= submit_tag l(:button_add) %>
+  <% end %>
+<% end %>
+
+<h3 id="mirror-defaults-custom_field_value"><%= l(:label_mirror_default_values) %></h3>
+<p class="info"><%= l(:text_mirror_default_values) %></p>
+<% if @field %>
+  <%= form_tag mirror_admin_defaults_path, method: :get, id: "mirror-defaults-field" do %>
+    <p><%= label_tag "mirror-defaults-field-select", l(:label_custom_field) %>
+      <%= select_tag :custom_field_id, options_for_select(@list_fields.map { |field| [field.name, field.id] }, @field.id), id: "mirror-defaults-field-select" %>
+      <%= submit_tag l(:button_apply), name: nil %></p>
+  <% end %>
+  <% rules = @rules.select { |rule| rule.reference_type == "custom_field_value" && rule.custom_field_id == @field.id } %>
+  <% if rules.any? %>
+    <table class="list mirror-defaults" id="mirror-defaults-table-custom_field_value">
+      <thead><tr><th><%= l(:label_mirror_source) %></th><th><%= l(:label_mirror_admin_source_url) %></th><th><%= l(:label_mirror_destination) %></th><th></th></tr></thead>
+      <tbody>
+      <% rules.each do |rule| %>
+        <tr class="<%= 'mirror-default-fallback' if rule.fallback? %>">
+          <td><%= rule.fallback? ? content_tag(:em, l(:label_mirror_default_fallback)) : rule.source_name %></td>
+          <td><%= rule.source_url || l(:label_mirror_default_any_source) %></td>
+          <td><%= rule.destination_value_label || l(:label_mirror_invalid_destination) %></td>
+          <td class="buttons"><%= link_to l(:button_delete), mirror_admin_default_path(rule), method: :delete, data: { confirm: l(:text_are_you_sure) }, class: "icon icon-del" %></td>
+        </tr>
+      <% end %>
+      </tbody>
+    </table>
+  <% end %>
+  <%= form_tag mirror_admin_defaults_path, class: "mirror-default-form", id: "mirror-default-form-custom_field_value" do %>
+    <%= hidden_field_tag "default_mapping[reference_type]", "custom_field_value", id: nil %>
+    <%= hidden_field_tag "default_mapping[custom_field_id]", @field.id, id: nil %>
+    <div class="box tabular">
+      <p><%= label_tag "mirror-default-value-names", l(:label_mirror_default_source_names) %>
+        <%= text_area_tag "default_mapping[source_names]", nil, rows: 2, cols: 50, id: "mirror-default-value-names" %>
+        <em class="info"><%= l(:text_mirror_default_source_names) %></em></p>
+      <p><%= label_tag "mirror-default-value-url", l(:label_mirror_admin_source_url) %>
+        <%= text_field_tag "default_mapping[source_url]", nil, size: 50, id: "mirror-default-value-url", placeholder: "https://redmine.example.com" %>
+        <em class="info"><%= l(:text_mirror_default_source_url) %></em></p>
+      <p><%= label_tag "mirror-default-value-destination", l(:label_mirror_destination) %>
+        <%= select_tag "default_mapping[destination]", options_for_select(MirrorDefaultMapping.value_choices(@field)),
+          id: "mirror-default-value-destination", include_blank: true, required: true %></p>
+    </div>
+    <%= submit_tag l(:button_add) %>
+  <% end %>
+<% else %>
+  <p class="nodata"><%= l(:label_no_data) %></p>
+<% end %>

@@ -31,6 +31,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   Administrators receive Redmine's activation request.
 - Registered accounts (awaiting activation) are handled like locked ones: kept as
   assignee, author or time entry user, members allowed, never watchers.
+- **Default correspondences** (Administration → Mirror): an administrator sets the
+  correspondences shared by every project once: source names and their local tracker,
+  status, priority, activity, document category, role, group or custom field (or
+  ignore), a fallback per table (a generic account for users), and custom field list
+  values, optionally per source Redmine, with CSV import and export. A project saves
+  them for its references without correspondence when it reads its source references,
+  marked *administrator default*; **Apply to configured projects** fills the others
+  without reading the sources. Database migration 17. See doc/DEFAULT_MAPPINGS.md.
 - A write refused by the destination (HTTP 422) gives Redmine's validation messages in
   the log ("User is invalid", a locked period…) instead of the status code alone. Other
   response bodies stay hidden.

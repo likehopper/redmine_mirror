@@ -21,6 +21,11 @@ get "admin/mirror/source", to: "mirror_admin#source", as: "mirror_admin_source"
 get "admin/mirror/ai", to: "mirror_admin#ai", as: "mirror_admin_ai"
 patch "admin/mirror/ai", to: "mirror_admin#update_ai"
 post "admin/mirror/ai/test", to: "mirror_admin#test_ai", as: "mirror_admin_ai_test"
+get "admin/mirror/defaults", to: "mirror_admin#defaults", as: "mirror_admin_defaults"
+post "admin/mirror/defaults", to: "mirror_admin#create_default"
+delete "admin/mirror/defaults/:id", to: "mirror_admin#destroy_default", as: "mirror_admin_default", constraints: { id: /\d+/ }
+post "admin/mirror/defaults/import", to: "mirror_admin#import_defaults", as: "mirror_admin_defaults_import"
+post "admin/mirror/defaults/apply", to: "mirror_admin#apply_defaults", as: "mirror_admin_defaults_apply"
 
 get "projects/:project_id/mirror/settings", to: "mirror_settings#show", as: "project_mirror_settings"
 patch "projects/:project_id/mirror/settings/connection", to: "mirror_settings#update_connection", as: "project_mirror_connection"
