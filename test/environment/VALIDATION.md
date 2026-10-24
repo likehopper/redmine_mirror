@@ -415,6 +415,17 @@ tags (dont la demande privée et des tags existants d'une autre casse, « LOT 1 
 sans le plugin Tags : 217 tests Redmine / 1154 assertions (adaptateur testé avec des tags
 en mémoire, endpoint « unavailable »).
 
+1.0.0-beta.30 (24 octobre 2026) : modules Sprints agiles et Données agiles des demandes,
+du plugin Scrum (source, par Mirror source, Voir le tableau de sprint) vers redmine_agile
+PRO 1.6.0. Préprod réelle 4.0.3 → 5 : 6 sprints (fermé avec 2 demandes ouvertes conservé
+fermé, verrouillé ouvert et partagé, doublon de nom numéroté, 2 product backlogs sans dates,
+dates qui se chevauchent tolérées), 21 demandes avec sprint, position et story points (0,5
+arrondi à 1), sprint d'un autre projet non synchronisé signalé ; 0 journal et 0 demande
+modifiée. Trouvé en préprod : `filter_map` absent du Ruby 2.6 de la source (garde ajoutée
+dans les tests autonomes) ; chevauchement de sprints refusé par redmine_agile (toléré) ;
+refus de validation désormais par objet. Runner CI 6.1.4 sans Scrum ni redmine_agile :
+228 tests Redmine / 1219 assertions ; tests autonomes 41 / 164.
+
 1.0.0-beta.29 (23 octobre 2026) : vue d'ensemble en tête de chaque onglet de module
 (rien à mapper / N à établir, modules dont il dépend, objets de la source face aux objets
 liés dans le projet, dernière synchronisation du module, conflits ouverts). Chiffres de
