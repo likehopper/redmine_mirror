@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.32 — 2026-10-25
 
 - **Mirror source**: the administrator chooses the data projects may share, among the
   data this Redmine can provide (Tags and Scrum sprints only with their plugin). Projects

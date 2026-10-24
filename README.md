@@ -18,7 +18,7 @@ Document Mirror setup, operation, extension points or validation evidence.
 
 # <img src="assets/images/synchronisation-des-donnees-64.png" width="64" height="64" alt=""> Redmine Mirror
 
-![Version](https://img.shields.io/badge/Version-1.0.0--beta.31-orange)
+![Version](https://img.shields.io/badge/Version-1.0.0--beta.32-orange)
 ![Destination tested](https://img.shields.io/badge/Destination_tested-5.1_%7C_6.1-blue)
 ![Source tested](https://img.shields.io/badge/Source_tested-4.0_%7C_4.2_%7C_5.0_%7C_6.1-blue)
 ![Database tested](https://img.shields.io/badge/Database_tested-SQLite_3-blue)
@@ -32,7 +32,7 @@ existing destination project, through the destination REST API and native models
 
 Use it to migrate projects to a new instance, or to keep a regularly updated secondary
 copy. Each project has its own connection, mappings, schedule, history and conflicts.
-Version **1.0.0-beta.31** is a pre-release for testing before 1.0.0, not a stable release.
+Version **1.0.0-beta.32** is a pre-release for testing before 1.0.0, not a stable release.
 
 ## Features
 
@@ -47,7 +47,7 @@ Version **1.0.0-beta.31** is a pre-release for testing before 1.0.0, not a stabl
 | Issue hierarchy | Parents, including parents imported by another project |
 | Issue watchers | Mapped active users who can see the issue |
 | Issue custom fields | Existing compatible local fields, list value mappings, history |
-| Users | Identity mappings and anonymization; no account is created |
+| Users | Identity mappings and anonymization; registered accounts created from a Mirror source when the administrator allows it |
 | Wiki | Pages with every version, authors, dates, parents and attachments |
 | Members | Users, locked accounts and groups with mapped roles; additive |
 | Documents | Title, description, category, date and files; the source shares them (Mirror source) |
@@ -107,7 +107,7 @@ these rules in full: data sent, setup, credit, security and limits.
   the Documents, News, Tags, Agile and Saved queries modules, which Redmine's API does
   not cover (documents, news comments and files, tags, Scrum sprints, query definitions):
   install Mirror 1.0.0-beta.19 or later (1.0.0-beta.26 for News, 1.0.0-beta.28 for Tags,
-  1.0.0-beta.30 for Agile, 1.0.0-beta.31 for Saved queries) on the source too (on Redmine 4.0 to 4.2, Mirror then runs as a source only),
+  1.0.0-beta.30 for Agile, 1.0.0-beta.31 for Saved queries, 1.0.0-beta.32 for user accounts) on the source too (on Redmine 4.0 to 4.2, Mirror then runs as a source only),
   then share them through its **Mirror source** module
   (see [Mirror source](doc/CONFIGURATION.md#mirror-source-on-the-source-redmine)).
   Use the key of a dedicated, read-only account member of the source projects
@@ -116,7 +116,8 @@ these rules in full: data sent, setup, credit, security and limits.
 - With SQLite, keep the `timeout: 5000` of Redmine's sample `database.yml`: the worker and
   the web process write to the same database.
 - Existing destination projects, users, trackers, statuses, priorities, activities and
-  custom field definitions: Mirror maps them, it never creates them.
+  custom field definitions: Mirror maps them, it never creates them, except registered
+  user accounts from a Mirror source when the administrator allows it.
 
 Validated with SQLite: destinations **Redmine 6.1.4 and 5.1.13**, sources **Redmine
 4.0.3, 4.2, 5.0 and 6.1**. Other versions and databases are not validated yet. See the
