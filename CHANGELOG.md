@@ -16,6 +16,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+- A write refused by the destination (HTTP 422) gives Redmine's validation messages in
+  the log ("User is invalid", a locked period…) instead of the status code alone. Other
+  response bodies stay hidden.
+
 ## 1.0.0-beta.31 — 2026-10-24
 
 - **Saved queries** module: the project's saved queries of issues, time entries and

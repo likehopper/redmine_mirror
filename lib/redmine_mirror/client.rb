@@ -130,14 +130,29 @@ module RedmineMirror
         return attachment_bytes
       end
       response = http_client.start { |connection| connection.request(request) }
-      # Never follow redirects or expose response bodies (which can contain private data).
-      # The path names the refused resource, typically a missing source permission.
-      raise Error, "Redmine API returned HTTP #{response.code} for #{method.to_s.upcase} #{path}#{refusal(response)}" unless response.is_a?(Net::HTTPSuccess)
+      # Never follow redirects or expose response bodies (which can contain private data),
+      # except the validation messages of a refused write. The path names the refused
+      # resource, typically a missing source permission.
+      unless response.is_a?(Net::HTTPSuccess)
+        raise Error, "Redmine API returned HTTP #{response.code} for #{method.to_s.upcase} #{path}#{refusal(response)}#{validation_errors(response)}"
+      end
       response.body.to_s.empty? ? {} : JSON.parse(response.body)
     rescue JSON::ParserError, KeyError, ArgumentError
       raise Error, "Invalid Redmine API response"
     rescue IOError, SystemCallError, Timeout::Error, OpenSSL::SSL::SSLError
       raise Error, "Redmine API connection failed; a write may have succeeded, inspect before retrying"
+    end
+
+    # Redmine explains a refused write (422) with its validation messages, those its own
+    # forms show ("User is invalid"): the log gives them, so the cause is known without
+    # replaying the request. Other bodies stay hidden.
+    def validation_errors(response)
+      return "" unless response.code == "422"
+      messages = Array(JSON.parse(response.body.to_s)["errors"]).map { |message| message.to_s.gsub(/\s+/, " ").strip[0, 300] }
+      messages = messages.reject(&:empty?).first(10)
+      messages.empty? ? "" : ": #{messages.join('; ')}"
+    rescue JSON::ParserError, TypeError
+      ""
     end
 
     # The lock a Mirror source names when it refuses (Source.refusal): a known word only.
