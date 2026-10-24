@@ -426,6 +426,16 @@ dans les tests autonomes) ; chevauchement de sprints refusé par redmine_agile (
 refus de validation désormais par objet. Runner CI 6.1.4 sans Scrum ni redmine_agile :
 228 tests Redmine / 1219 assertions ; tests autonomes 41 / 164.
 
+1.0.0-beta.31 (24 octobre 2026) : module Requêtes enregistrées (demandes, temps passé,
+tableaux agiles) par Mirror source (Voir les demandes, requêtes privées comprises).
+Instance de validation 4.0.3 → 5 : 9 requêtes de démonstration, 7 créées (statut, tracker,
+version, « moi », utilisateur, filtre de sprint Scrum devenu « agile_sprints », tag,
+filtres « issue.* » du temps passé, colonnes et limites d'un tableau agile traduites ; rôles
+non mappés remplacés par les rôles qui modifient le projet), 2 ignorées avec leur raison
+(propriétaire privé anonymisé, filtre de sous-projet absent) ; seconde prévisualisation :
+7 inchangées. Runner CI 6.1.4 : 235 tests Redmine / 1264 assertions ; tests autonomes
+41 / 164.
+
 1.0.0-beta.29 (23 octobre 2026) : vue d'ensemble en tête de chaque onglet de module
 (rien à mapper / N à établir, modules dont il dépend, objets de la source face aux objets
 liés dans le projet, dernière synchronisation du module, conflits ouverts). Chiffres de
