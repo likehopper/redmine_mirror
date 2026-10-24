@@ -341,6 +341,30 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     screenshot "36-guided-errors", "#mirror-run-summary"
   end
 
+  # A source project that shares Users (Mirror source): a source user without an account
+  # here, with the login, email and company the source gives (fictitious).
+  def test_20_user_creation
+    visit "/settings/plugin/redmine_mirror"
+    check "settings_user_creation_enabled"
+    click_button "Apply"
+    assert_selector "#flash_notice"
+    setting = project.mirror_project_setting
+    catalog = setting.source_catalog.except("user_details_refusal")
+    catalog["user"] = catalog.fetch("user").merge("9001" => "Chloe Martin")
+    catalog["user_used"] = catalog.fetch("user_used", []) | ["9001"]
+    catalog["user_details"] = catalog.fetch("user_details", {}).merge("9001" => { "login" => "cmartin", "firstname" => "Chloe",
+      "lastname" => "Martin", "mail" => "chloe.martin@client.example", "company" => "Client Corp" })
+    setting.update!(source_catalog: catalog)
+    open_module_tab "users"
+    assert_selector "table.mirror-user-creation tbody tr", count: 1
+    check "mirror-create-user-9001"
+    find("input[name='role_ids[]']", match: :first).check
+    screenshot "38-user-creation", "#mirror-user-creation-form"
+    click_button "Create the checked accounts"
+    assert_selector "#flash_notice"
+    assert User.find_by!(login: "cmartin").registered?
+  end
+
   FAKE_AI_SYNONYMS = { "New" => "To do", "In Progress" => "Doing", "Resolved" => "Done", "Feedback" => "Waiting for reply",
                        "Closed" => "Finished", "Rejected" => "Won't do" }.freeze
 

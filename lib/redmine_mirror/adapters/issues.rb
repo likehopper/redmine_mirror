@@ -102,7 +102,7 @@ module RedmineMirror
       def local_references(payload)
         held = []
         assignee = payload["assigned_to_id"]
-        held << "assigned_to_id" if assignee.is_a?(Integer) && User.find_by(id: assignee)&.locked?
+        held << "assigned_to_id" if RedmineMirror.inactive_user?(assignee)
         version_id = payload["fixed_version_id"]
         if version_id.is_a?(Integer)
           version = Version.find_by(id: version_id)

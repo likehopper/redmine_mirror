@@ -21,7 +21,10 @@ class MirrorSourceSettingsController < ApplicationController
 
   def update
     setting = @project.mirror_source_setting || @project.build_mirror_source_setting
-    setting.shared_modules = params.fetch(:shared_modules, [])
+    # Data the administrator does not allow is not in the form: it keeps its saved choice,
+    # back in effect if the administrator allows it again.
+    allowed = RedmineMirror::Source.allowed_kinds
+    setting.shared_modules = (Array(params.fetch(:shared_modules, [])).map(&:to_s) & allowed) | (setting.shared_modules - allowed)
     setting.save!
     flash[:notice] = l(:notice_successful_update)
     redirect_to settings_project_path(@project, tab: "mirror_source")

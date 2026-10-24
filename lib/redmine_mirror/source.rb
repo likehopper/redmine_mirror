@@ -23,10 +23,13 @@ module RedmineMirror
 
     # Data a project can share. News have a REST API, but not their comments nor files;
     # issue tags (Redmine Tags plugin by RedmineUP) and Scrum sprints (Scrum plugin) have none.
-    KINDS = %w[documents news issue_tags scrum queries].freeze
+    # The users API gives logins and emails to administrators only.
+    KINDS = %w[documents news issue_tags scrum queries users].freeze
     # Native permission the API account needs for each kind.
     PERMISSIONS = { "documents" => :view_documents, "news" => :view_news, "issue_tags" => :view_issues,
-      "scrum" => :view_sprint_board, "queries" => :view_issues }.freeze
+      "scrum" => :view_sprint_board, "queries" => :view_issues, "users" => :view_issues }.freeze
+    # Users a destination may ask for in one request.
+    USERS_PER_REQUEST = 100
     # Saved queries a project shares: issues, time entries and agile boards.
     QUERY_TYPES = %w[IssueQuery TimeEntryQuery AgileQuery].freeze
     # The kind a shared file belongs to, by its container.
@@ -71,14 +74,59 @@ module RedmineMirror
       defined?(::Sprint) && Issue.column_names.include?("sprint_id") ? true : false
     end
 
+    # Data this Redmine can serve: tags and sprints need their plugin.
+    def available_kinds
+      KINDS.select do |kind|
+        case kind
+        when "issue_tags" then tags_available?
+        when "scrum" then scrum_available?
+        else true
+        end
+      end
+    end
+
+    # Data the administrator allows projects to share, among the available data. Until
+    # the administrator saves the choice (installations up to 1.0.0-beta.31), all of it.
+    def allowed_kinds
+      chosen = settings["source_kinds"]
+      return available_kinds if chosen.nil?
+      available_kinds & Array(chosen).map(&:to_s)
+    end
+
+    # Among the requested IDs, the users who are members of the project or appear in its
+    # data: issues, notes, time entries, watchers, user fields, news, wiki pages and files.
+    # Ruby 2.6 (Redmine 4): no filter_map on the source side.
+    def project_user_ids(project, ids)
+      ids = ids.uniq
+      return [] if ids.empty?
+      issues = Issue.where(project_id: project.id).select(:id)
+      found = Member.where(project_id: project.id, user_id: ids).pluck(:user_id)
+      found |= Issue.where(project_id: project.id, author_id: ids).pluck(:author_id)
+      found |= Issue.where(project_id: project.id, assigned_to_id: ids).pluck(:assigned_to_id)
+      found |= Journal.where(journalized_type: "Issue", journalized_id: issues, user_id: ids).pluck(:user_id)
+      found |= TimeEntry.where(project_id: project.id, user_id: ids).pluck(:user_id)
+      found |= Watcher.where(watchable_type: "Issue", watchable_id: issues, user_id: ids).pluck(:user_id)
+      found |= CustomValue.joins(:custom_field).where(custom_fields: { field_format: "user" }, customized_type: "Issue",
+        customized_id: issues, value: ids.map(&:to_s)).pluck(:value).map(&:to_i)
+      found |= News.where(project_id: project.id, author_id: ids).pluck(:author_id)
+      found |= WikiContent.joins(page: :wiki).where(wikis: { project_id: project.id }, author_id: ids).pluck(:author_id)
+      containers = { "Issue" => issues, "Project" => [project.id], "Version" => project.versions.select(:id),
+        "Document" => Document.where(project_id: project.id).select(:id), "News" => News.where(project_id: project.id).select(:id) }
+      containers.each do |type, scope|
+        found |= Attachment.where(container_type: type, container_id: scope, author_id: ids).pluck(:author_id)
+      end
+      found & ids
+    end
+
     def shared?(project, kind)
       project.module_enabled?(:mirror_source) && project.mirror_source_setting&.shared_modules.to_a.include?(kind)
     end
 
     # Why a request is refused, or nil when it is served. The order tells the
     # destination which lock to open: administrator, project module, shared data, account.
+    # Data the administrator does not allow is refused as "disabled": the same lock.
     def refusal(project, kind, user)
-      return "disabled" unless enabled?
+      return "disabled" unless enabled? && allowed_kinds.include?(kind)
       return "module" unless project.module_enabled?(:mirror_source)
       return "not_shared" unless shared?(project, kind)
       "permission" unless user.allowed_to?(PERMISSIONS.fetch(kind), project)

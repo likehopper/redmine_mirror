@@ -81,7 +81,7 @@ module RedmineMirror
       end
 
       def locked_user?(payload)
-        payload["user_id"].is_a?(Integer) && User.find_by(id: payload["user_id"])&.locked?
+        RedmineMirror.inactive_user?(payload["user_id"])
       end
 
       def destination_attributes(record)

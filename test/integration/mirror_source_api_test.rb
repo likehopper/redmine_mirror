@@ -151,6 +151,30 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     assert_equal "list", MirrorSourceAccess.where(session_key: SESSION).last.action
   end
 
+  # Only the requested users the project knows (members, authors...), with their login,
+  # email and company; the users API gives them to administrators only.
+  def test_lists_the_requested_users_the_project_knows
+    stranger = User.generate!
+    ids = "2,3,#{stranger.id},999,x"
+    company = UserCustomField.create!(name: "Company", field_format: "string")
+    User.find(2).update!(custom_field_values: { company.id.to_s => "ACME" })
+    enabled do
+      get "/projects/ecookbook/mirror/source/users.json", params: { ids: ids }, headers: mirror_headers
+      assert_equal "not_shared", response.headers["X-Mirror-Source-Refusal"]
+      @project.mirror_source_setting.update!(shared_modules: %w[users])
+      get "/projects/ecookbook/mirror/source/users.json", params: { ids: ids }, headers: mirror_headers
+      assert_response :success
+      listed = JSON.parse(response.body).fetch("users")
+      # Members both; the new account appears nowhere in the project.
+      assert_equal [2, 3], listed.map { |row| row.fetch("id") }
+      jsmith = listed.find { |row| row["id"] == 2 }
+      assert_equal ["jsmith", "John", "Smith", "jsmith@somenet.foo", "ACME"], jsmith.values_at("login", "firstname", "lastname", "mail", "company")
+    end
+    access = MirrorSourceAccess.where(session_key: SESSION).last
+    assert_equal ["list", 2], [access.action, access.object_count]
+    assert_equal [2, 3], access.details.fetch("users").map { |row| row["id"] }
+  end
+
   # Each lock refuses with its reason, logged; the destination reads the header.
   def test_each_lock_refuses_and_names_itself
     get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
@@ -171,6 +195,20 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
       assert_equal "permission", response.headers["X-Mirror-Source-Refusal"]
     end
     assert_equal %w[disabled not_shared module permission], MirrorSourceAccess.where(action: "refused").order(:id).pluck(:reason)
+  end
+
+  # Data the administrator does not allow is refused like a disabled Mirror source,
+  # even when the project shares it.
+  def test_data_the_administrator_does_not_allow_is_refused
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_kinds" => ["", "news"] }) do
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
+      assert_response :forbidden
+      assert_equal "disabled", response.headers["X-Mirror-Source-Refusal"]
+    end
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_kinds" => ["documents"] }) do
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
+      assert_response :success
+    end
   end
 
   # Projects the account cannot see, missing objects and other files reveal nothing.

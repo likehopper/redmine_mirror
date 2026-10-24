@@ -25,7 +25,7 @@ module RedmineMirror
     class ProjectQueries < Base
       SOURCE_VERSION = "1.0.0-beta.31"
       REFUSALS = {
-        "disabled" => "Mirror source is disabled on the source Redmine: its administrator must allow it (Administration → Plugins → Redmine Mirror)",
+        "disabled" => "Mirror source is disabled on the source Redmine: its administrator must allow it, and this data (Administration → Plugins → Redmine Mirror)",
         "module" => "Enable the Mirror source module on the source project",
         "not_shared" => "Share Saved queries in the source project's Settings → Mirror source",
         "permission" => "The source API key needs View issues in the source project"
