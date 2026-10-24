@@ -51,6 +51,7 @@ class MirrorNewsTest < ActiveSupport::TestCase
       case path
       when "projects/9/mirror/source/news.json" then { "news" => @news, "total_count" => @news.size }
       when "mirror/source/news/61.json" then raise RedmineMirror::Error, "Redmine API returned HTTP 404 for GET #{path}"
+      when "projects/9/mirror/source/users.json" then raise RedmineMirror::Error, "Redmine API returned HTTP 404 for GET #{path}"
       else raise "Unexpected #{path}"
       end
     end

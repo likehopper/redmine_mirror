@@ -100,8 +100,9 @@ module RedmineMirror
         roles = self.class.own_roles(record).filter_map { |role| optional_map(mappings, "role", role.fetch("id")) }.uniq.sort
         return event.merge(action: "ignored", reason: "No role to give: inherited or ignored roles only") if roles.empty?
         principal = Principal.find_by(id: principal_id)
-        unless (principal.is_a?(User) && (principal.active? || principal.locked?)) || (principal.is_a?(Group) && principal.givable?)
-          raise Error, "Mapped member ##{principal_id} must be an active or locked user, or a group"
+        # Registered accounts (awaiting activation) may be members, as Redmine allows.
+        unless (principal.is_a?(User) && (principal.active? || principal.locked? || principal.registered?)) || (principal.is_a?(Group) && principal.givable?)
+          raise Error, "Mapped member ##{principal_id} must be an active, locked or registered user, or a group"
         end
         member = project.memberships.find_by(user_id: principal.id)
         current = own_role_ids(member)

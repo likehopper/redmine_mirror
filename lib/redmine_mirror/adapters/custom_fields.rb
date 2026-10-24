@@ -147,7 +147,7 @@ module RedmineMirror
           when "user"
             user_id = Users.new.resolve(mappings, Integer(entry))
             # Redmine only accepts active project members as user values.
-            raise Error, "User custom field source ID #{source_id} references a locked user" if user_id && User.find_by(id: user_id)&.locked?
+            raise Error, "User custom field source ID #{source_id} references a locked or registered user" if RedmineMirror.inactive_user?(user_id)
             user_id&.to_s || ""
           when "version"
             target = lookup.call("project_versions", Integer(entry))

@@ -76,6 +76,12 @@ module RedmineMirror
     UserCustomField.sorted.detect { |field| field.name.to_s.strip.match?(COMPANY_FIELD_NAMES) }
   end
 
+  # Accounts kept for the history but not active: locked, or registered and awaiting
+  # activation (created from a Mirror source). Redmine refuses them as new values.
+  def self.inactive_user?(id)
+    id.is_a?(Integer) && User.where(id: id, status: [User::STATUS_LOCKED, User::STATUS_REGISTERED]).exists?
+  end
+
   def self.allowed_source_url?(url)
     allowed_source_urls.include?(url.to_s.strip.sub(%r{/+\z}, ""))
   end
@@ -89,6 +95,13 @@ module RedmineMirror
   # Choosing any account of the instance in the user mappings, for the Members module.
   def self.members_manager?(project, user = User.current)
     return false unless project&.mirror_project_setting&.selected_modules.to_a.include?("project_members")
+    user.admin? || user.allowed_to?(:manage_members, project)
+  end
+
+  # Creating registered accounts (awaiting activation) from the users a source shares:
+  # the administrator's switch, then the right to manage the project's members.
+  def self.user_creation?(project, user = User.current)
+    return false unless (Setting.plugin_redmine_mirror rescue {}).to_h["user_creation_enabled"].to_s == "1"
     user.admin? || user.allowed_to?(:manage_members, project)
   end
 

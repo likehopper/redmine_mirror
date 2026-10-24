@@ -26,12 +26,15 @@ then the access log, by session, or one session's requests.
 <p><%= l(:text_mirror_source_help) %></p>
 <%= form_tag project_mirror_source_path(@project), method: :patch, id: "mirror-source-form" do %>
   <%= hidden_field_tag "shared_modules[]", "" %>
+  <%# Only the data the administrator allows; the rest stays as saved (MirrorSourceSettingsController). %>
+  <% kinds = RedmineMirror::Source.allowed_kinds %>
   <div class="box tabular">
     <p><label><%= l(:label_mirror_source_shared) %></label>
-      <% RedmineMirror::Source::KINDS.each do |kind| %>
+      <% kinds.each do |kind| %>
         <label class="block"><%= check_box_tag "shared_modules[]", kind, shared.include?(kind), id: "mirror-source-share-#{kind}" %> <%= l("label_mirror_module_#{kind}".to_sym) %>
           <em class="info"><%= l("text_mirror_source_share_#{kind}".to_sym) %></em></label>
       <% end %>
+      <% if kinds.empty? %><em class="info" id="mirror-source-no-kind"><%= l(:text_mirror_source_no_kind) %></em><% end %>
     </p>
   </div>
   <%= submit_tag l(:button_save) %>

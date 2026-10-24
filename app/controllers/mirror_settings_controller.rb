@@ -158,7 +158,58 @@ class MirrorSettingsController < ApplicationController
     redirect_to configuration_path(params[:module_key])
   end
 
+  # Create registered accounts (awaiting activation, as a self-registration) for source
+  # users whose email the source shares, map them, and add them as members with the roles
+  # the current user may give. Administrators receive Redmine's activation request.
+  def create_users
+    return render_404 unless @setting.persisted?
+    raise RedmineMirror::Error, l(:text_mirror_user_creation_denied) unless RedmineMirror.user_creation?(@project)
+    role_ids = Array(params[:role_ids]).reject(&:blank?).map { |id| Integer(id) }.uniq
+    roles = User.current.managed_roles(@project).select { |role| role_ids.include?(role.id) }
+    raise RedmineMirror::Error, l(:text_mirror_invalid_mapping) unless roles.size == role_ids.size
+    details = @setting.source_catalog.fetch("user_details", {})
+    created = []
+    errors = []
+    Array(params[:source_user_ids]).map(&:to_s).uniq.each do |source_id|
+      info = details[source_id]
+      next errors << source_id unless info && info["mail"].present?
+      user = create_registered_user(Integer(source_id), info, roles)
+      user.persisted? ? created << user : errors << "#{info['firstname']} #{info['lastname']}: #{user.errors.full_messages.to_sentence}"
+    end
+    flash[:notice] = l(:text_mirror_users_created, count: created.size, names: created.map(&:name).join(", ")) if created.any?
+    flash[:error] = l(:text_mirror_users_not_created, errors: errors.join(" ; ")) if errors.any?
+    redirect_to configuration_path("users", anchor: "mirror-user-creation")
+  rescue RedmineMirror::Error, ArgumentError, TypeError => error
+    flash[:error] = error.is_a?(RedmineMirror::Error) ? error.message : l(:text_mirror_invalid_mapping)
+    redirect_to configuration_path("users")
+  end
+
   private
+
+  # Unsaved, with its errors, when the email already has an account, the source user is
+  # already mapped, or Redmine refuses the account (login taken, required user field...).
+  def create_registered_user(source_id, info, roles)
+    user = User.new(firstname: info["firstname"], lastname: info["lastname"], mail: info["mail"], language: Setting.default_language)
+    user.login = info["login"]
+    user.status = User::STATUS_REGISTERED
+    company = RedmineMirror.user_company_field
+    user.custom_field_values = { company.id.to_s => info["company"] } if company && info["company"].present?
+    mapping = @project.mirror_reference_mappings.where(reference_type: "user", source_id: source_id)
+    user.errors.add(:base, l(:text_mirror_user_already_mapped)) if mapping.exists?
+    user.errors.add(:mail, :taken) if EmailAddress.where("LOWER(address) = ?", info["mail"].to_s.downcase).exists?
+    return user if user.errors.any?
+    User.transaction do
+      user.save!
+      mapping.create!(mode: "existing", destination_id: user.id)
+      Member.create!(project: @project, principal: user, roles: roles) if roles.any?
+    end
+    Mailer.deliver_account_activation_request(user)
+    user
+  rescue ActiveRecord::RecordInvalid => error
+    # The transaction rolled back: the account is unsaved again.
+    user.errors.add(:base, error.record.errors.full_messages.to_sentence) unless error.record.equal?(user)
+    user
+  end
 
   # After an upgrade without `rake redmine:plugins:migrate`, explain instead of failing.
   def require_migrated_schema

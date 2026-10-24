@@ -158,8 +158,28 @@ that time.
 
 ![User mappings](screenshots/configuration/10-users.png)
 
-Mirror never creates accounts: add the missing members to the project first. The user
-table is shared by every module.
+The user table is shared by every module. Mirror creates no account during a run: add
+the missing members to the project first, or create their accounts from the source.
+
+### Create accounts from the source
+
+When the source project shares **Users** ([Mirror source](#mirror-source-on-the-source-redmine)),
+each source user shows its login, email and company, and a local account with the same
+email is preselected before one with the same name. Redmine's users API gives emails to
+administrators only; Mirror source lets a project manager use them.
+
+**Accounts to create**, below the table, lists the unmapped source users whose email has
+no account here. Check them, optionally check roles to add them as members, and click
+**Create the checked accounts**: each gets a registered account (login, name, email and
+company of the source, no password), awaiting activation as after a self-registration,
+mapped to its source user. Administrators receive Redmine's activation request. A login
+already taken, or a required user field, leaves that account out with the reason.
+
+This needs **Create accounts from Mirror sources** in `Administration → Plugins → Redmine
+Mirror → Configure` (off by default) and *Manage members* on the project; the roles
+offered are those the user may give.
+
+![Accounts to create](screenshots/configuration/38-user-creation.png)
 
 ## 8. Map the references
 
@@ -334,27 +354,34 @@ AI* with a confidence. Check them, then save.
 
 ## Mirror source (on the source Redmine)
 
-Only for the **Documents**, **News**, **Tags**, **Agile** and **Saved queries** modules:
-Redmine's REST API provides no documents, no news comments nor files, no tags, no Scrum
-sprints and only the names of saved queries. On the source Redmine:
+Only for the **Documents**, **News**, **Tags**, **Agile** and **Saved queries** modules,
+and to create accounts from the source users: Redmine's REST API provides no documents,
+no news comments nor files, no tags, no Scrum sprints, only the names of saved queries,
+and users' logins and emails to administrators only. On the source Redmine:
 
 1. Install Redmine Mirror (1.0.0-beta.19 or later for Documents, 1.0.0-beta.26 for News,
    1.0.0-beta.28 for Tags, 1.0.0-beta.30 for Scrum sprints, 1.0.0-beta.31 for Saved
-   queries) and run its migration (see the README).
+   queries, 1.0.0-beta.32 for Users) and run its migration (see the README).
    Nothing else of Mirror needs configuring there. On Redmine 4.0 to 4.2, Mirror runs as
    a source only: Mirror source and its administration page, no Mirror project module.
 2. `Administration → Plugins → Redmine Mirror → Configure`: check **Allow Mirror
-   source**. Off, nothing is shared, whatever the projects check.
+   source**, and under **Data projects may share** the data allowed. Off, nothing is
+   shared, whatever the projects check. Only the data this Redmine can provide is listed
+   (Tags need the Redmine Tags plugin, Scrum sprints the Scrum plugin); projects do not
+   see the rest, which is refused to destinations.
 
    ![Mirror source allowed](screenshots/configuration/27-source-allowed.png)
 3. In the project: `Settings → Modules`, enable **Mirror source** (the **Mirror** module
    is not needed), then in `Settings → Mirror source` check **Documents**, **News**, **Tags**,
-   **Scrum sprints** and/or **Saved queries** and save. Sharing Saved queries shows the
-   destination every query of the project, private ones included.
+   **Scrum sprints**, **Saved queries** and/or **Users** and save. Sharing Saved queries shows the
+   destination every query of the project, private ones included. Sharing Users gives
+   the login, name, email and company (the user field chosen in the plugin settings, or
+   named Company) of the users the destination asks for, only if they are members of the
+   project or appear in its data (issues, notes, time entries, watchers, news, wiki, files).
 
    ![Shared data](screenshots/configuration/28-source-sharing.png)
 4. Give the source API account *View documents* (Documents), *View news* (News) or
-   *View issues* (Tags) or *View sprint board* (Scrum sprints) in that project. Anonymous access is refused, even on public projects.
+   *View issues* (Tags, Saved queries, Users) or *View sprint board* (Scrum sprints) in that project. Anonymous access is refused, even on public projects.
 
 The **Access log** below the sharing lists one session per destination run or reference
 refresh: account, address, purpose, objects listed, files sent and refusals. **Details**
