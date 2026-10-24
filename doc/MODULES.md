@@ -329,6 +329,33 @@ journal, no notification.
 - Names compare without case, as Redmine Tags finds them. Tags on wiki pages or contacts
   are not copied.
 
+## Agile sprints and Agile issue data
+
+Converts the **Scrum** plugin of the source into **redmine_agile** (PRO, for sprints) on
+the destination. Enable the Agile module on the destination project.
+
+- The Scrum plugin has no REST API: the source must run Redmine Mirror 1.0.0-beta.30 or
+  later and share **Scrum sprints** through **Mirror source**
+  ([configuration](CONFIGURATION.md#mirror-source-on-the-source-redmine)). The source API
+  key needs *View sprint board*. A source without the Scrum plugin says so.
+- **Agile sprints**: one agile sprint per Scrum sprint, with its name, description,
+  dates and sharing (shared becomes *subprojects*). *Open* and *locked* sprints are open,
+  *closed* ones closed, even when they hold open issues (redmine_agile would refuse it
+  in its own forms). Product backlogs become sprints under their name; a backlog without
+  dates takes its creation date. Of several source sprints with the same name, the first
+  keeps it and the others get their source number, as does a sprint whose name a local
+  sprint already holds.
+- **Agile issue data**: each imported issue gets its sprint, its backlog position and
+  its story points, written as agile data without journal nor notification. Story points
+  come from the Scrum story points field and are rounded up to whole numbers (0.5
+  becomes 1); the field itself is copied by the custom fields module. A sprint owned by
+  another project (shared with subprojects) is found once that project is synchronized,
+  as for shared versions.
+- Not copied: the remaining effort history (redmine_agile has no equivalent), and the
+  redmine_agile data of the source itself (card colors, saved boards).
+- A local change of an imported sprint or of an issue's agile data is a conflict, except
+  in mirror mode.
+
 ## Files
 
 Imports the files of the source project's Files module: name, description, author,

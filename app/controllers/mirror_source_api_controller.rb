@@ -17,11 +17,13 @@
 # administrator, the project and its sharing allow it, and logged request by request.
 
 class MirrorSourceApiController < ApplicationController
-  accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :download
-  before_action :find_project_by_project_id, only: %i[documents news issue_tags]
+  accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :scrum, :download
+  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum]
   before_action :find_document, only: :document
   before_action :find_news, only: :news_item
   before_action :find_attachment, only: :download
+  # A missing plugin first: its permissions do not exist either.
+  before_action :check_plugin, only: %i[issue_tags scrum]
   before_action :check_access
 
   helper :attachments
@@ -58,16 +60,28 @@ class MirrorSourceApiController < ApplicationController
   # The current tags of every issue of the project the account can see, empty lists
   # included, so that a destination also learns which tags were removed.
   def issue_tags
-    unless RedmineMirror::Source.tags_available?
-      response.headers[RedmineMirror::Source::REFUSAL_HEADER] = "unavailable"
-      return render_404
-    end
     scope = Issue.visible.where(project_id: @project.id)
     ids = scope.order(:id).pluck(:id)
     names = scope.joins(:tags).pluck(:id, "#{RedmineCrm::Tag.table_name}.name").group_by(&:first)
     @issue_tags = ids.map { |id| [id, names.fetch(id, []).map(&:last).sort] }
     RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @issue_tags.size,
       details: { "issue_tags" => { "issues" => @issue_tags.count { |_, tags| tags.any? }, "tags" => @issue_tags.flat_map(&:last).uniq.size } })
+    respond_to { |format| format.api }
+  end
+
+  # The project's Scrum sprints and product backlogs, and the sprint, backlog position
+  # and story points of every visible issue of the project that has one of them.
+  def scrum
+    @sprints = ::Sprint.where(project_id: @project.id).order(:id).to_a
+    issues = Issue.visible.where(project_id: @project.id)
+    field_id = (Scrum::Setting.story_points_custom_field_id if defined?(Scrum::Setting)).presence
+    points = field_id ? CustomValue.where(custom_field_id: field_id, customized_type: "Issue", customized_id: issues.select(:id))
+      .where.not(value: [nil, ""]).pluck(:customized_id, :value).to_h : {}
+    @scrum_issues = issues.order(:id).pluck(:id, :sprint_id, :position).filter_map do |id, sprint_id, position|
+      [id, sprint_id, position, points[id]] if sprint_id || position || points[id]
+    end
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @sprints.size + @scrum_issues.size,
+      details: { "scrum" => { "sprints" => @sprints.size, "issues" => @scrum_issues.size } })
     respond_to { |format| format.api }
   end
 
@@ -110,10 +124,18 @@ class MirrorSourceApiController < ApplicationController
     render_404
   end
 
+  def check_plugin
+    available = action_name == "scrum" ? RedmineMirror::Source.scrum_available? : RedmineMirror::Source.tags_available?
+    return if available
+    response.headers[RedmineMirror::Source::REFUSAL_HEADER] = "unavailable"
+    render_404
+  end
+
   def kind
     case action_name
     when "news", "news_item" then "news"
     when "issue_tags" then "issue_tags"
+    when "scrum" then "scrum"
     when "download" then RedmineMirror::Source::CONTAINERS.fetch(@attachment.container_type)
     else "documents"
     end

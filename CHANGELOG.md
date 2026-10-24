@@ -16,6 +16,18 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.30 — 2026-10-23
+
+- **Agile sprints** and **Agile issue data** modules: the Scrum plugin of a source becomes
+  redmine_agile on the destination. Scrum sprints and product backlogs become agile
+  sprints (locked ones open, closed ones closed even with open issues, duplicate names
+  numbered); issues get their sprint, backlog position and story points (rounded up),
+  without journals nor notifications. The source shares them through **Mirror source**
+  (Redmine Mirror 1.0.0-beta.30 or later, *View sprint board*). Sprints shared from
+  another project are found once that project is synchronized, as for versions. The
+  remaining effort history is not copied.
+- Mirror source names a missing plugin (Tags, Scrum) before checking permissions.
+
 ## 1.0.0-beta.29 — 2026-10-23
 
 - Every module tab starts with an overview, including the tabs with nothing to map: what

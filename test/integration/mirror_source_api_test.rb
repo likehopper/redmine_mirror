@@ -116,9 +116,21 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
       get "/projects/ecookbook/mirror/source/issue_tags.json", headers: mirror_headers
       assert_response :not_found
       assert_equal "unavailable", response.headers["X-Mirror-Source-Refusal"]
+      # The missing plugin is named before any other lock.
       @project.mirror_source_setting.update!(shared_modules: [])
       get "/projects/ecookbook/mirror/source/issue_tags.json", headers: mirror_headers
-      assert_equal "not_shared", response.headers["X-Mirror-Source-Refusal"]
+      assert_equal "unavailable", response.headers["X-Mirror-Source-Refusal"]
+    end
+  end
+
+  # Scrum sprints need the Scrum plugin on the source.
+  def test_scrum_needs_the_scrum_plugin_on_the_source
+    skip "Scrum is installed" if RedmineMirror::Source.scrum_available?
+    enabled do
+      @project.mirror_source_setting.update!(shared_modules: %w[scrum])
+      get "/projects/ecookbook/mirror/source/scrum.json", headers: mirror_headers
+      assert_response :not_found
+      assert_equal "unavailable", response.headers["X-Mirror-Source-Refusal"]
     end
   end
 
