@@ -61,6 +61,15 @@ module RedmineMirror
         defined?(::AgileSprint) && defined?(::AgileData) ? true : false
       end
 
+      # redmine_agile rules that Scrum did not have: overlapping sprints, and a closed
+      # sprint holding open issues. Their sprints are kept as they are on the source.
+      TOLERATED = %i[label_agile_sprint_errors_crossed label_agile_sprint_errors_open_issues].freeze
+
+      def blocking_errors(messages)
+        tolerated = TOLERATED.map { |key| ::I18n.t(key) }
+        messages.reject { |message| tolerated.include?(message) }
+      end
+
       def digest(value); Digest::SHA256.hexdigest(JSON.generate(value)); end
     end
 
@@ -115,12 +124,15 @@ module RedmineMirror
         ::AgileSprint.find_by(id: id, project_id: project.id)
       end
 
-      # The status is written after the validations: redmine_agile refuses to close a
-      # sprint that holds open issues, which Scrum allowed.
+      # Every redmine_agile validation applies, except those Scrum did not have
+      # (Agile.blocking_errors). The status is written last, as on the source.
       def write_sprint(project, sprint, attributes)
         sprint ||= ::AgileSprint.new(project: project, status: Agile::STATUSES.fetch("open"))
         sprint.assign_attributes(attributes.except("status"))
-        sprint.save!
+        sprint.valid?
+        errors = Agile.blocking_errors(sprint.errors.full_messages)
+        raise Error, "Destination rejected sprint \"#{sprint.name}\": #{errors.join(', ')}" if errors.any?
+        sprint.save!(validate: false)
         sprint.update_columns(status: attributes.fetch("status")) unless sprint.status == attributes.fetch("status")
         sprint
       end
@@ -205,7 +217,7 @@ module RedmineMirror
       def write_data(issue, attributes)
         data = ::AgileData.find_or_initialize_by(issue_id: issue.id)
         data.assign_attributes(attributes)
-        data.save!
+        raise Error, "Destination rejected the agile data of issue ##{issue.id}: #{data.errors.full_messages.join(', ')}" unless data.save
       end
     end
   end

@@ -145,6 +145,14 @@ class MirrorAgileTest < ActiveSupport::TestCase
     assert_equal 3, @issues.data[1]["position"]
   end
 
+  # Overlapping sprints and closed sprints with open issues are kept; other refusals stay.
+  def test_only_rules_scrum_did_not_have_are_tolerated
+    I18n.backend.store_translations(I18n.locale, label_agile_sprint_errors_crossed: "Sprint dates are cross another existed sprint",
+      label_agile_sprint_errors_open_issues: "Sprint has open issues")
+    assert_equal ["Name has already been taken"], RedmineMirror::Adapters::Agile.blocking_errors(
+      ["Sprint dates are cross another existed sprint", "Name has already been taken", "Sprint has open issues"])
+  end
+
   def test_story_points_conversion
     assert_equal [nil, nil, 3, 1, 2, 1], [nil, " ", "3", "0.5", "1,5", 1].map { |value| RedmineMirror::Adapters::Agile.story_points(value) }
     assert_nil RedmineMirror::Adapters::Agile.story_points("XL")
