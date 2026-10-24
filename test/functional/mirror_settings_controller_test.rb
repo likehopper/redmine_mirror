@@ -103,7 +103,16 @@ class MirrorSettingsControllerTest < ActionController::TestCase
       mappings: { status: { "1" => IssueStatus.first.id.to_s }, tracker: { "1" => "anonymous" } } }
     assert_response :redirect
     assert_equal 0, @project.mirror_reference_mappings.count
-    assert flash[:error].present?
+    assert_includes flash[:error], "Anonymization is only supported for users"
+  end
+
+  # A module stored in the connection but unknown to the running code refuses every save:
+  # the page names it.
+  def test_refused_save_names_its_cause
+    @setting.update_columns(selected_modules: JSON.generate(@setting.selected_modules + ["module_from_a_newer_version"]))
+    patch :update_mappings, params: { project_id: @project.identifier, module_key: "issue_tracking",
+      mappings: { status: { "1" => IssueStatus.first.id.to_s } } }
+    assert_includes flash[:error], "Unavailable modules: module_from_a_newer_version"
   end
 
   def test_rejects_reference_from_another_module

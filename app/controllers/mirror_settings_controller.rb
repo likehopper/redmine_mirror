@@ -128,8 +128,13 @@ class MirrorSettingsController < ApplicationController
     end
     flash[:notice] = l(:notice_successful_update)
     redirect_to configuration_path(adapter.key, mirror_filter: params[:mirror_filter].presence_in(%w[unmapped mapped all]))
-  rescue RedmineMirror::Error, ActiveRecord::RecordInvalid, ArgumentError, TypeError
-    flash[:error] = l(:text_mirror_invalid_mapping)
+  rescue RedmineMirror::Error, ActiveRecord::RecordInvalid, ArgumentError, TypeError => error
+    # The cause follows, so that the page says what to fix ("Unavailable modules: news").
+    cause = case error
+            when ActiveRecord::RecordInvalid then error.record.errors.full_messages.join(", ")
+            when RedmineMirror::Error then error.message
+            end
+    flash[:error] = [l(:text_mirror_invalid_mapping), cause.presence].compact.join(" ")
     redirect_to configuration_path(params[:module_key])
   end
 

@@ -21,6 +21,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 - A write refused by the destination (HTTP 422) gives Redmine's validation messages in
   the log ("User is invalid", a locked period…) instead of the status code alone. Other
   response bodies stay hidden.
+- A refused save of the mapping tabs names its cause after "Invalid correspondence"
+  (an unavailable module, an unknown source reference, an unsupported choice).
 
 ## 1.0.0-beta.31 — 2026-10-24
 
