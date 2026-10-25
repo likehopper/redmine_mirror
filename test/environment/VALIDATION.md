@@ -446,6 +446,15 @@ démonstration 4.0.3 → 5 : 2998 inchangés, aucune régression ; 3 erreurs de 
 4.0.3 : refus « not_shared » attendu tant que le partage n'est pas activé. Runner CI
 6.1.4 : 247 tests Redmine / 1392 assertions ; guides : 21 + 7 tests.
 
+1.0.0-beta.33 (25 octobre 2026) : correspondances croisées (un champ liste source alimente
+la priorité, la priorité source est copiée dans un champ liste). Guide de configuration :
+étape 8b avec un champ Severity sur la source, import vérifié par les vraies API
+(priorités, valeurs de Criticity, historique). Archive installée sur les deux instances de validation
+(sha256 4b4919da…8955), sans migration ; services redémarrés, pages de connexion en 200.
+Prévisualisation du projet de démonstration 4.0.3 → 5 identique à la 1.0.0-beta.32
+(2998 inchangés, mêmes 3 erreurs de données). Runner CI 6.1.4 : 255 tests Redmine /
+1436 assertions ; guides : 22 + 7 tests.
+
 1.0.0-beta.29 (23 octobre 2026) : vue d'ensemble en tête de chaque onglet de module
 (rien à mapper / N à établir, modules dont il dépend, objets de la source face aux objets
 liés dans le projet, dernière synchronisation du module, conflits ouverts). Chiffres de
