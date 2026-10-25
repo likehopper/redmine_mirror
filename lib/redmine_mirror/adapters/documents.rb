@@ -38,6 +38,9 @@ module RedmineMirror
         record.fetch("attachments", []).filter_map { |attachment| attachment["author"] }
       end
 
+      def catalog_statistics(record); file_size_statistics(record.fetch("attachments", [])); end
+      def overview_checks(_project, _setting, statistics); oversized_checks(statistics); end
+
       def catalog_references(client, _project_id)
         { "document_category" => client.get("enumerations/document_categories.json").fetch("document_categories") }
       end

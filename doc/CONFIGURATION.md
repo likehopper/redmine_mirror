@@ -288,7 +288,11 @@ Once a synchronization has succeeded, **Overview** no longer shows Getting start
 
 Each module tab starts with an overview: what is left to map, in the tab or in the
 modules it relies on, the source objects against those linked in the project, and the
-last synchronization. Source figures are read with the references.
+last synchronization. Source figures are read with the references. Warnings follow,
+before any run: files larger than this Redmine's maximum attachment size, source wiki
+pages that a local page without correspondence already has, subscriptions lost to
+anonymized users or locked and registered accounts, and subtasks or relations waiting
+for their other issue.
 
 ![Module overview](screenshots/configuration/37-module-overview.png)
 

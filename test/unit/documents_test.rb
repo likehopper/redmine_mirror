@@ -161,5 +161,7 @@ class MirrorDocumentsTest < ActiveSupport::TestCase
       project_id: 9, adapters: [@adapter]).fetch
     assert_equal({ "71" => "Specs" }, catalog.fetch("document_category"))
     assert_equal ["71"], catalog.fetch("document_category_used")
+    # File sizes in KB, counted per size, for the oversized check of the module tab.
+    assert_equal({ ((FILE.bytesize + 1023) / 1024).to_s => 1 }, catalog.dig("module_statistics", "documents", "sizes_kb"))
   end
 end

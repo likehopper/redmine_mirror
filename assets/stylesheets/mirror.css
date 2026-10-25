@@ -117,3 +117,5 @@ table.mirror-ai-usage { width: auto; min-width: 30em; }
 .mirror-guide { color: #555; margin: .2em 0 .5em 1em; }
 #mirror-checklist ul li { margin-bottom: .2em; }
 #mirror-checklist ul { margin: 0; }
+.mirror-module-checks { margin: .5em 0; padding-left: 0; list-style: none; }
+.mirror-module-checks li { margin: .3em 0; }

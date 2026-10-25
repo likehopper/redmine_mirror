@@ -41,6 +41,9 @@ module RedmineMirror
           record.fetch("attachments", []).map { |attachment| attachment["author"] }).compact
       end
 
+      def catalog_statistics(record); file_size_statistics(record.fetch("attachments", [])); end
+      def overview_checks(_project, _setting, statistics); oversized_checks(statistics); end
+
       # What the source must change, for each lock it names (Source.refusal).
       REFUSALS = {
         "disabled" => "Mirror source is disabled on the source Redmine: its administrator must allow it, and this data (Administration → Plugins → Redmine Mirror)",

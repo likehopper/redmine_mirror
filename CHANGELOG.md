@@ -16,6 +16,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+- **Module checks**: each module tab warns, before any run, about what the
+  synchronization will not import or will stop on: files over the maximum attachment
+  size, wiki pages that already exist here without correspondence, watchers lost to
+  anonymized users or locked and registered accounts, and subtasks or relations waiting
+  for their other issue. Refresh the source references to count them.
+
 ## 1.0.0-beta.33 — 2026-10-25
 
 - **Cross-field correspondences**, besides the standard mappings: a single-value source

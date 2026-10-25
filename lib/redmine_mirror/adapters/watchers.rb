@@ -20,7 +20,25 @@ module RedmineMirror
     class Watchers < IssueState
       def key; "issue_watchers"; end
       def referenced_users(record); record.fetch("watchers", []); end
-      def catalog_statistics(record); { "watchers" => record.fetch("watchers", []).size }; end
+      def catalog_statistics(record)
+        watchers = record.fetch("watchers", [])
+        { "watchers" => watchers.size, "watcher_users" => watchers.to_h { |watcher| [watcher.fetch("id").to_s, 1] } }
+      end
+
+      # Subscriptions that will not be imported: anonymized users, and users mapped to a
+      # locked or registered account, which Redmine refuses as watchers.
+      def overview_checks(project, _setting, statistics)
+        users = statistics.fetch("watcher_users", {})
+        rows = project.mirror_reference_mappings.where(reference_type: "user", source_id: users.keys.map(&:to_i)).index_by { |row| row.source_id.to_s }
+        inactive = User.where(id: rows.values.select { |row| row.mode == "existing" }.map(&:destination_id),
+          status: [User::STATUS_LOCKED, User::STATUS_REGISTERED]).pluck(:id)
+        anonymized = users.sum { |id, count| rows[id]&.mode == "anonymous" ? count : 0 }
+        refused = users.sum { |id, count| rows[id]&.mode == "existing" && inactive.include?(rows[id].destination_id) ? count : 0 }
+        checks = []
+        checks << { key: :text_mirror_check_watchers_anonymized, count: anonymized } if anonymized.positive?
+        checks << { key: :text_mirror_check_watchers_inactive, count: refused } if refused.positive?
+        checks
+      end
       def empty_state; []; end
       def accept_existing_state?; true; end
       def local_state(issue); issue.watcher_users.pluck(:id).sort; end

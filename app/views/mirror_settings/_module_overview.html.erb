@@ -40,7 +40,8 @@ here, and the last run that wrote the module.
     <tbody>
       <tr><td><%= l(adapter.record_label) %></td><td><%= source ? source["records"] : "—" %></td>
         <td><%= link_to overview[:linked], mirror_page_path(@project, "objects", module_key: adapter.key) %></td></tr>
-      <% (source || {}).except("records").each do |name, value| %>
+      <%# Per-key statistics (sizes, titles, users) feed the checks below, not this table. %>
+      <% (source || {}).except("records").select { |_, value| value.is_a?(Integer) }.each do |name, value| %>
         <tr><td><%= l("label_mirror_statistic_#{name}".to_sym) %></td><td><%= mirror_statistic_value(name, value) %></td><td></td></tr>
       <% end %>
       <% overview[:parts].each do |key, count| %>
@@ -48,6 +49,13 @@ here, and the last run that wrote the module.
       <% end %>
     </tbody>
   </table>
+  <% if overview[:checks].any? %>
+    <ul class="mirror-module-checks" id="mirror-module-checks">
+      <% overview[:checks].each do |check| %>
+        <li class="icon icon-warning"><%= mirror_module_check(check) %></li>
+      <% end %>
+    </ul>
+  <% end %>
   <% if source.nil? %>
     <p class="info"><%= l(:text_mirror_source_not_counted, button: l(:button_mirror_refresh)) %></p>
   <% else %>

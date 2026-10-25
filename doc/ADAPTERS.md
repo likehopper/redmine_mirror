@@ -173,6 +173,20 @@ Dependencies run first; the registry rejects unknown keys and cycles and runs ea
 adapter once. It never launches another project's import: cross-project links need that
 project synchronized, then a rerun. See `Relations` and `Hierarchy` for deferred links.
 
+To warn in your module tab before a run, count what you need when the references are
+read, then compare it with this Redmine when the tab is shown. Integers add up across
+records; hashes add up key by key:
+
+```ruby
+def catalog_statistics(record)
+  file_size_statistics(record.fetch("attachments", [])) # { "sizes_kb" => { "120" => 1 } }
+end
+
+def overview_checks(_project, _setting, statistics)
+  oversized_checks(statistics) # [{ key: :locale_key, count: 2, args: {}, link: nil }]
+end
+```
+
 ## 6. Verify before enabling real writes
 
 The example's test covers preview, project isolation, creation, repeated imports,

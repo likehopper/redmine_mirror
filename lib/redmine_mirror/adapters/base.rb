@@ -105,6 +105,24 @@ module RedmineMirror
         {}
       end
 
+      # Warnings of the module tab, from the statistics read with the references and this
+      # Redmine's current state: [{ key: locale key, count:, args: {}, link: :admin_files | :pending }].
+      def overview_checks(_project, _setting, _statistics)
+        []
+      end
+
+      # Sizes of files in KB rounded up, counted per size: the module tab compares them
+      # with the maximum attachment size, which may change after the references are read.
+      def file_size_statistics(files)
+        { "sizes_kb" => files.each_with_object(Hash.new(0)) { |file, sizes| sizes[((file["filesize"].to_i + 1023) / 1024).to_s] += 1 }.to_h }
+      end
+
+      def oversized_checks(statistics)
+        limit = Setting.attachment_max_size.to_i
+        count = statistics.fetch("sizes_kb", {}).sum { |size, files| size.to_i > limit ? files : 0 }
+        count.positive? ? [{ key: :text_mirror_check_oversized, count: count, args: { limit: limit }, link: :admin_files }] : []
+      end
+
       def catalog_references(_client, _project_id)
         {}
       end

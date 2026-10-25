@@ -30,6 +30,23 @@ module RedmineMirror
       def dependencies; ["users"]; end
       def text_samples(record); [record["text"]]; end
       def record_label; :label_mirror_statistic_pages; end
+      def catalog_statistics(record); file_size_statistics(record.fetch("attachments", [])).merge("titles" => { record.fetch("title") => 1 }); end
+
+      # Source pages whose title a local page without correspondence already has: their
+      # import stops until the local page is renamed or deleted.
+      def overview_checks(project, setting, statistics)
+        titles = statistics.fetch("titles", {}).keys
+        wiki = project.wiki
+        existing = if wiki && titles.any?
+          linked = setting.object_mappings.where(module_key: key).select(:destination_id)
+          wiki.pages.where("LOWER(title) IN (?)", titles.map { |title| ::Wiki.titleize(title).downcase }).where.not(id: linked).count
+        else
+          0
+        end
+        checks = oversized_checks(statistics)
+        checks << { key: :text_mirror_check_existing_pages, count: existing } if existing.positive?
+        checks
+      end
 
       def referenced_users(record)
         ([record["author"]] + record.fetch("attachments", []).map { |attachment| attachment["author"] }).compact

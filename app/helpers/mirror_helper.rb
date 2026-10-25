@@ -208,7 +208,18 @@ module MirrorHelper
       actions: run ? run.log_events.select { |event| event["module"] == adapter.key }.map { |event| event["action"] }.tally : {},
       conflicts: project.mirror_conflicts.where(module_key: adapter.key, status: "open").count,
       unmapped: unmapped[adapter.key].to_i,
+      checks: adapter.overview_checks(project, setting, catalog.dig("module_statistics", adapter.key) || {}),
       dependencies: dependencies.map { |entry| [entry, unmapped[entry.key].to_i] } }
+  end
+
+  # A module check, with what fixes it when the user may act on it.
+  def mirror_module_check(check)
+    text = l(check.fetch(:key), **check.fetch(:args, {}).merge(count: check.fetch(:count)))
+    link = case check[:link]
+           when :admin_files then User.current.admin? && link_to(l(:label_mirror_fix_attachment_size), settings_path(tab: "attachments"))
+           when :pending then link_to(l(:label_mirror_pending_links), mirror_page_path(@project, "pending"))
+           end
+    link ? safe_join([text, " ", link]) : text
   end
 
   # A source statistic: a byte count is shown as a size.

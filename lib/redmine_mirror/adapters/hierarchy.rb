@@ -23,6 +23,12 @@ module RedmineMirror
       # A parent left out of the import leaves the link out too, rather than pending.
       def source_issue_ids(record); [record.fetch("id"), record.dig("parent", "id")].compact; end
       def catalog_statistics(record); { "with_parent" => record["parent"] ? 1 : 0 }; end
+
+      # Subtasks waiting for a parent that is not imported yet.
+      def overview_checks(project, _setting, _statistics)
+        count = project.mirror_pending_parents.count
+        count.positive? ? [{ key: :text_mirror_check_pending_parents, count: count, link: :pending }] : []
+      end
       def synchronize(record, project_id:, mappings:, lookup:, store:, source:, apply:, track_blocks: false)
         event = super(record, project_id: project_id, mappings: mappings, lookup: lookup, store: store, source: source, apply: apply)
         if apply && store.respond_to?(:pending_parent)

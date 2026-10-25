@@ -49,7 +49,10 @@ module RedmineMirror
           progress&.call(index + 1, @adapters.size, adapter.key, count + 1)
           next unless record.fetch("project").fetch("id").to_i == @project_id.to_i
           counts["records"] += 1
-          adapter.catalog_statistics(record).each { |name, value| counts[name] = counts.fetch(name, 0) + value }
+          # Counts add up; per-key counts (sizes, titles, users) add up key by key.
+          adapter.catalog_statistics(record).each do |name, value|
+            counts[name] = value.is_a?(Hash) ? counts.fetch(name, {}).merge(value) { |_, total, more| total + more } : counts.fetch(name, 0) + value
+          end
           # Historical authors and observers may not be project members. Discover
           # their remote identities without creating any destination accounts.
           if tables.key?("user")

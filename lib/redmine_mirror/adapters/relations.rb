@@ -19,6 +19,12 @@ module RedmineMirror
   module Adapters
     class Relations < IssueChildren
       def key; "issue_relations"; end
+
+      # Relations waiting for their other issue.
+      def overview_checks(project, _setting, _statistics)
+        count = MirrorPendingRelation.where(project_id: project.id).count
+        count.positive? ? [{ key: :text_mirror_check_pending_relations, count: count, link: :pending }] : []
+      end
       def association; "relations"; end
       def source_issue_ids(record); record.values_at("issue_id", "issue_to_id").compact; end
       def configuration_options(input, _project)
