@@ -455,6 +455,14 @@ Prévisualisation du projet de démonstration 4.0.3 → 5 identique à la 1.0.0-
 (2998 inchangés, mêmes 3 erreurs de données). Runner CI 6.1.4 : 255 tests Redmine /
 1436 assertions ; guides : 22 + 7 tests.
 
+1.0.0-beta.34 (25 octobre 2026) : vérifications par module dans la vue d'ensemble de
+chaque onglet (fichiers au-delà de la taille maximale, pages wiki locales sans
+correspondance, abonnements perdus par anonymisation ou comptes inactifs, sous-tâches et
+relations en attente). Tests d'intégration des avertissements wiki, observateurs et
+hiérarchie. Archive installée sur l'instance source 4.0.3 de validation
+(sha256 b7e0dea2…bbd8), sans migration ; service redémarré, page de connexion en 200.
+Runner CI 6.1.4 : 258 tests Redmine / 1457 assertions ; guides : 22 + 7 tests.
+
 1.0.0-beta.29 (23 octobre 2026) : vue d'ensemble en tête de chaque onglet de module
 (rien à mapper / N à établir, modules dont il dépend, objets de la source face aux objets
 liés dans le projet, dernière synchronisation du module, conflits ouverts). Chiffres de
