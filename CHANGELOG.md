@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.34 — 2026-10-25
 
 - **Module checks**: each module tab warns, before any run, about what the
   synchronization will not import or will stop on: files over the maximum attachment
