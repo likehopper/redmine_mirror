@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.35 — 2026-11-04
 
 - **Images kept through text format conversions**: converting a text to Textile or
   Markdown no longer removes its images. Redmine's HTML-to-text parsers drop `<img>`, so
