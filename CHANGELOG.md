@@ -16,6 +16,16 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+- **Images kept through text format conversions**: converting a text to Textile or
+  Markdown no longer removes its images. Redmine's HTML-to-text parsers drop `<img>`, so
+  every inline image vanished when, for example, a Textile source fed a CommonMark
+  destination. Images now keep their size, alignment and title: `!>{width: 50%}a.png(Title)!`
+  in Textile, a raw `<img style="width: 50%;">` in CommonMark (which renders it), and
+  `![alt](a.png "Title")` otherwise. Redmine's legacy Markdown formatter filters HTML, so
+  sizes are lost there and the run log notes it.
+
 ## 1.0.0-beta.34 — 2026-10-25
 
 - **Module checks**: each module tab warns, before any run, about what the

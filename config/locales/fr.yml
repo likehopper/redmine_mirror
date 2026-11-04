@@ -108,6 +108,7 @@ fr:
   label_mirror_fix_attachment_size: "modifier la taille maximale des fichiers"
   label_mirror_flag_issue_references_rewritten: "Numéros de demandes réécrits"
   label_mirror_flag_issue_references_unresolved: "Numéros de demandes pas encore importées (lien vers la source)"
+  label_mirror_flag_image_styles_dropped: "Tailles d'images non conservées (Markdown ancien)"
   text_mirror_source_project_number: "Projet source n°%{id}"
   label_mirror_api_key: "Clé API source"
   label_mirror_modules: "Modules"

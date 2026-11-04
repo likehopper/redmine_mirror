@@ -196,7 +196,53 @@ module RedmineMirror
       to = family(target)
       return text if from == to
       html = from == "html" ? text : Redmine::WikiFormatting.formatter_for(markup_formatter(from)).new(text).to_html
-      to == "html" ? html : Redmine::WikiFormatting.html_parser_for(target).to_text(html)
+      to == "html" ? html : Redmine::WikiFormatting.html_parser_for(target).to_text(images_as_markup(html, target))
+    end
+
+    # Redmine's HTML-to-text parsers drop <img> elements, so every image would vanish
+    # from a text converted to Textile or Markdown. Each image (with the span Textile
+    # wraps around a floating one) is replaced beforehand by the target's own syntax,
+    # keeping its size, alignment and title: !>{width: 50%}a.png(Title)! in Textile,
+    # ![alt](a.png "Title") in Markdown, or a raw <img> for CommonMark when the image
+    # carries a style, which CommonMark allows and its Markdown syntax cannot express.
+    def images_as_markup(html, target)
+      return html unless html.match?(/<img\b/i)
+      fragment = Nokogiri::HTML::DocumentFragment.parse(html)
+      fragment.css("img[src]").each do |image|
+        parent = image.parent
+        wrapper = parent if parent&.name == "span" && parent.element_children.size == 1 && parent.text.strip.empty? &&
+                            css_declarations(parent["style"]).key?("float")
+        styles = css_declarations(wrapper && wrapper["style"]).merge(css_declarations(image["style"]))
+        (wrapper || image).replace(Nokogiri::XML::Text.new(image_markup(image, styles, target), fragment.document))
+      end
+      fragment.to_html
+    end
+
+    def css_declarations(style)
+      style.to_s.split(";").each_with_object({}) do |declaration, styles|
+        name, value = declaration.split(":", 2).map(&:strip)
+        styles[name.downcase] = value if name.present? && value.present?
+      end
+    end
+
+    def image_markup(image, styles, target)
+      src = image["src"].to_s.strip
+      alt = image["alt"].to_s.strip
+      title = image["title"].to_s.strip
+      if family(target) == "textile"
+        align = { "right" => ">", "left" => "<" }[styles.delete("float").to_s.downcase]
+        style = styles.map { |name, value| "#{name}: #{value}" }.join("; ")
+        caption = (title.presence || alt).delete("()")
+        "!#{align}#{"{#{style}}" unless style.empty?}#{src}#{"(#{caption})" unless caption.empty?}!"
+      elsif styles.any? && target.to_s == "common_mark"
+        attributes = { "src" => src, "style" => styles.map { |name, value| "#{name}: #{value};" }.join(" "), "alt" => alt, "title" => title.presence }
+        "<img #{attributes.compact.map { |name, value| %(#{name}="#{CGI.escapeHTML(value)}") }.join(' ')}>"
+      else
+        # Redmine's legacy Markdown formatter filters raw HTML: the style cannot be kept.
+        note("image_styles_dropped") if styles.any?
+        destination = src.match?(/[\s()<>]/) ? "<#{src.delete('<>')}>" : src
+        "![#{alt.delete('[]')}](#{destination}#{%( "#{title.delete('"')}") unless title.empty?})"
+      end
     end
 
     # The most frequent markup detected in a source project, from its catalog counts. An

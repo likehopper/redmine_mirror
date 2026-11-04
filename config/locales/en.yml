@@ -108,6 +108,7 @@ en:
   label_mirror_fix_attachment_size: "change the maximum attachment size"
   label_mirror_flag_issue_references_rewritten: "Issue numbers rewritten"
   label_mirror_flag_issue_references_unresolved: "Issue numbers not imported yet (linked to the source)"
+  label_mirror_flag_image_styles_dropped: "Image sizes not kept (legacy Markdown)"
   text_mirror_source_project_number: "Source project #%{id}"
   label_mirror_api_key: "Source API key"
   label_mirror_modules: "Modules"

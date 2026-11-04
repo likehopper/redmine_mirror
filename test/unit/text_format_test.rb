@@ -42,6 +42,25 @@ class MirrorTextFormatTest < ActiveSupport::TestCase
     assert_includes convert("<p><strong>Bold</strong> text</p>", target: "common_mark"), "**Bold** text"
   end
 
+  # Redmine's HTML-to-text parsers drop <img>: images must survive the conversion.
+  def test_images_survive_a_conversion_to_textile_or_markdown
+    source = "Before !shot.png! after\n\n!{width: 50%}nom-de-l-image.png!\n\n!>{width:300px;height:100px}b.png(Title)!"
+    common_mark = convert(source, source: "textile", target: "common_mark")
+    assert_includes common_mark, "Before ![](shot.png) after"
+    assert_includes common_mark, %(<img src="nom-de-l-image.png" style="width: 50%;" alt="">)
+    assert_includes common_mark, %(<img src="b.png" style="float: right; width: 300px; height: 100px;" alt="Title" title="Title">)
+    html = convert(source, source: "textile", target: "CKEditor")
+    assert_includes html, %(style="width: 50%;")
+  end
+
+  def test_images_keep_their_size_and_alignment_from_html_or_markdown
+    textile = convert(%(<p><img src="a.png" style="width: 50%"> <span style="float:right"><img src="b.png" title="T"></span></p>), target: "textile")
+    assert_includes textile, "!{width: 50%}a.png!"
+    assert_includes textile, "!>b.png(T)!"
+    assert_includes convert(%(Text ![Alt](a.png "T") here), source: "markdown", target: "textile"), "!a.png(T)!"
+    assert_includes convert(%(<img src="/attachments/download/3/a b.png" alt="A">), target: "common_mark"), "![A](</attachments/download/3/a b.png>)"
+  end
+
   def test_same_format_and_html_sources_are_unchanged
     assert_equal "h2. Title", convert("h2. Title", target: "textile")
     assert_equal "<p>Kept</p>", convert("<p>Kept</p>")
