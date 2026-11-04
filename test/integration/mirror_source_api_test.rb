@@ -19,7 +19,7 @@ require_relative "../test_helper"
 
 class MirrorSourceApiTest < Redmine::ApiTest::Base
   fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules,
-    :documents, :enumerations, :attachments, :news, :comments, :queries
+    :documents, :enumerations, :attachments, :news, :comments, :queries, :issue_categories
 
   SESSION = "0123456789abcdef0123456789abcdef"
 
@@ -176,6 +176,30 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
   end
 
   # Each lock refuses with its reason, logged; the destination reads the header.
+  # Categories with their sharing (when this Redmine has the column) and assignee: the
+  # categories API lists them to managers only, without sharing.
+  def test_lists_the_project_categories_with_their_sharing
+    MirrorSourceSetting.find_by!(project: @project).update!(shared_modules: %w[issue_categories])
+    enabled do
+      get "/projects/ecookbook/mirror/source/issue_categories.json", headers: mirror_headers
+      assert_response :success
+      categories = JSON.parse(response.body).fetch("issue_categories")
+      assert_equal IssueCategory.where(project_id: 1).order(:id).pluck(:id, :name), categories.map { |category| category.values_at("id", "name") }
+      refute categories.first.key?("sharing")
+      assert_equal "list", MirrorSourceAccess.where(session_key: SESSION).last.action
+      begin
+        ActiveRecord::Base.connection.add_column :issue_categories, :sharing, :string, limit: 40
+        IssueCategory.reset_column_information
+        IssueCategory.where(id: categories.first.fetch("id")).update_all(sharing: "descendants")
+        get "/projects/ecookbook/mirror/source/issue_categories.json", headers: mirror_headers
+        assert_equal ["descendants", "none"], JSON.parse(response.body).fetch("issue_categories").first(2).map { |category| category["sharing"] }
+      ensure
+        ActiveRecord::Base.connection.remove_column :issue_categories, :sharing
+        IssueCategory.reset_column_information
+      end
+    end
+  end
+
   def test_each_lock_refuses_and_names_itself
     get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
     assert_response :forbidden

@@ -17,8 +17,8 @@
 # administrator, the project and its sharing allow it, and logged request by request.
 
 class MirrorSourceApiController < ApplicationController
-  accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :scrum, :queries, :users, :download
-  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users]
+  accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :scrum, :queries, :users, :issue_categories, :download
+  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users issue_categories]
   before_action :find_document, only: :document
   before_action :find_news, only: :news_item
   before_action :find_attachment, only: :download
@@ -110,6 +110,16 @@ class MirrorSourceApiController < ApplicationController
     respond_to { |format| format.api }
   end
 
+  # The project's own categories, with their sharing with subprojects when this Redmine
+  # has it (none or descendants), and their default assignee.
+  def issue_categories
+    @sharing = RedmineMirror::Source.category_sharing?
+    @categories = IssueCategory.where(project_id: @project.id).preload(:assigned_to).order(:id).to_a
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @categories.size,
+      details: { "issue_categories" => @categories.map { |category| { "id" => category.id, "title" => category[:name] } } })
+    respond_to { |format| format.api }
+  end
+
   # Shared files go through here, not the attachments API, so that sharing applies
   # and the transfer is logged.
   def download
@@ -163,6 +173,7 @@ class MirrorSourceApiController < ApplicationController
     when "scrum" then "scrum"
     when "queries" then "queries"
     when "users" then "users"
+    when "issue_categories" then "issue_categories"
     when "download" then RedmineMirror::Source::CONTAINERS.fetch(@attachment.container_type)
     else "documents"
     end

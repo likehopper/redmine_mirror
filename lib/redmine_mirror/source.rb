@@ -23,11 +23,13 @@ module RedmineMirror
 
     # Data a project can share. News have a REST API, but not their comments nor files;
     # issue tags (Redmine Tags plugin by RedmineUP) and Scrum sprints (Scrum plugin) have none.
-    # The users API gives logins and emails to administrators only.
-    KINDS = %w[documents news issue_tags scrum queries users].freeze
+    # The users API gives logins and emails to administrators only. The categories API
+    # lists categories to their managers only, and never says whether they are shared.
+    KINDS = %w[documents news issue_tags scrum queries users issue_categories].freeze
     # Native permission the API account needs for each kind.
     PERMISSIONS = { "documents" => :view_documents, "news" => :view_news, "issue_tags" => :view_issues,
-      "scrum" => :view_sprint_board, "queries" => :view_issues, "users" => :view_issues }.freeze
+      "scrum" => :view_sprint_board, "queries" => :view_issues, "users" => :view_issues,
+      "issue_categories" => :view_issues }.freeze
     # Users a destination may ask for in one request.
     USERS_PER_REQUEST = 100
     # Saved queries a project shares: issues, time entries and agile boards.
@@ -72,6 +74,11 @@ module RedmineMirror
     # Sprints need the Scrum plugin on this Redmine.
     def scrum_available?
       defined?(::Sprint) && Issue.column_names.include?("sprint_id") ? true : false
+    end
+
+    # Categories shared with subprojects (a patch or plugin adding issue_categories.sharing).
+    def category_sharing?
+      IssueCategory.column_names.include?("sharing")
     end
 
     # Data this Redmine can serve: tags and sprints need their plugin.

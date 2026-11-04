@@ -307,6 +307,7 @@ fr:
   text_mirror_source_share_scrum: "Sprints, product backlogs, et le sprint, la position et les story points des demandes que le compte peut voir (plugin Scrum)"
   text_mirror_source_share_queries: "Requêtes enregistrées des demandes, du temps passé et des tableaux agiles, privées comprises"
   text_mirror_source_share_users: "Identifiant, nom, email et société des membres et des utilisateurs qui apparaissent dans les données du projet, pour qu'une destination puisse créer leur compte"
+  text_mirror_source_share_issue_categories: "Nom, assigné par défaut et partage avec les sous-projets des catégories du projet"
   text_mirror_source_scrum_listed: "%{sprints} sprints, %{issues} demandes"
   text_mirror_source_tags_listed: "%{issues} demandes avec tags, %{tags} tags"
   label_mirror_source_log: "Journal d'accès"

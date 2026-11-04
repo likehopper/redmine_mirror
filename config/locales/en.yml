@@ -307,6 +307,7 @@ en:
   text_mirror_source_share_scrum: "Sprints, product backlogs, and the sprint, position and story points of the issues the account can see (Scrum plugin)"
   text_mirror_source_share_queries: "Saved queries of issues, time entries and agile boards, private ones included"
   text_mirror_source_share_users: "Login, name, email and company of the members and of the users who appear in the project's data, so that a destination can create their account"
+  text_mirror_source_share_issue_categories: "Name, default assignee and sharing with subprojects of the project's categories"
   text_mirror_source_scrum_listed: "%{sprints} sprints, %{issues} issues"
   text_mirror_source_tags_listed: "%{issues} tagged issues, %{tags} tags"
   label_mirror_source_log: "Access log"

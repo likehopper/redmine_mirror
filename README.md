@@ -40,7 +40,7 @@ Version **1.0.0-beta.35** is a pre-release for testing before 1.0.0, not a stabl
 | --- | --- |
 | Issues | Subject, description, tracker, status, priority, assignee, privacy, author, dates |
 | Time tracking | Hours, activity, date, comments, user, issue |
-| Issue categories, project versions | Categories with assignee; versions with status, due date and sharing |
+| Issue categories, project versions | Categories with assignee and, through Mirror source, sharing with subprojects; versions with status, due date and sharing |
 | Issue history | Notes, private notes, supported field changes, authors, dates |
 | Issue attachments | Current files (32 MiB max.), descriptions, authors, dates |
 | Issue relations | Type and delay, including endpoints in other mirrored projects |

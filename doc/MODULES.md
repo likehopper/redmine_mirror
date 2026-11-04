@@ -130,6 +130,13 @@ name, description, status, due date and sharing.
 
 - A missing reference blocks the import; a local change is reported as a conflict.
 - A version shared from another project must be imported in its owner project first.
+- Category sharing with subprojects (*none* or *descendants*) needs a sharing column on
+  both sides, added by a patch or plugin. The source gives it through Mirror source
+  (**Issue categories** shared); the destination writes it when it has the column.
+- A category of another source project that the issues use (shared by a parent
+  project) takes the category already imported into that parent's destination project,
+  when it is shared with descendants there: import the parent first. Otherwise a copy
+  with the same name is created in the project.
 - Existing local objects without a correspondence are never adopted; Redmine reports
   name collisions.
 

@@ -30,6 +30,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   references whose name has a default. Migration 018.
 - **Default correspondences page in tabs**: one tab per reference table and one for list
   values; **New correspondence** and **Import CSV** open their own page.
+- **Shared issue categories**: a source sharing **Issue categories** through Mirror
+  source gives every category of the project with its default assignee and its sharing
+  with subprojects (*none* or *descendants*, when a patch or plugin adds the column, as
+  on Redmine 4 installations with shared categories). The destination writes the sharing
+  when it has the column (Share Categories plugin). A category shared by a parent
+  project and already imported into that parent's destination project is used by the
+  subproject's issues instead of a copy. Mirror source 1.0.0-beta.36 on the source.
 
 ## 1.0.0-beta.35 — 2026-11-04
 

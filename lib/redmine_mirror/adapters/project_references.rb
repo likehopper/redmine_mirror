@@ -77,14 +77,17 @@ module RedmineMirror
       def key; "issue_categories"; end
       def collection; "issue_categories"; end
       def model; IssueCategory; end
-      def fields; %w[name assigned_to_id]; end
+      SHARINGS = %w[none descendants].freeze
+      # Sharing with subprojects needs a patch or plugin adding issue_categories.sharing.
+      def sharing?; IssueCategory.column_names.include?("sharing"); end
+      def fields; sharing? ? %w[name assigned_to_id sharing] : %w[name assigned_to_id]; end
       def referenced_users(record); [record["assigned_to"]].compact; end
 
       # The project's own categories, plus those its issues use: an issue can keep a
-      # category of another source project (moved issues, plugins). Those are created in
-      # the destination project under the same name. Listing categories requires "Manage
-      # issue categories" on the source; without it, only the used ones are known, and
-      # without their default assignee.
+      # category of another source project (a category shared by a parent project, moved
+      # issues). Listing categories requires "Manage issue categories" on the source;
+      # without it, only the used ones are known, and without their default assignee. A
+      # Mirror source sharing "Issue categories" gives them all with their sharing.
       def records(client, project_id)
         listed = begin
           super
@@ -92,14 +95,56 @@ module RedmineMirror
           raise unless error.message.start_with?("Redmine API returned HTTP 403")
           []
         end
+        if (shared = source_categories(client, project_id))
+          by_id = shared.to_h { |category| [category.fetch("id"), category] }
+          listed = listed.map { |category| by_id[category.fetch("id")] ? category.merge(by_id[category.fetch("id")].slice("sharing")) : category }
+          known = listed.map { |category| category.fetch("id") }
+          listed += shared.reject { |category| known.include?(category.fetch("id")) }.map { |category| { "project" => { "id" => project_id } }.merge(category) }
+        end
         known = listed.map { |category| category.fetch("id") }
         used = Issues.new.records(client, project_id).filter_map { |issue| issue["category"] }
           .uniq { |category| category.fetch("id") }.reject { |category| known.include?(category.fetch("id")) }
-        (listed + used.map { |category| { "project" => { "id" => project_id }, "id" => category.fetch("id"), "name" => category.fetch("name") } })
+        listed = listed.map { |category| foreign?(category, project_id) ? category.merge("foreign" => true) : category }
+        (listed + used.map { |category| { "project" => { "id" => project_id }, "id" => category.fetch("id"), "name" => category.fetch("name"), "foreign" => true } })
           .sort_by { |category| category.fetch("id") }
       end
+
+      # The categories and their sharing through Mirror source, or nil when the source
+      # does not share them (no Mirror, not allowed, not shared, no permission).
+      def source_categories(client, project_id)
+        client.get("projects/#{Integer(project_id)}/mirror/source/issue_categories.json").fetch("issue_categories")
+      rescue Error, KeyError
+        nil
+      end
+
+      def foreign?(category, project_id)
+        category.dig("project", "id").to_i != project_id.to_i
+      end
+
       def attributes(record, mappings)
-        { "name" => record.fetch("name"), "assigned_to_id" => record["assigned_to"] ? Users.new.resolve(mappings, record["assigned_to"].fetch("id")) : nil }
+        result = { "name" => record.fetch("name"), "assigned_to_id" => record["assigned_to"] ? Users.new.resolve(mappings, record["assigned_to"].fetch("id")) : nil }
+        result["sharing"] = record["sharing"] if sharing? && SHARINGS.include?(record["sharing"])
+        result
+      end
+
+      # A category of another source project (shared by a parent) already imported into
+      # the destination project of that parent, and usable here: the issues take it
+      # through the shared lookup instead of a copy. Otherwise a copy is made here.
+      def synchronize(record, project_id:, mappings:, lookup:, store:, source:, apply:)
+        if record["foreign"] && !store.find(key, record.fetch("id")) && store.respond_to?(:find_related_mapping)
+          shared = store.find_related_mapping(key, record.fetch("id"))
+          category = shared && IssueCategory.find_by(id: shared.fetch("destination_id"))
+          if category && usable?(category, Project.find(project_id))
+            return { module: key, source_id: record.fetch("id"), destination_id: category.id, action: "unchanged" }
+          end
+        end
+        super
+      end
+
+      # A category of this project, or shared with descendants by an ancestor.
+      def usable?(category, project)
+        return true if category.project_id == project.id
+        sharing? && category[:sharing] == "descendants" && project.ancestors.where(id: category.project_id).exists?
       end
     end
     class Versions < ProjectReferences

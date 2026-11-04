@@ -360,7 +360,7 @@ class MirrorCoreTest < Minitest::Test
        { "id" => 3, "category" => { "id" => 4, "name" => "Backend" } }].each
     end
     records = RedmineMirror::Adapters::Categories.new.records(client, 7)
-    assert_equal [{ "project" => { "id" => 7 }, "id" => 4, "name" => "Backend" }], records
+    assert_equal [{ "project" => { "id" => 7 }, "id" => 4, "name" => "Backend", "foreign" => true }], records
     # Categories of other projects used by the issues are added to the project's own,
     # all in source ID order.
     def client.get(path, _params = {})

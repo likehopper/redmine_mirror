@@ -55,4 +55,5 @@ get "projects/:project_id/mirror/source/issue_tags", to: "mirror_source_api#issu
 get "projects/:project_id/mirror/source/scrum", to: "mirror_source_api#scrum", as: "mirror_source_scrum"
 get "projects/:project_id/mirror/source/queries", to: "mirror_source_api#queries", as: "mirror_source_queries"
 get "projects/:project_id/mirror/source/users", to: "mirror_source_api#users", as: "mirror_source_users"
+get "projects/:project_id/mirror/source/issue_categories", to: "mirror_source_api#issue_categories", as: "mirror_source_issue_categories"
 get "mirror/source/attachments/:id/download", to: "mirror_source_api#download", as: "mirror_source_download"
