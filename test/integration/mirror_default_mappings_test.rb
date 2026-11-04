@@ -63,10 +63,20 @@ class MirrorDefaultMappingsTest < Redmine::IntegrationTest
     get "/admin/mirror/defaults"
     assert_response :success
     assert_select ".mirror-admin-sidebar a.selected", text: "Default correspondences"
+    # One tab per table, and the forms on their own page.
+    assert_select "#tab-tracker"
+    assert_select "#tab-custom_field_value"
+    assert_select "form.mirror-default-form", count: 0
+    get "/admin/mirror/defaults/new", params: { type: "tracker" }
+    assert_response :success
+    assert_select "#mirror-default-form-tracker textarea"
     # Users only take a fallback.
+    get "/admin/mirror/defaults/new", params: { type: "user" }
     assert_select "#mirror-default-form-user textarea", count: 0
+    get "/admin/mirror/defaults/new", params: { type: "unknown" }
+    assert_response 404
     post "/admin/mirror/defaults", params: { default_mapping: { reference_type: "tracker", source_names: "Feature\nEnhancement\nfeature", destination: "2" } }
-    assert_redirected_to "/admin/mirror/defaults#mirror-defaults-tracker"
+    assert_redirected_to "/admin/mirror/defaults?tab=tracker"
     assert_equal [["Enhancement", 2], ["Feature", 2]], MirrorDefaultMapping.where(reference_type: "tracker").order(:source_key).pluck(:source_name, :destination_id)
     post "/admin/mirror/defaults", params: { default_mapping: { reference_type: "status", source_names: "", destination: "ignore" } }
     assert MirrorDefaultMapping.find_by(reference_type: "status", source_key: nil, mode: "ignore")
@@ -75,10 +85,11 @@ class MirrorDefaultMappingsTest < Redmine::IntegrationTest
     assert flash[:error]
     post "/admin/mirror/defaults", params: { default_mapping: { reference_type: "tracker", source_names: "Unknown tracker", destination: "999" } }
     assert flash[:error]
+    assert_redirected_to "/admin/mirror/defaults/new?type=tracker"
     # The same name and source again is refused.
     post "/admin/mirror/defaults", params: { default_mapping: { reference_type: "tracker", source_names: "FEATURE", destination: "1" } }
     assert flash[:error]
-    get "/admin/mirror/defaults"
+    get "/admin/mirror/defaults", params: { tab: "tracker" }
     assert_select "#mirror-defaults-table-tracker tbody tr", count: 2
     assert_select "#mirror-defaults-table-status td", text: "Otherwise (fallback)"
     delete "/admin/mirror/defaults/#{MirrorDefaultMapping.find_by(source_name: 'Enhancement').id}"
@@ -163,12 +174,23 @@ class MirrorDefaultMappingsTest < Redmine::IntegrationTest
     field = IssueCustomField.create!(name: "Environment", field_format: "list", possible_values: ["Validation", "Training"], is_for_all: true)
     log_user("admin", "admin")
     bad = "type;source_name;source_url;destination;custom_field\ntracker;Feature;;Feature request;\ntracker;Unknown tracker;;Nowhere;\n"
+    get "/admin/mirror/defaults/import"
+    assert_response :success
     post "/admin/mirror/defaults/import", params: { file: Rack::Test::UploadedFile.new(StringIO.new(bad), "text/csv", original_filename: "defaults.csv") }
-    assert_match "3: Unknown destination Nowhere", flash[:error]
+    assert_response 422
+    assert_select "#mirror-defaults-import-errors tbody tr", count: 1
+    assert_select "#mirror-defaults-import-errors td", text: "Unknown destination Nowhere"
+    assert_select "#mirror-defaults-rejected[download]"
     assert_equal 0, MirrorDefaultMapping.count
     duplicate = "type,source_name,destination\ntracker,Feature,Bug\ntracker,FEATURE,Bug\n"
     post "/admin/mirror/defaults/import", params: { file: Rack::Test::UploadedFile.new(StringIO.new(duplicate), "text/csv", original_filename: "defaults.csv") }
-    assert_match "same type and source name as line 2", flash[:error]
+    assert_select "#mirror-defaults-import-errors td", text: "same type and source name as line 2"
+    # Skipping the errors saves the valid lines.
+    post "/admin/mirror/defaults/import", params: { skip_errors: "1", file: Rack::Test::UploadedFile.new(StringIO.new(bad), "text/csv", original_filename: "defaults.csv") }
+    assert_response :success
+    assert_select ".flash.notice", text: "1 defaults imported, 1 lines skipped."
+    assert_equal [2], MirrorDefaultMapping.pluck(:destination_id)
+    MirrorDefaultMapping.delete_all
     good = "\uFEFFtype;source_name;source_url;destination;custom_field\n" \
            "tracker;Feature;;Feature request;\nstatus;;;ignore;\nrole;Former reader;#{SOURCE}/;ignore;\n" \
            "user;;;#2;\ncustom_field_value;Recipe;;validation;Environment\n"
@@ -197,5 +219,57 @@ class MirrorDefaultMappingsTest < Redmine::IntegrationTest
     end
     assert_equal "1 correspondences saved in the projects.", flash[:notice]
     assert_equal 2, mapping("tracker", 2).destination_id
+  end
+  def test_rejected_lines_come_back_as_csv_with_their_error
+    text = "type;source_name;source_url;destination;custom_field\ntracker;Feature;;Bug;\nstatus;Done;;Nowhere;\nmood;Happy;;Bug;\n"
+    result = RedmineMirror::DefaultMappings.import(text)
+    assert_equal 0, result.saved
+    assert_equal ["3: Unknown destination Nowhere", "4: Unknown type mood"], result.messages
+    rows = CSV.parse(result.rejected_csv, col_sep: ";")
+    assert_equal %w[type source_name source_url destination custom_field error], rows.first
+    assert_equal ["status", "Done", "", "Nowhere", "", "Unknown destination Nowhere"], rows.second
+    assert_equal 0, MirrorDefaultMapping.count
+    assert_equal 1, RedmineMirror::DefaultMappings.import(text, partial: true).saved
+  end
+
+  def test_a_project_can_refuse_the_defaults
+    rule("tracker", "feature", 2)
+    log_user("admin", "admin")
+    get "/projects/ecookbook/settings", params: { tab: "mirror" }
+    assert_select "#mirror-use-default-mappings[checked]"
+    patch "/projects/ecookbook/mirror/settings/defaults", params: { use_default_mappings: "0" }
+    refute @setting.reload.use_default_mappings
+    refute RedmineMirror::DefaultMappings.automatic?(@setting)
+    # Neither the administrator's button nor a reading of the source fills it.
+    post "/admin/mirror/defaults/apply"
+    assert_equal "0 correspondences saved in the projects.", flash[:notice]
+    assert_nil mapping("tracker", 2)
+    # The project's own button still applies them.
+    post "/projects/ecookbook/mirror/settings/defaults/apply"
+    assert_equal "1 correspondences saved from the defaults.", flash[:notice]
+    assert_equal [2, true], [mapping("tracker", 2).destination_id, mapping("tracker", 2).from_default]
+  end
+
+  def test_reset_replaces_only_the_references_whose_name_has_a_default
+    rule("tracker", "feature", 2)
+    rule("tracker", nil, 3)
+    @project.mirror_reference_mappings.create!(reference_type: "tracker", source_id: 2, destination_id: 1)
+    @project.mirror_reference_mappings.create!(reference_type: "tracker", source_id: 3, destination_id: 1)
+    log_user("admin", "admin")
+    post "/projects/ecookbook/mirror/settings/defaults/apply"
+    assert_equal "0 correspondences saved from the defaults.", flash[:notice]
+    assert_equal 1, mapping("tracker", 2).destination_id
+    post "/projects/ecookbook/mirror/settings/defaults/apply", params: { reset: "1" }
+    assert_equal [2, true], [mapping("tracker", 2).destination_id, mapping("tracker", 2).from_default]
+    # The fallback never replaces a correspondence.
+    assert_equal [1, false], [mapping("tracker", 3).destination_id, mapping("tracker", 3).from_default]
+  end
+
+  def test_only_managers_apply_the_defaults_of_a_project
+    rule("tracker", "feature", 2)
+    log_user("dlopper", "foo")
+    post "/projects/ecookbook/mirror/settings/defaults/apply"
+    assert_response 403
+    assert_nil mapping("tracker", 2)
   end
 end

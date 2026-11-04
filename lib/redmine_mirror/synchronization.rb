@@ -69,7 +69,7 @@ module RedmineMirror
           setting.update_columns(source_catalog: JSON.generate(catalog), source_project_identifier: identifier,
             catalog_status: "ready", catalog_error: nil, catalog_progress: nil, updated_at: Time.current)
           # The administrator's defaults fill the references still without correspondence.
-          DefaultMappings.apply(setting)
+          DefaultMappings.apply(setting) if DefaultMappings.automatic?(setting)
         rescue StandardError => error
           # Unexpected exception text can contain URLs, credentials or private records.
           message = error.is_a?(Error) ? error.message : "Internal error (#{error.class.name})"

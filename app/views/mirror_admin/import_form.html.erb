@@ -1,0 +1,57 @@
+<%#
+File: redmine_mirror/app/views/mirror_admin/import_form.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+
+Import defaults from a CSV file. After an import with errors, every refused line is
+listed, with a CSV of those lines and their message to correct and import again.
+%><% content_for :header_tags do %>
+  <%= stylesheet_link_tag "mirror", plugin: "redmine_mirror" %>
+<% end %>
+<% html_title(l(:label_mirror_defaults_import)) %>
+<%= render "mirror_admin/sidebar" %>
+<h2><%= link_to l(:label_mirror_admin), mirror_admin_path %> » <%= link_to l(:label_mirror_admin_defaults), mirror_admin_defaults_path %> » <%= l(:label_mirror_defaults_import) %></h2>
+<% if @result %>
+  <div id="mirror-defaults-import-result">
+    <% if @result.saved.positive? %>
+      <div class="flash notice"><%= l(:text_mirror_defaults_imported_partially, count: @result.saved, errors: @result.errors.size) %></div>
+    <% else %>
+      <div class="flash error"><%= l(:text_mirror_defaults_import_refused, errors: @result.errors.size) %></div>
+    <% end %>
+    <% if @result.rejected_csv.lines.size > 1 %>
+      <p><%= link_to l(:button_mirror_defaults_rejected), "data:text/csv;charset=utf-8;base64,#{Base64.strict_encode64("﻿" + @result.rejected_csv)}",
+            download: "mirror-default-mappings-rejected.csv", class: "icon icon-download", id: "mirror-defaults-rejected" %></p>
+    <% end %>
+    <table class="list" id="mirror-defaults-import-errors">
+      <thead><tr><th><%= l(:label_mirror_defaults_line) %></th><th><%= l(:label_mirror_defaults_cells) %></th><th><%= l(:label_mirror_defaults_error) %></th></tr></thead>
+      <tbody>
+      <% @result.errors.each do |error| %>
+        <tr><td><%= error[:line] %></td><td><%= Array(error[:cells]).join(" ; ") %></td><td><%= error[:message] %></td></tr>
+      <% end %>
+      </tbody>
+    </table>
+  </div>
+<% end %>
+<%= form_tag mirror_admin_defaults_import_path, multipart: true, id: "mirror-defaults-import" do %>
+  <div class="box tabular">
+    <p><%= label_tag "mirror-defaults-file", l(:label_mirror_defaults_file), class: "required" %>
+      <%= file_field_tag :file, accept: ".csv,text/csv", id: "mirror-defaults-file", required: true %>
+      <em class="info"><%= l(:text_mirror_defaults_import) %></em></p>
+    <p><%= label_tag "mirror-defaults-skip-errors", l(:label_mirror_defaults_skip_errors) %>
+      <%= check_box_tag :skip_errors, "1", params[:skip_errors] == "1", id: "mirror-defaults-skip-errors" %>
+      <em class="info"><%= l(:text_mirror_defaults_skip_errors) %></em></p>
+  </div>
+  <%= submit_tag l(:button_import) %>
+  <%= link_to l(:button_cancel), mirror_admin_defaults_path %>
+<% end %>

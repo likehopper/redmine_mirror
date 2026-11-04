@@ -16,6 +16,21 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+- **Default correspondences, import with errors**: an import no longer stops at the
+  first 20 errors. Every refused line is listed with its number, content and error, and
+  **Download the lines in error (CSV)** gives them back with an `error` column to
+  correct and import again. **Skip the lines in error** imports the valid lines anyway.
+- **Default correspondences per project**: the **Connection** tab of a project has
+  **Use the administrator's default correspondences** (checked by default). Unchecked,
+  neither a reading of the source references nor the administrator's **Apply to
+  configured projects** fills the project. **Apply the defaults now** fills the references
+  without correspondence; **Reset to the defaults** also replaces the correspondences of
+  references whose name has a default. Migration 018.
+- **Default correspondences page in tabs**: one tab per reference table and one for list
+  values; **New correspondence** and **Import CSV** open their own page.
+
 ## 1.0.0-beta.35 — 2026-11-04
 
 - **Images kept through text format conversions**: converting a text to Textile or

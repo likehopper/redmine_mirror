@@ -25,7 +25,7 @@ class MirrorAdminController < ApplicationController
   before_action :require_migrated_schema, only: :index
   before_action :require_source_schema, only: :source
   before_action :require_ai_schema, only: [:ai, :update_ai, :test_ai]
-  before_action :require_defaults_schema, only: [:defaults, :create_default, :destroy_default, :import_defaults, :apply_defaults]
+  before_action :require_defaults_schema, only: [:defaults, :new_default, :create_default, :destroy_default, :import_form, :import_defaults, :apply_defaults]
 
   helper :queries
   include QueriesHelper
@@ -109,7 +109,8 @@ class MirrorAdminController < ApplicationController
     redirect_to mirror_admin_ai_path
   end
 
-  # Administration > Mirror > Default correspondences (doc/DEFAULT_MAPPINGS.md), or their CSV.
+  # Administration > Mirror > Default correspondences (doc/DEFAULT_MAPPINGS.md): one tab
+  # per reference table and one for list values; or their CSV.
   def defaults
     @rules = MirrorDefaultMapping.sorted.preload(:custom_field).to_a
     respond_to do |format|
@@ -120,6 +121,19 @@ class MirrorAdminController < ApplicationController
       format.csv do
         send_data(RedmineMirror::DefaultMappings.to_csv(@rules), type: "text/csv; header=present", filename: "mirror-default-mappings.csv")
       end
+    end
+  end
+
+  # The form of a new default, on its own page.
+  def new_default
+    @type = params[:type].to_s
+    return render_404 unless MirrorDefaultMapping::TYPES.include?(@type)
+    if @type == "custom_field_value"
+      @field = MirrorDefaultMapping.list_fields.find { |field| field.id.to_s == params[:custom_field_id].to_s }
+      return render_404 unless @field
+    else
+      @table = MirrorDefaultMapping.table(@type)
+      return render_404 unless @table
     end
   end
 
@@ -144,10 +158,11 @@ class MirrorAdminController < ApplicationController
     if invalid.empty?
       MirrorDefaultMapping.transaction { rules.each(&:save!) }
       flash[:notice] = l(:notice_successful_create)
+      redirect_to defaults_path(input[:reference_type], input[:custom_field_id])
     else
       flash[:error] = invalid.map { |rule| "#{rule.source_name || l(:label_mirror_default_fallback)}: #{rule.errors.full_messages.to_sentence}" }.join("; ")
+      redirect_to mirror_admin_new_default_path(type: input[:reference_type], custom_field_id: input[:custom_field_id].presence)
     end
-    redirect_to defaults_path(input[:reference_type], input[:custom_field_id])
   end
 
   def destroy_default
@@ -157,22 +172,23 @@ class MirrorAdminController < ApplicationController
     redirect_to defaults_path(rule.reference_type, rule.custom_field_id)
   end
 
+  def import_form; end
+
+  # Every refused line is listed on the page with a CSV of those lines to correct. With
+  # "skip errors", the valid lines are saved anyway.
   def import_defaults
     file = params[:file]
-    if file.respond_to?(:read)
-      count, errors = RedmineMirror::DefaultMappings.import(file.read)
-      if errors.empty?
-        flash[:notice] = l(:text_mirror_defaults_imported, count: count)
-      else
-        flash[:error] = l(:text_mirror_defaults_import_failed, errors: errors.first(20).join("; "))
-      end
+    raise RedmineMirror::Error, l(:label_no_data) unless file.respond_to?(:read)
+    @result = RedmineMirror::DefaultMappings.import(file.read, partial: params[:skip_errors] == "1")
+    if @result.errors.empty?
+      flash[:notice] = l(:text_mirror_defaults_imported, count: @result.saved)
+      redirect_to mirror_admin_defaults_path
     else
-      flash[:error] = l(:text_mirror_defaults_import_failed, errors: l(:label_no_data))
+      render :import_form, status: (@result.saved.positive? ? :ok : :unprocessable_entity)
     end
-    redirect_to mirror_admin_defaults_path
   rescue RedmineMirror::Error => error
     flash[:error] = l(:text_mirror_defaults_import_failed, errors: error.message)
-    redirect_to mirror_admin_defaults_path
+    redirect_to mirror_admin_defaults_import_form_path
   end
 
   # Fills the projects from the source references they already read; no source is read.
@@ -184,7 +200,7 @@ class MirrorAdminController < ApplicationController
   private
 
   def defaults_path(type, custom_field_id)
-    mirror_admin_defaults_path(custom_field_id: (custom_field_id.presence if type == "custom_field_value"), anchor: "mirror-defaults-#{type}")
+    mirror_admin_defaults_path(tab: type, custom_field_id: (custom_field_id.presence if type == "custom_field_value"))
   end
 
   def require_defaults_schema

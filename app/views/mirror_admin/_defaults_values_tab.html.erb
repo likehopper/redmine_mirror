@@ -1,0 +1,32 @@
+<%#
+File: redmine_mirror/app/views/mirror_admin/_defaults_values_tab.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+
+The tab of list values: the defaults of one local list field, chosen in a list.
+%><p class="info"><%= l(:text_mirror_default_values) %></p>
+<% if @field %>
+  <%= form_tag mirror_admin_defaults_path, method: :get, id: "mirror-defaults-field" do %>
+    <%= hidden_field_tag :tab, "custom_field_value", id: nil %>
+    <p><%= label_tag "mirror-defaults-field-select", l(:label_custom_field) %>
+      <%= select_tag :custom_field_id, options_for_select(@list_fields.map { |field| [field.name, field.id] }, @field.id), id: "mirror-defaults-field-select" %>
+      <%= submit_tag l(:button_apply), name: nil %></p>
+  <% end %>
+  <p><%= link_to l(:label_mirror_default_new), mirror_admin_new_default_path(type: "custom_field_value", custom_field_id: @field.id), class: "icon icon-add", id: "mirror-default-new-custom_field_value" %></p>
+  <%= render "mirror_admin/defaults_table", type: "custom_field_value",
+        rules: @rules.select { |rule| rule.reference_type == "custom_field_value" && rule.custom_field_id == @field.id },
+        label: ->(rule) { rule.destination_value_label } %>
+<% else %>
+  <p class="nodata"><%= l(:label_no_data) %></p>
+<% end %>

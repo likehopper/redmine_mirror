@@ -1,0 +1,53 @@
+<%#
+File: redmine_mirror/app/views/mirror_admin/new_default.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+
+The form of a new default: source names (none for the fallback), an optional source URL
+and the destination, for a reference table or the list values of a local field.
+%><% content_for :header_tags do %>
+  <%= stylesheet_link_tag "mirror", plugin: "redmine_mirror" %>
+<% end %>
+<% html_title(l(:label_mirror_default_new)) %>
+<%= render "mirror_admin/sidebar" %>
+<% values = @type == "custom_field_value" %>
+<% title = values ? "#{l(:label_mirror_default_values)} » #{@field.name}" : l(@table.label) %>
+<h2><%= link_to l(:label_mirror_admin), mirror_admin_path %> » <%= link_to l(:label_mirror_admin_defaults), mirror_admin_defaults_path(tab: @type, custom_field_id: @field&.id) %> » <%= title %></h2>
+<% if values %>
+  <% choices = MirrorDefaultMapping.value_choices(@field) %>
+<% else %>
+  <% choices = [] %>
+  <% choices << [l(@table.ignore_label), "ignore"] if @table.ignore_allowed? %>
+  <% choices << [l(:label_mirror_anonymous), "anonymous"] if @table.anonymous_allowed? %>
+  <% choices += MirrorDefaultMapping.destinations(@type).map { |record| ["#{record.name} (##{record.id})", record.id] } %>
+<% end %>
+<%= form_tag mirror_admin_defaults_path, class: "mirror-default-form", id: "mirror-default-form-#{@type}" do %>
+  <%= hidden_field_tag "default_mapping[reference_type]", @type, id: nil %>
+  <%= hidden_field_tag "default_mapping[custom_field_id]", @field.id, id: nil if values %>
+  <% if @type == "user" %><p class="info"><%= l(:text_mirror_default_user_fallback) %></p><% end %>
+  <div class="box tabular">
+    <% unless MirrorDefaultMapping::FALLBACK_ONLY.include?(@type) %>
+      <p><%= label_tag "mirror-default-names", l(:label_mirror_default_source_names) %>
+        <%= text_area_tag "default_mapping[source_names]", nil, rows: 6, cols: 60, id: "mirror-default-names" %>
+        <em class="info"><%= l(:text_mirror_default_source_names) %></em></p>
+    <% end %>
+    <p><%= label_tag "mirror-default-url", l(:label_mirror_admin_source_url) %>
+      <%= text_field_tag "default_mapping[source_url]", nil, size: 60, id: "mirror-default-url", placeholder: "https://redmine.example.com" %>
+      <em class="info"><%= l(:text_mirror_default_source_url) %></em></p>
+    <p><%= label_tag "mirror-default-destination", l(:label_mirror_destination), class: "required" %>
+      <%= select_tag "default_mapping[destination]", options_for_select(choices), id: "mirror-default-destination", include_blank: true, required: true %></p>
+  </div>
+  <%= submit_tag l(:button_create) %>
+  <%= link_to l(:button_cancel), mirror_admin_defaults_path(tab: @type, custom_field_id: @field&.id) %>
+<% end %>

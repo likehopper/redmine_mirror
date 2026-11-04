@@ -22,7 +22,9 @@ get "admin/mirror/ai", to: "mirror_admin#ai", as: "mirror_admin_ai"
 patch "admin/mirror/ai", to: "mirror_admin#update_ai"
 post "admin/mirror/ai/test", to: "mirror_admin#test_ai", as: "mirror_admin_ai_test"
 get "admin/mirror/defaults", to: "mirror_admin#defaults", as: "mirror_admin_defaults"
+get "admin/mirror/defaults/new", to: "mirror_admin#new_default", as: "mirror_admin_new_default"
 post "admin/mirror/defaults", to: "mirror_admin#create_default"
+get "admin/mirror/defaults/import", to: "mirror_admin#import_form", as: "mirror_admin_defaults_import_form"
 delete "admin/mirror/defaults/:id", to: "mirror_admin#destroy_default", as: "mirror_admin_default", constraints: { id: /\d+/ }
 post "admin/mirror/defaults/import", to: "mirror_admin#import_defaults", as: "mirror_admin_defaults_import"
 post "admin/mirror/defaults/apply", to: "mirror_admin#apply_defaults", as: "mirror_admin_defaults_apply"
@@ -33,6 +35,8 @@ post "projects/:project_id/mirror/settings/refresh", to: "mirror_settings#refres
 patch "projects/:project_id/mirror/settings/modules/:module_key", to: "mirror_settings#update_mappings", as: "project_mirror_mappings"
 post "projects/:project_id/mirror/settings/modules/:module_key/ai/:table", to: "mirror_settings#request_ai", as: "project_mirror_ai"
 post "projects/:project_id/mirror/settings/users", to: "mirror_settings#create_users", as: "project_mirror_users"
+patch "projects/:project_id/mirror/settings/defaults", to: "mirror_settings#update_defaults", as: "project_mirror_defaults"
+post "projects/:project_id/mirror/settings/defaults/apply", to: "mirror_settings#apply_defaults", as: "project_mirror_defaults_apply"
 
 patch "projects/:project_id/mirror/schedule", to: "mirror_synchronizations#update", as: "project_mirror_schedule"
 post "projects/:project_id/mirror/synchronizations", to: "mirror_synchronizations#create", as: "project_mirror_enqueue"

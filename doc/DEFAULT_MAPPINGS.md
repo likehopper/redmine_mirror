@@ -24,7 +24,12 @@ status → *Archived*. An administrator sets them once in
 **Administration → Mirror → Default correspondences**; each project then starts with
 them. Covered by `test/integration/mirror_default_mappings_test.rb`.
 
+The page has one tab per table and one for list values. **New correspondence** opens
+the form on its own page; **Import CSV** and **Export CSV** are at the top right.
+
 ![Default correspondences](screenshots/configuration/39-default-mappings.png)
+
+![New default correspondence](screenshots/configuration/41-default-mapping-form.png)
 
 ## Rules
 
@@ -55,6 +60,23 @@ in it, a field not available) is left for a person to map.
 **Apply to configured projects** fills the projects already connected from the source
 references they read last, without reading the sources again.
 
+## In each project
+
+The **Connection** tab of the project's Mirror settings has a **Default
+correspondences** box, shown once a default exists:
+
+- **Use the administrator's default correspondences** (checked by default): unchecked,
+  neither a reading of the source references nor **Apply to configured projects** fills
+  the project. Correspondences already saved stay.
+- **Apply the defaults now** fills the references without correspondence, whatever the
+  checkbox, for instance after the administrator added defaults.
+- **Reset to the defaults** also replaces the correspondences of references whose name
+  has a default, after a confirmation. The fallback never replaces a correspondence.
+
+Neither button reads the source again: refresh the source references first for new ones.
+
+![Default correspondences of a project](screenshots/configuration/43-project-defaults.png)
+
 ## CSV
 
 **Export CSV** writes every default; **Import CSV** reads the same columns, separated by
@@ -78,9 +100,14 @@ user;;;#12;
 custom_field_value;10 - Duplicate;;Duplicate;Resolution
 ```
 
-Every line is checked first: on any error (unknown type, destination or value, the same
-name twice) nothing is imported and the errors are listed with their line numbers. A
-line with the type, source URL and name of an existing default replaces it.
+Every line is checked first. On any error (unknown type, destination or value, the same
+name twice) nothing is imported, and every refused line is listed with its number,
+content and error. **Skip the lines in error** imports the valid lines anyway.
+**Download the lines in error (CSV)** gives back the refused lines with an `error`
+column: correct them, remove that column or leave it, and import the file again. A line
+with the type, source URL and name of an existing default replaces it.
+
+![Import with lines in error](screenshots/configuration/42-default-mappings-import.png)
 
 ## Limits
 

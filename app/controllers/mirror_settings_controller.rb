@@ -88,6 +88,23 @@ class MirrorSettingsController < ApplicationController
     redirect_to configuration_path
   end
 
+  # Whether the administrator's defaults fill this project by themselves.
+  def update_defaults
+    return render_404 unless @setting.persisted?
+    @setting.update_columns(use_default_mappings: params[:use_default_mappings] == "1", updated_at: Time.current)
+    flash[:notice] = l(:notice_successful_update)
+    redirect_to configuration_path
+  end
+
+  # Apply the defaults now: fill the references without correspondence, or with `reset`
+  # also replace those whose name has a default. The source is not read again.
+  def apply_defaults
+    return render_404 unless @setting.persisted? && [nil, "ready"].include?(@setting.catalog_status)
+    count = RedmineMirror::DefaultMappings.apply(@setting, reset: params[:reset] == "1")
+    flash[:notice] = l(:text_mirror_project_defaults_applied, count: count)
+    redirect_to configuration_path
+  end
+
   # Resolve the adapter and table from this project’s configuration, then validate
   # every submitted remote ID and local selection before committing the batch.
   def update_mappings

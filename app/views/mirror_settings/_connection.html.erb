@@ -62,4 +62,20 @@ Connection: source Redmine and project, API key, source text format and modules.
 <% if @setting.persisted? %>
   <%= button_to l(:button_mirror_refresh), project_mirror_refresh_path(@project), method: :post, disabled: @setting.catalog_refreshing? %>
   <p><em class="info"><%= l(:text_mirror_refresh_help) %></em></p>
+  <% if MirrorDefaultMapping.exists? %>
+    <% ready = [nil, "ready"].include?(@setting.catalog_status) %>
+    <h3 id="mirror-project-defaults-title"><%= l(:label_mirror_admin_defaults) %></h3>
+    <div class="box" id="mirror-project-defaults">
+      <%= form_tag project_mirror_defaults_path(@project), method: :patch, id: "mirror-project-defaults-form" do %>
+        <p><%= hidden_field_tag :use_default_mappings, "0", id: nil %>
+          <label><%= check_box_tag :use_default_mappings, "1", @setting.use_default_mappings, id: "mirror-use-default-mappings" %> <%= l(:label_mirror_use_default_mappings) %></label>
+          <%= submit_tag l(:button_save), name: nil %><br>
+          <em class="info"><%= l(:text_mirror_use_default_mappings, count: @project.mirror_reference_mappings.where(from_default: true).count) %></em></p>
+      <% end %>
+      <p><%= button_to l(:button_mirror_project_defaults_apply), project_mirror_defaults_apply_path(@project), method: :post, disabled: !ready, form_class: "mirror-inline-form", id: "mirror-project-defaults-apply" %>
+        <%= button_to l(:button_mirror_project_defaults_reset), project_mirror_defaults_apply_path(@project, reset: "1"), method: :post, disabled: !ready, form_class: "mirror-inline-form",
+          id: "mirror-project-defaults-reset", data: { confirm: l(:text_mirror_project_defaults_reset_confirm) } %><br>
+        <em class="info"><%= l(:text_mirror_project_defaults_buttons) %></em></p>
+    </div>
+  <% end %>
 <% end %>

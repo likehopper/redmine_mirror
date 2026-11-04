@@ -1,0 +1,34 @@
+<%#
+File: redmine_mirror/app/views/mirror_admin/_defaults_table.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+
+The defaults of one tab, or "no data".
+%><% if rules.any? %>
+  <table class="list mirror-defaults" id="mirror-defaults-table-<%= type %>">
+    <thead><tr><th><%= l(:label_mirror_source) %></th><th><%= l(:label_mirror_admin_source_url) %></th><th><%= l(:label_mirror_destination) %></th><th></th></tr></thead>
+    <tbody>
+    <% rules.each do |rule| %>
+      <tr class="<%= 'mirror-default-fallback' if rule.fallback? %>">
+        <td><%= rule.fallback? ? content_tag(:em, l(:label_mirror_default_fallback)) : rule.source_name %></td>
+        <td><%= rule.source_url || l(:label_mirror_default_any_source) %></td>
+        <td><%= label.call(rule) || l(:label_mirror_invalid_destination) %></td>
+        <td class="buttons"><%= link_to l(:button_delete), mirror_admin_default_path(rule), method: :delete, data: { confirm: l(:text_are_you_sure) }, class: "icon icon-del" %></td>
+      </tr>
+    <% end %>
+    </tbody>
+  </table>
+<% else %>
+  <p class="nodata"><%= l(:label_no_data) %></p>
+<% end %>

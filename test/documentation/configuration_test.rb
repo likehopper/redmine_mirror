@@ -398,23 +398,40 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
   # guide runs next on the same database.
   def test_21_default_mappings
     visit "/admin/mirror/defaults"
+    click_link "mirror-default-new-tracker"
     within("#mirror-default-form-tracker") do
-      fill_in "mirror-default-tracker-names", with: "Enhancement\nChange request"
-      select "Feature (##{Tracker.find_by!(name: 'Feature').id})", from: "mirror-default-tracker-destination"
-      click_button "Add"
+      fill_in "mirror-default-names", with: "Enhancement\nChange request"
+      select "Feature (##{Tracker.find_by!(name: 'Feature').id})", from: "mirror-default-destination"
     end
+    screenshot "41-default-mapping-form", "#content"
+    click_button "Create"
     assert_selector "#flash_notice"
-    within("#mirror-default-form-priority") do
-      fill_in "mirror-default-priority-names", with: "Haute\nUrgente"
-      select "High (##{IssuePriority.find_by!(name: 'High').id})", from: "mirror-default-priority-destination"
-      click_button "Add"
-    end
-    within("#mirror-default-form-status") do
-      select "Do not import its issues", from: "mirror-default-status-destination"
-      click_button "Add"
-    end
+    visit "/admin/mirror/defaults/new?type=priority"
+    fill_in "mirror-default-names", with: "Haute\nUrgente"
+    select "High (##{IssuePriority.find_by!(name: 'High').id})", from: "mirror-default-destination"
+    click_button "Create"
+    visit "/admin/mirror/defaults/new?type=status"
+    select "Do not import its issues", from: "mirror-default-destination"
+    click_button "Create"
+    assert_selector "#tab-status.selected"
     assert_selector "#mirror-defaults-table-status td", text: "Otherwise (fallback)"
     screenshot "39-default-mappings", "#content", max_height: 1100
+    # An import with a wrong line: listed, and the valid lines saved when errors are skipped.
+    # The browser reads the file while it submits: keep it until the result is shown.
+    Tempfile.create(["defaults", ".csv"]) do |file|
+      file.write("type;source_name;source_url;destination;custom_field\ntracker;Evolution;;Feature;\nrole;Reader;;Former readers;\n")
+      file.flush
+      visit "/admin/mirror/defaults/import"
+      attach_file "mirror-defaults-file", file.path
+      check "mirror-defaults-skip-errors"
+      click_button "Import"
+      assert_selector "#mirror-defaults-import-errors td", text: "Unknown destination Former readers"
+    end
+    screenshot "42-default-mappings-import", "#content"
+    # The project's choice, and its buttons.
+    visit "/projects/#{PROJECT}/settings/mirror"
+    assert_selector "#mirror-project-defaults"
+    screenshot "43-project-defaults", "#mirror-project-defaults"
     MirrorDefaultMapping.delete_all
   end
 

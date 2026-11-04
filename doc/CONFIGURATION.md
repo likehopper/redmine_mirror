@@ -378,8 +378,10 @@ AI* with a confidence. Check them, then save.
 When many projects come from the same source, an administrator sets their common
 correspondences once in **Administration → Mirror → Default correspondences**: source
 names and their local reference, a fallback per table, custom field list values, with a
-CSV import and export. Each project saves them when it reads its source references. See
-[Default correspondences](DEFAULT_MAPPINGS.md).
+CSV import and export. Each project saves them when it reads its source references,
+unless it unchecks **Use the administrator's default correspondences** in its
+**Connection** tab, which also has **Apply the defaults now** and **Reset to the
+defaults**. See [Default correspondences](DEFAULT_MAPPINGS.md).
 
 ![Default correspondences](screenshots/configuration/39-default-mappings.png)
 

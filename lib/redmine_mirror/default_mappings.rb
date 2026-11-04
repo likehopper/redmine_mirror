@@ -25,17 +25,25 @@ module RedmineMirror
     CSV_COLUMNS = %w[type source_name source_url destination custom_field].freeze
     REQUIRED_COLUMNS = %w[type source_name destination].freeze
 
+    # Whether the defaults fill this project by themselves (catalog refresh, administrator's
+    # "apply"). The project's own buttons apply them whatever this choice.
+    def automatic?(setting)
+      MirrorDefaultMapping.schema_current? && setting.use_default_mappings
+    end
+
     # Fill the project's references that have no correspondence yet, after its source
     # references were read. A rule for the source URL wins over a rule for any source. The
     # fallback only takes references the project uses, and leaves those with a single local
-    # namesake to the form's suggestion. Returns the number of correspondences saved.
-    def apply(setting)
+    # namesake to the form's suggestion. With `reset`, a reference whose name has a default
+    # takes it even when it already has a correspondence (the fallback never replaces one).
+    # Returns the number of correspondences saved.
+    def apply(setting, reset: false)
       return 0 unless MirrorDefaultMapping.schema_current?
       rules = MirrorDefaultMapping.where(source_url: [nil, setting.source_url]).to_a
       return 0 if rules.empty?
       project = setting.project
       catalog = setting.source_catalog
-      mapped = project.mirror_reference_mappings.pluck(:reference_type, :source_id).map { |kind, id| [kind, id.to_s] }.to_set
+      existing = project.mirror_reference_mappings.to_a.index_by { |row| [row.reference_type, row.source_id.to_s] }
       saved = 0
       setting.mapping_tables.each do |table|
         table_rules = rules.select { |rule| rule.reference_type == table.key }
@@ -44,26 +52,31 @@ module RedmineMirror
         names = NameMatch.index(records.map { |record| [record.name.to_s, record.id.to_s] })
         used = catalog["#{table.key}_used"]
         catalog.fetch(table.key, {}).each do |source_id, name|
-          next if mapped.include?([table.key, source_id])
+          row = existing[[table.key, source_id]]
+          next if row && !reset
           rule = pick(table_rules, NameMatch.key(name), setting.source_url)
-          if rule.nil? && (used.nil? || used.include?(source_id)) && !NameMatch.suggest(name, names)
+          if rule.nil? && row.nil? && (used.nil? || used.include?(source_id)) && !NameMatch.suggest(name, names)
             rule = pick(table_rules, nil, setting.source_url)
           end
           next unless rule
           destination = rule.mode == "existing" ? local_id(rule.destination_id, records) : nil
           next if rule.mode == "existing" && destination.nil?
+          if row && row.mode == rule.mode && row.destination_id == destination
+            row.update_column(:from_default, true) unless row.from_default
+            next
+          end
           # A destination the project refuses (a field it cannot use) stays to map by hand.
-          row = MirrorReferenceMapping.new(project: project, reference_type: table.key, source_id: Integer(source_id),
-            mode: rule.mode, destination_id: destination, from_default: true)
+          row ||= MirrorReferenceMapping.new(project: project, reference_type: table.key, source_id: Integer(source_id))
+          row.assign_attributes(mode: rule.mode, destination_id: destination, from_default: true)
           saved += 1 if row.save
         end
       end
-      saved + apply_values(setting, rules)
+      saved + apply_values(setting, rules, reset: reset)
     end
 
     # Custom field list values: per source field mapped to a local list field, each source
     # value without a correspondence takes the default for its name, else the fallback.
-    def apply_values(setting, rules)
+    def apply_values(setting, rules, reset: false)
       value_rules = rules.select { |rule| rule.reference_type == "custom_field_value" }
       return 0 if value_rules.empty? || !setting.selected_modules.include?("issue_custom_fields")
       project = setting.project
@@ -82,11 +95,13 @@ module RedmineMirror
         names = NameMatch.index(choices)
         definition.fetch("possible_values", []).each do |value|
           key = adapter.value_key(value.fetch("value"))
-          next if values.dig(source_id, key).present?
+          current = values.dig(source_id, key).presence
+          next if current && !reset
           name = value.fetch("label", value.fetch("value")).to_s
           rule = pick(field_rules, NameMatch.key(name), setting.source_url)
-          rule ||= pick(field_rules, nil, setting.source_url) unless NameMatch.suggest(name, names)
+          rule ||= pick(field_rules, nil, setting.source_url) unless current || NameMatch.suggest(name, names)
           next unless rule && choices.any? { |_, id| id == rule.destination_value }
+          next if current == rule.destination_value
           (values[source_id] ||= {})[key] = rule.destination_value
           saved += 1
         end
@@ -98,10 +113,10 @@ module RedmineMirror
       saved
     end
 
-    # Fill every configured project from the source references it already read, without
-    # reading the sources again.
+    # Fill every configured project that uses the defaults, from the source references it
+    # already read, without reading the sources again.
     def apply_all
-      MirrorProjectSetting.where(catalog_status: [nil, "ready"]).preload(:project).to_a.sum { |setting| apply(setting) }
+      MirrorProjectSetting.where(catalog_status: [nil, "ready"], use_default_mappings: true).preload(:project).to_a.sum { |setting| apply(setting) }
     end
 
     def pick(rules, key, url)
@@ -135,40 +150,54 @@ module RedmineMirror
       end
     end
 
+    # The outcome of an import: the defaults saved, and each refused line with its number,
+    # its message and its cells, to give the person back the lines to correct.
+    ImportResult = Struct.new(:saved, :errors, :headers, keyword_init: true) do
+      def messages
+        errors.map { |error| error[:line] ? "#{error[:line]}: #{error[:message]}" : error[:message] }
+      end
+
+      # The refused lines as a CSV file with an "error" column, to correct and import again.
+      def rejected_csv
+        CSV.generate(col_sep: ";") do |csv|
+          csv << headers + ["error"]
+          errors.each { |error| csv << error[:cells] + [error[:message]] if error[:cells] }
+        end
+      end
+    end
+
     # Read a CSV file (header line, separator ";", "," or tab). Each line adds a default or
     # replaces the one with the same type, field, source URL and name. Every line is checked
-    # first: on any error nothing is saved, and the errors are returned with line numbers.
-    def import(text)
+    # first. On any error nothing is saved, unless `partial` asks to save the valid lines
+    # and skip the others. Every error is returned with its line number.
+    def import(text, partial: false)
       text = text.to_s.dup.force_encoding("UTF-8").sub(/\A\uFEFF/, "")
       raise Error, "The file is not UTF-8" unless text.valid_encoding?
       separator = [";", "\t", ","].max_by { |candidate| text.lines.first.to_s.count(candidate) }
       rows = CSV.parse(text, col_sep: separator, headers: true)
-      missing = REQUIRED_COLUMNS - rows.headers.compact.map { |header| header.strip.downcase }
+      headers = rows.headers.map(&:to_s)
+      missing = REQUIRED_COLUMNS - headers.map { |header| header.strip.downcase }
       raise Error, "Missing columns: #{missing.join(', ')}" if missing.any?
       errors = []
       lines = {}
       records = rows.each_with_index.filter_map do |row, index|
+        refuse = ->(message) { errors << { line: index + 2, message: message, cells: row.fields.map(&:to_s) }; nil }
         values = row.to_h.transform_keys { |header| header.to_s.strip.downcase }.transform_values { |value| value.to_s.strip.presence }
         next if values.values.compact.empty?
         rule = build(values)
         identity = [rule.reference_type, rule.custom_field_id, rule.source_url, rule.source_key]
-        if (line = lines[identity])
-          errors << "#{index + 2}: same type and source name as line #{line}"
-          next
-        end
+        next refuse.call("same type and source name as line #{lines[identity]}") if lines[identity]
         lines[identity] = index + 2
         next rule if rule.valid?
-        errors << "#{index + 2}: #{rule.errors.full_messages.to_sentence}"
-        nil
+        refuse.call(rule.errors.full_messages.to_sentence)
       rescue Error => error
-        errors << "#{index + 2}: #{error.message}"
-        nil
+        refuse.call(error.message)
       end
-      return [0, errors] if errors.any?
+      return ImportResult.new(saved: 0, errors: errors, headers: headers) if errors.any? && !partial
       MirrorDefaultMapping.transaction { records.each(&:save!) }
-      [records.size, []]
+      ImportResult.new(saved: records.size, errors: errors, headers: headers)
     rescue CSV::MalformedCSVError => error
-      [0, [error.message]]
+      ImportResult.new(saved: 0, errors: [{ message: error.message }], headers: [])
     end
 
     def build(values)
