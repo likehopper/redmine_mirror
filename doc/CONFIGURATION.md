@@ -404,7 +404,7 @@ defaults**. See [Default correspondences](DEFAULT_MAPPINGS.md).
 
 Only for the **Documents**, **News**, **Tags**, **Agile** and **Saved queries** modules,
 to create accounts from the source users, for the sharing of issue categories and for
-project enumerations (Smile plugin) and repositories, which have no API at all:
+project enumerations (plugin) and repositories, which have no API at all:
 Redmine's REST API provides no documents, no news comments nor files, no tags, no Scrum
 sprints, only the names of saved queries, users' logins and emails to administrators
 only, and categories to their managers only, without sharing. On the source Redmine:

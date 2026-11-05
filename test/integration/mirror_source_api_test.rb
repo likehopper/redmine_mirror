@@ -200,7 +200,7 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     end
   end
 
-  # Project enumerations need the Smile plugin on the source.
+  # Project enumerations need their plugin on the source.
   def test_project_enumerations_need_the_plugin_on_the_source
     MirrorSourceSetting.find_by!(project: @project).update!(shared_modules: %w[project_enumerations])
     enabled do

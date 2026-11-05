@@ -235,7 +235,7 @@ module RedmineMirror
             raise Error, "Missing custom field version correspondence" unless target
             target.to_s
           when "project_enumeration"
-            # Smile Project Enumerations: the value is an enumeration of the project.
+            # Project Enumerations plugin: the value is an enumeration of the project.
             target = lookup.call("project_enumerations", Integer(entry))
             raise Error, "Missing project enumeration correspondence for custom field source ID #{source_id}: select the Project enumerations module" unless target
             target.to_s

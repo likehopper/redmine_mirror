@@ -25,7 +25,7 @@ module RedmineMirror
     # issue tags (Redmine Tags plugin by RedmineUP) and Scrum sprints (Scrum plugin) have none.
     # The users API gives logins and emails to administrators only. The categories API
     # lists categories to their managers only, and never says whether they are shared.
-    # Project enumerations (Smile plugin) have an API for their managers only. Repositories
+    # Project enumerations (plugin) have an API for their managers only. Repositories
     # have no API at all; their credentials are a kind of their own, never allowed by default.
     KINDS = %w[documents news issue_tags scrum queries users issue_categories project_enumerations repositories repository_credentials].freeze
     # Kinds an administrator must check explicitly, even before saving a choice.
@@ -83,7 +83,7 @@ module RedmineMirror
       defined?(::Sprint) && Issue.column_names.include?("sprint_id") ? true : false
     end
 
-    # Project enumerations need the Smile Project Enumerations plugin on this Redmine.
+    # Project enumerations need the Project Enumerations plugin on this Redmine.
     def project_enumerations_available?
       defined?(::ProjectEnumeration) ? true : false
     end

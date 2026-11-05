@@ -142,7 +142,7 @@ name, description, status, due date and sharing.
 
 ## Project enumerations
 
-For issue custom fields of the *Project enumeration* format (Smile Project Enumerations
+For issue custom fields of the *Project enumeration* format (Project Enumerations
 plugin, needed on both sides). The plugin's API serves them to their managers only: the
 source runs Mirror 1.0.0-beta.36 or later and shares **Project enumerations** (Mirror
 source, *View issues*).

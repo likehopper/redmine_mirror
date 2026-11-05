@@ -123,7 +123,7 @@ class MirrorSourceApiController < ApplicationController
     respond_to { |format| format.api }
   end
 
-  # The project's own enumerations (Smile Project Enumerations plugin): field, value,
+  # The project's own enumerations (Project Enumerations plugin): field, value,
   # status, sharing and position. Those shared by a parent project come with the parent.
   def project_enumerations
     @enumerations = ::ProjectEnumeration.where(project_id: @project.id).preload(:custom_field).order(:id).to_a

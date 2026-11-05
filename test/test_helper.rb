@@ -18,7 +18,7 @@
 # Tests run from the Redmine root; __dir__ would resolve a symlinked plugin directory.
 require File.expand_path("test/test_helper", Dir.pwd)
 
-# Smile Project Enumerations is not installed here: a minimal model stands for it.
+# The Project Enumerations plugin is not installed here: a minimal model stands for it.
 module MirrorFakeProjectEnumerations
   def install_fake_project_enumerations
     connection = ActiveRecord::Base.connection

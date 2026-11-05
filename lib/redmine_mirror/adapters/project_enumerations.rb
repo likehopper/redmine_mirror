@@ -13,7 +13,7 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 #
-# Copy the project enumerations (Smile Project Enumerations plugin) of issue custom
+# Copy the project enumerations (Project Enumerations plugin) of issue custom
 # fields, so that issue values of those fields can be translated.
 
 module RedmineMirror
