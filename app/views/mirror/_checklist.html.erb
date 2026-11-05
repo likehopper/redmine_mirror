@@ -1,0 +1,27 @@
+<%#
+File: redmine_mirror/app/views/mirror/_checklist.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+
+What needs checking, from the source references read last: each item with its links
+and one-click fixes (Mirror settings, fix_setup), which come back to this page.
+%><div class="box" id="mirror-checklist"><h3><%= l(:label_mirror_checklist) %></h3>
+  <p class="info"><%= l(:text_mirror_checklist) %></p>
+  <ul><% checklist.each do |item| %><li><%= item[:text] %>
+    <%= safe_join(item[:actions].map { |label, path| link_to(label, path, class: "mirror-fix") }, " · ") %>
+    <% item[:buttons].each do |label, fix| %>
+      <%= button_to label, project_mirror_fix_path(@project), params: fix.merge(back_url: request.fullpath), method: :post,
+            form_class: "mirror-inline-form mirror-fix-form", class: "mirror-fix-button", data: { fix: fix[:fix] } %>
+    <% end %></li><% end %></ul>
+</div>

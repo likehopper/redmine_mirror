@@ -41,6 +41,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   values of the project's enumeration issue fields, with status, sharing and position,
   through Mirror source (**Project enumerations** shared). Issue values and history,
   which are enumeration IDs, are translated by **Issue custom fields**.
+- **Settings to complete, in one click**: once the source references are read, the
+  **Connection** tab (and the checklist of the Mirror page) offers to enable a project
+  module a selected Mirror module needs or unselect those Mirror modules, enable mapped
+  trackers or a mapped custom field in the project, and select the Members, Issue
+  categories or Versions module when the source project has such data. Modules not
+  enabled in the source project are marked in the module list. Each fix needs the
+  Redmine permission it uses.
 
 ## 1.0.0-beta.35 — 2026-11-04
 

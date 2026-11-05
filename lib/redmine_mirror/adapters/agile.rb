@@ -77,6 +77,8 @@ module RedmineMirror
     class AgileSprints < Base
       def key; "agile_sprints"; end
       def project_module; :agile; end
+      # The source data comes from the Scrum plugin, whose module has another name.
+      def source_project_module; nil; end
       def phase; :references; end
       def available?; Agile.available?; end
       def selection_hint; :text_mirror_agile_source_hint; end
@@ -166,6 +168,8 @@ module RedmineMirror
     class AgileIssues < Base
       def key; "agile_issues"; end
       def project_module; :agile; end
+      # The source data comes from the Scrum plugin, whose module has another name.
+      def source_project_module; nil; end
       def phase; :history; end
       def dependencies; %w[issue_tracking agile_sprints]; end
       def available?; Agile.available?; end

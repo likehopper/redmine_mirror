@@ -435,6 +435,25 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     MirrorDefaultMapping.delete_all
   end
 
+
+  # Settings to complete after the connection, with their one-click fixes; restored
+  # afterwards for the mirror copy guide.
+  def test_22_setup_fixes
+    setting = project.mirror_project_setting
+    catalog = setting.source_catalog
+    setting.update!(source_catalog: catalog.merge("source_inventory" => { "project_members" => 4, "issue_categories" => 1, "project_versions" => 2 }))
+    project.disable_module!(:time_tracking)
+    visit "/projects/#{PROJECT}/settings/mirror"
+    assert_selector "#mirror-checklist .mirror-fix-form", minimum: 2
+    screenshot "44-setup-fixes", "#mirror-checklist"
+    click_button "Enable it in this project", match: :first
+    assert_selector "#flash_notice"
+    assert project.reload.module_enabled?(:time_tracking)
+  ensure
+    project.enable_module!(:time_tracking)
+    setting&.update!(source_catalog: catalog) if catalog
+  end
+
   FAKE_AI_SYNONYMS = { "New" => "To do", "In Progress" => "Doing", "Resolved" => "Done", "Feedback" => "Waiting for reply",
                        "Closed" => "Finished", "Rejected" => "Won't do" }.freeze
 

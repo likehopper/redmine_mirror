@@ -141,6 +141,21 @@ take a few minutes on large projects. The page shows its progress and refreshes 
 it has finished. The URL and project cannot be changed afterwards. **Refresh source
 references** reloads them after new users, statuses or activities appear on the source.
 
+Once the references are read, the **Connection** tab lists what to settle, each with a
+one-click fix when your Redmine permissions allow it:
+
+- a project module a selected Mirror module needs (*Issue tracking*, *Wiki*,
+  *Documents*…): **Enable it in this project** (*Select project modules*), or **Unselect
+  the Mirror modules that need it**. A module not enabled in the source project has
+  nothing to import: only the second choice is offered, and the module list marks it
+  *(not enabled in the source project)*;
+- mapped trackers the project does not use: **Enable these trackers** (*Edit project*);
+- a mapped custom field the project does not use: **Enable it in this project**;
+- members, categories or versions on the source while their module is not selected:
+  **Select this module** (members only when you may manage this project's members).
+
+![Settings to complete](screenshots/configuration/44-setup-fixes.png)
+
 A red counter on a module tab gives the number of references it still has to map.
 
 ![Modules to map](screenshots/configuration/09-modules-to-map.png)

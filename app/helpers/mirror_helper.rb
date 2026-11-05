@@ -317,10 +317,23 @@ module MirrorHelper
     catalog = setting.source_catalog
     mapped = project.mirror_reference_mappings.to_a
     ai_config = MirrorAiConfig.current
+    source_modules = catalog["source_modules"]
+    checked_modules = []
     setting.adapters.each do |adapter|
-      if adapter.project_module && !project.module_enabled?(adapter.project_module)
-        items << { text: l(:text_mirror_project_module_disabled, module: l_or_humanize(adapter.project_module, prefix: "project_module_")),
-          actions: [[l(:label_mirror_enable_project_module), User.current.allowed_to?(:select_project_modules, project) && settings_project_path(project, tab: "modules")]] }
+      name = adapter.project_module
+      if name && !checked_modules.include?(name)
+        checked_modules << name
+        label = l_or_humanize(name, prefix: "project_module_")
+        source_name = adapter.source_project_module
+        if source_modules && source_name && !source_modules.include?(source_name.to_s)
+          items << { text: l(:text_mirror_source_module_disabled, module: label), actions: [],
+            buttons: [[l(:button_mirror_unselect_modules), { fix: "unselect_module", target: name }, manager]] }
+        elsif !project.module_enabled?(name)
+          items << { text: l(:text_mirror_project_module_disabled, module: label),
+            actions: [[l(:label_mirror_enable_project_module), User.current.allowed_to?(:select_project_modules, project) && settings_project_path(project, tab: "modules")]],
+            buttons: [[l(:button_mirror_enable_project_module_now), { fix: "enable_module", target: name }, User.current.allowed_to?(:select_project_modules, project)],
+                      [l(:button_mirror_unselect_modules), { fix: "unselect_module", target: name }, manager]] }
+        end
       end
       adapter.mapping_tables.each do |table|
         next if table.respond_to?(:unmapped_allowed?) && table.unmapped_allowed?(setting)
@@ -338,6 +351,15 @@ module MirrorHelper
         end
       end
     end
+    editor = User.current.allowed_to?(:edit_project, project)
+    # Trackers the source issues use, mapped to a local tracker this project does not use.
+    trackers = mapped.select { |row| row.reference_type == "tracker" && row.mode == "existing" && !project.tracker_ids.include?(row.destination_id) &&
+      (catalog["tracker_used"].nil? || catalog["tracker_used"].include?(row.source_id.to_s)) }.map(&:destination_id).uniq
+    if trackers.any? && setting.selected_modules.include?("issue_tracking")
+      items << { text: l(:text_mirror_trackers_disabled, names: Tracker.where(id: trackers).sorted.map(&:name).join(", ")),
+        actions: [[l(:label_mirror_guide_enable_in_project), editor && settings_project_path(project, tab: "issues")]],
+        buttons: [[l(:button_mirror_enable_trackers), { fix: "enable_trackers" }, editor]] }
+    end
     # Fields mapped to a local field that this project does not use.
     if setting.selected_modules.include?("issue_custom_fields")
       enabled = project.all_issue_custom_fields.map(&:id)
@@ -345,10 +367,23 @@ module MirrorHelper
         field = IssueCustomField.find_by(id: row.destination_id)
         next unless field
         items << { text: l(:text_mirror_guide_field_disabled, name: field.name),
-          actions: [[l(:label_mirror_guide_enable_in_project), User.current.allowed_to?(:edit_project, project) && settings_project_path(project, tab: "issues")]] }
+          actions: [[l(:label_mirror_guide_enable_in_project), editor && settings_project_path(project, tab: "issues")]],
+          buttons: [[l(:button_mirror_enable_field), { fix: "enable_custom_field", target: field.id }, editor]] }
       end
     end
-    items.each { |item| item[:actions] = item[:actions].select(&:last).uniq(&:first) }
+    # Data the source project has for a module not selected: members (when this project
+    # lets the user manage them), categories and versions.
+    catalog.fetch("source_inventory", {}).each do |key, count|
+      adapter = RedmineMirror::REGISTRY[key]
+      next unless count.to_i.positive? && adapter&.available? && !setting.selected_modules.include?(key)
+      next if key == "project_members" && !User.current.allowed_to?(:manage_members, project)
+      items << { text: l(:text_mirror_source_has_data, module: l(adapter.label), count: count), actions: [],
+        buttons: [[l(:button_mirror_select_module), { fix: "select_module", target: key }, manager]] }
+    end
+    items.each do |item|
+      item[:actions] = item[:actions].select(&:last).uniq(&:first)
+      item[:buttons] = Array(item[:buttons]).select(&:last).map { |label, params, _| [label, params] }
+    end
   end
 
   # Administration pages that create a missing local reference.

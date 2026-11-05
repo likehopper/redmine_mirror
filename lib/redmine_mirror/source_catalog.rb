@@ -25,8 +25,12 @@ module RedmineMirror
     # Preserve field metadata separately from labels for compatibility checks.
     # progress, when given, receives (step, steps, module key, records read so far).
     def fetch(progress: nil)
-      @client.get("projects/#{Integer(@project_id)}.json")
+      project = @client.get("projects/#{Integer(@project_id)}.json", "include" => "enabled_modules").fetch("project", {})
       tables = {}
+      # The source project's modules, so that the form and the checklist can tell which
+      # Mirror modules have data there; and what unselected modules would bring.
+      tables["source_modules"] = project["enabled_modules"].map { |entry| entry["name"].to_s } if project["enabled_modules"].is_a?(Array)
+      tables["source_inventory"] = inventory
       used = Hash.new { |hash, key| hash[key] = [] }
       formats = Hash.new(0)
       statistics = {}
@@ -90,6 +94,20 @@ module RedmineMirror
     end
 
     private
+
+    # Counts of members, categories and versions of the source project, each nil when
+    # the account cannot list them (or anything else goes wrong: it is only a hint). One
+    # small request each.
+    INVENTORY = { "project_members" => "memberships", "issue_categories" => "issue_categories", "project_versions" => "versions" }.freeze
+
+    def inventory
+      INVENTORY.to_h do |module_key, collection|
+        body = @client.get("projects/#{Integer(@project_id)}/#{collection}.json", "limit" => 1)
+        [module_key, (body["total_count"] || Array(body[collection]).size).to_i]
+      rescue StandardError
+        [module_key, nil]
+      end
+    end
 
     # Login, names, email and company of the source users, when the source project shares
     # them (Mirror source); else why not, shown in the Users tab. Never sent to AI.

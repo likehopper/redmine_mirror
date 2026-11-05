@@ -53,6 +53,12 @@ module RedmineMirror
         nil
       end
 
+      # Module the source project needs for this data, or nil when it cannot be told (data
+      # of another plugin there). The connection form and the checklist flag it.
+      def source_project_module
+        project_module
+      end
+
       # Locale key of a requirement shown next to the module in the connection form, or nil.
       def selection_hint
         nil

@@ -105,6 +105,52 @@ class MirrorSettingsController < ApplicationController
     redirect_to configuration_path
   end
 
+  # One-click fixes of the checklist, each under the permission Redmine itself asks for:
+  # enable a project module, or unselect the Mirror modules that need it; enable the
+  # mapped trackers or a mapped field in this project; select a module the source has
+  # data for. Back to where the person came from.
+  def fix_setup
+    return render_404 unless @setting.persisted?
+    case params[:fix]
+    when "enable_module"
+      name = params[:target].to_s
+      return deny_access unless User.current.allowed_to?(:select_project_modules, @project)
+      raise RedmineMirror::Error, "Unknown project module" unless @setting.adapters.any? { |adapter| adapter.project_module.to_s == name }
+      @project.enable_module!(name)
+    when "unselect_module"
+      name = params[:target].to_s
+      kept = @setting.selected_modules.select do |key|
+        RedmineMirror::REGISTRY[key] && RedmineMirror::REGISTRY.resolve([key]).none? { |adapter| adapter.project_module.to_s == name }
+      end
+      raise RedmineMirror::Error, l(:text_mirror_nothing_left_to_import) if kept.empty?
+      @setting.selected_modules = kept
+      @setting.save!
+    when "enable_trackers"
+      return deny_access unless User.current.allowed_to?(:edit_project, @project)
+      used = @setting.source_catalog["tracker_used"]
+      ids = @project.mirror_reference_mappings.where(reference_type: "tracker", mode: "existing").select { |row| used.nil? || used.include?(row.source_id.to_s) }.map(&:destination_id)
+      @project.trackers << (Tracker.where(id: ids).to_a - @project.trackers.to_a)
+    when "enable_custom_field"
+      return deny_access unless User.current.allowed_to?(:edit_project, @project)
+      field = IssueCustomField.find_by(id: params[:target])
+      raise RedmineMirror::Error, "Unknown custom field" unless field && @project.mirror_reference_mappings.where(reference_type: "custom_field", destination_id: field.id).exists?
+      @project.issue_custom_fields << field unless field.is_for_all? || @project.issue_custom_fields.include?(field)
+    when "select_module"
+      key = params[:target].to_s
+      raise RedmineMirror::Error, "Unknown module" unless RedmineMirror::REGISTRY[key]&.available? && RedmineMirror::REGISTRY[key].selectable?
+      @setting.selected_modules = @setting.selected_modules + [key]
+      @setting.save!
+      @setting.request_catalog_refresh!
+    else
+      return render_404
+    end
+    flash[:notice] = l(:notice_successful_update)
+    redirect_back_or_default configuration_path
+  rescue RedmineMirror::Error, ActiveRecord::RecordInvalid => error
+    flash[:error] = error.message
+    redirect_back_or_default configuration_path
+  end
+
   # Resolve the adapter and table from this project’s configuration, then validate
   # every submitted remote ID and local selection before committing the batch.
   def update_mappings

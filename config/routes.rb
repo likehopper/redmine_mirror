@@ -37,6 +37,7 @@ post "projects/:project_id/mirror/settings/modules/:module_key/ai/:table", to: "
 post "projects/:project_id/mirror/settings/users", to: "mirror_settings#create_users", as: "project_mirror_users"
 patch "projects/:project_id/mirror/settings/defaults", to: "mirror_settings#update_defaults", as: "project_mirror_defaults"
 post "projects/:project_id/mirror/settings/defaults/apply", to: "mirror_settings#apply_defaults", as: "project_mirror_defaults_apply"
+post "projects/:project_id/mirror/settings/fix", to: "mirror_settings#fix_setup", as: "project_mirror_fix"
 
 patch "projects/:project_id/mirror/schedule", to: "mirror_synchronizations#update", as: "project_mirror_schedule"
 post "projects/:project_id/mirror/synchronizations", to: "mirror_synchronizations#create", as: "project_mirror_enqueue"

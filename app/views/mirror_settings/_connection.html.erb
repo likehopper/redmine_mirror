@@ -19,6 +19,9 @@ Connection: source Redmine and project, API key, source text format and modules.
 <% unless @setting.persisted? %>
   <p><%= l(:text_mirror_connection_intro) %></p>
 <% end %>
+<% if @setting.persisted? && (checklist = mirror_checklist(@project, @setting)).any? %>
+  <%= render "mirror/checklist", checklist: checklist %>
+<% end %>
 <%= form_tag project_mirror_connection_path(@project), method: :patch, id: "mirror-connection-form" do %>
   <div class="box tabular">
     <p><%= label_tag "connection_source_url", l(:label_mirror_source_url), class: "required" %>
@@ -48,9 +51,11 @@ Connection: source Redmine and project, API key, source text format and modules.
         <% end %></em></p>
     <p><label><%= l(:label_mirror_modules) %></label>
       <%= hidden_field_tag "connection[modules][]", "" %>
+      <% source_modules = @setting.source_catalog["source_modules"] %>
       <% RedmineMirror::REGISTRY.resolve(RedmineMirror::REGISTRY.keys).select(&:selectable?).each do |adapter| %>
         <% next unless adapter.available? || @setting.selected_modules.include?(adapter.key) %>
-        <label class="block"><%= check_box_tag "connection[modules][]", adapter.key, @setting.selected_modules.include?(adapter.key), id: "connection_modules_#{adapter.key}" %> <%= l(adapter.label) %><% if adapter.respond_to?(:selection_hint) && adapter.selection_hint %> <em class="info mirror-module-hint"><%= l(adapter.selection_hint) %></em><% end %></label>
+        <% source_off = source_modules && adapter.source_project_module && !source_modules.include?(adapter.source_project_module.to_s) %>
+        <label class="block<%= ' mirror-module-source-off' if source_off %>"><%= check_box_tag "connection[modules][]", adapter.key, @setting.selected_modules.include?(adapter.key), id: "connection_modules_#{adapter.key}" %> <%= l(adapter.label) %><% if adapter.respond_to?(:selection_hint) && adapter.selection_hint %> <em class="info mirror-module-hint"><%= l(adapter.selection_hint) %></em><% end %><% if source_off %> <em class="info mirror-module-hint"><%= l(:text_mirror_module_off_on_source) %></em><% end %></label>
       <% end %>
       <em class="info"><%= l(:text_mirror_modules_help) %></em></p>
     <% if @setting.unavailable_modules.any? %>
