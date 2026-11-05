@@ -52,11 +52,12 @@ validated:
 - **Tags** (Redmine Tags plugin, Light version). Not exposed by the REST API, according to
   RedmineUP. Check the plugin source first.
 
-### Smile project enumerations
+### Smile project list values
 
-Custom fields in the `project_enumeration` and `project_list_value` formats are rejected
-today. The plugin has a full API for their per-project values: copy them and map them,
-like versions.
+The `project_enumeration` format is imported since 1.0.0-beta.36 (Project enumerations
+module, through Mirror source). Custom fields in the `project_list_value` format, whose
+issue values are the texts of per-project lists, are still rejected: copy those lists
+and map their values the same way.
 
 ### Subprojects
 
