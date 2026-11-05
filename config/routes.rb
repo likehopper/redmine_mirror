@@ -28,6 +28,7 @@ get "admin/mirror/defaults/import", to: "mirror_admin#import_form", as: "mirror_
 delete "admin/mirror/defaults/:id", to: "mirror_admin#destroy_default", as: "mirror_admin_default", constraints: { id: /\d+/ }
 post "admin/mirror/defaults/import", to: "mirror_admin#import_defaults", as: "mirror_admin_defaults_import"
 post "admin/mirror/defaults/apply", to: "mirror_admin#apply_defaults", as: "mirror_admin_defaults_apply"
+patch "admin/mirror/defaults/anonymous_time_user", to: "mirror_admin#update_anonymous_time_user", as: "mirror_admin_anonymous_time_user"
 
 get "projects/:project_id/mirror/settings", to: "mirror_settings#show", as: "project_mirror_settings"
 patch "projects/:project_id/mirror/settings/connection", to: "mirror_settings#update_connection", as: "project_mirror_connection"

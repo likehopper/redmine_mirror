@@ -105,4 +105,17 @@ class MirrorSetupFixesTest < Redmine::IntegrationTest
     assert_response 403
     refute @project.reload.module_enabled?(:documents)
   end
+  # Anonymized users with time entries need an account to receive them.
+  def test_anonymized_time_without_account_is_pointed_out
+    @setting.update!(selected_modules: %w[issue_tracking time_tracking], source_catalog: @setting.source_catalog.merge("user" => { "70" => "Departed" }))
+    @project.mirror_reference_mappings.create!(reference_type: "user", source_id: 70, mode: "anonymous")
+    log_user("admin", "admin")
+    get "/projects/ecookbook/settings/mirror"
+    assert_select "#mirror-checklist li", text: /no account receives them/
+    with_settings(plugin_redmine_mirror: { "anonymous_time_user_id" => "2" }) do
+      get "/projects/ecookbook/settings/mirror"
+      assert_select "#mirror-checklist li", text: /no account receives them/, count: 0
+      assert_select "#mirror-checklist li", text: /is not an active member/, count: 0
+    end
+  end
 end

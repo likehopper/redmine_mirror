@@ -53,6 +53,13 @@ module RedmineMirror
         result = record.slice("hours", "comments", "spent_on")
         result["activity_id"] = map(mappings, "activity", record.fetch("activity").fetch("id"))
         result["user_id"] = @user_adapter.resolve(mappings, record.fetch("user").fetch("id"), required: true, options: options)
+        # The administrator's default account must also be an active member of this project.
+        own = options["anonymous_user_id"]
+        anonymized = mappings.fetch("user", {})[record.fetch("user").fetch("id").to_s] == "anonymous"
+        if anonymized && (own.nil? || own.to_s.empty?) &&
+           !Project.find(project_id).users.active.exists?(id: result["user_id"])
+          raise Error, "The default account for anonymized time entries is not an active member of this project: add it to the members, or choose another account in the Users tab"
+        end
         if record["issue"]
           result["issue_id"] = lookup.call("issue_tracking", record["issue"].fetch("id"))
           raise Error, "Issue has no synchronized destination" unless result["issue_id"]

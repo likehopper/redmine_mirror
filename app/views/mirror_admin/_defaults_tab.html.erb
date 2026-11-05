@@ -25,3 +25,16 @@ One tab of the default correspondences: the defaults of a reference table.
 <% if type == "user" %><p class="info"><%= l(:text_mirror_default_user_fallback) %></p><% end %>
 <%= render "mirror_admin/defaults_table", type: type, rules: rules,
       label: ->(rule) { (specials.find { |_, value| value == rule.mode } || []).first || rule.destination_label } %>
+<% if type == "user" %>
+  <% if RedmineMirror::DefaultMappings.built_in_user_fallback?(rules) %>
+    <p id="mirror-default-user-built-in"><em><%= l(:label_mirror_default_fallback) %></em> → <strong><%= l(:label_mirror_anonymous) %></strong>
+      <em class="info"><%= l(:text_mirror_default_user_built_in) %></em></p>
+  <% end %>
+  <%= form_tag mirror_admin_anonymous_time_user_path, method: :patch, id: "mirror-default-time-user", class: "tabular" do %>
+    <div class="box"><p><%= label_tag "mirror-default-time-user-select", l(:label_mirror_anonymous_time_user) %>
+      <%= select_tag :anonymous_time_user_id, options_for_select([[l(:label_none), ""]] + User.active.sorted.map { |user| [user.name, user.id] }, RedmineMirror.default_anonymous_time_user_id),
+            id: "mirror-default-time-user-select" %>
+      <%= submit_tag l(:button_save), name: nil %><br>
+      <em class="info"><%= l(:text_mirror_default_anonymous_time_user) %></em></p></div>
+  <% end %>
+<% end %>

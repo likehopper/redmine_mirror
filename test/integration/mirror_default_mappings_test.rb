@@ -157,7 +157,8 @@ class MirrorDefaultMappingsTest < Redmine::IntegrationTest
     rule("custom_field", "resolution", field.id)
     MirrorDefaultMapping.create!(reference_type: "custom_field_value", custom_field: field, source_name: "10 - Duplicate", destination_value: "Duplicate")
     MirrorDefaultMapping.create!(reference_type: "custom_field_value", custom_field: field, source_name: nil, destination_value: "Not reproducible")
-    assert_equal 1 + 2, RedmineMirror::DefaultMappings.apply(@setting)
+    # One field, two values, and the built-in anonymization of the departed user.
+    assert_equal 1 + 2 + 1, RedmineMirror::DefaultMappings.apply(@setting)
     adapter = RedmineMirror::Adapters::CustomFields.new
     values = @setting.reload.module_options.dig("issue_custom_fields", "value_mappings", "78")
     assert_equal "Duplicate", values[adapter.value_key("10 - Duplicate")]
@@ -217,8 +218,9 @@ class MirrorDefaultMappingsTest < Redmine::IntegrationTest
     RedmineMirror::Client.stub(:new, ->(*) { raise "no source is read" }) do
       post "/admin/mirror/defaults/apply"
     end
-    assert_equal "1 correspondences saved in the projects.", flash[:notice]
+    assert_equal "2 correspondences saved in the projects.", flash[:notice]
     assert_equal 2, mapping("tracker", 2).destination_id
+    assert_equal "anonymous", mapping("user", 70).mode
   end
   def test_rejected_lines_come_back_as_csv_with_their_error
     text = "type;source_name;source_url;destination;custom_field\ntracker;Feature;;Bug;\nstatus;Done;;Nowhere;\nmood;Happy;;Bug;\n"
@@ -246,7 +248,7 @@ class MirrorDefaultMappingsTest < Redmine::IntegrationTest
     assert_nil mapping("tracker", 2)
     # The project's own button still applies them.
     post "/projects/ecookbook/mirror/settings/defaults/apply"
-    assert_equal "1 correspondences saved from the defaults.", flash[:notice]
+    assert_equal "2 correspondences saved from the defaults.", flash[:notice]
     assert_equal [2, true], [mapping("tracker", 2).destination_id, mapping("tracker", 2).from_default]
   end
 
@@ -256,6 +258,7 @@ class MirrorDefaultMappingsTest < Redmine::IntegrationTest
     @project.mirror_reference_mappings.create!(reference_type: "tracker", source_id: 2, destination_id: 1)
     @project.mirror_reference_mappings.create!(reference_type: "tracker", source_id: 3, destination_id: 1)
     log_user("admin", "admin")
+    @project.mirror_reference_mappings.create!(reference_type: "user", source_id: 70, mode: "anonymous")
     post "/projects/ecookbook/mirror/settings/defaults/apply"
     assert_equal "0 correspondences saved from the defaults.", flash[:notice]
     assert_equal 1, mapping("tracker", 2).destination_id
@@ -271,5 +274,48 @@ class MirrorDefaultMappingsTest < Redmine::IntegrationTest
     post "/projects/ecookbook/mirror/settings/defaults/apply"
     assert_response 403
     assert_nil mapping("tracker", 2)
+  end
+  def test_users_without_fallback_are_anonymized_unless_an_account_matches
+    catalog = @setting.source_catalog
+    catalog["user"] = catalog["user"].merge("71" => "Robert Hill", "72" => "Someone Else")
+    catalog["user_used"] = %w[70 71 72]
+    # 72 shares the email of a local account: the form proposes it.
+    catalog["user_details"] = { "72" => { "mail" => User.find(3).mail.upcase } }
+    @setting.update!(source_catalog: catalog)
+    RedmineMirror::DefaultMappings.apply(@setting)
+    assert_equal "anonymous", mapping("user", 70).mode
+    # "Robert Hill" is a local namesake.
+    assert_nil mapping("user", 71)
+    assert_nil mapping("user", 72)
+    # An administrator's fallback replaces the built-in one.
+    @project.mirror_reference_mappings.where(reference_type: "user").delete_all
+    rule("user", nil, 4)
+    RedmineMirror::DefaultMappings.apply(@setting)
+    assert_equal [4, "existing"], [mapping("user", 70).destination_id, mapping("user", 70).mode]
+  end
+
+  def test_administrator_sets_the_default_account_for_anonymized_time
+    log_user("admin", "admin")
+    get "/admin/mirror/defaults", params: { tab: "user" }
+    assert_select "#mirror-default-user-built-in"
+    patch "/admin/mirror/defaults/anonymous_time_user", params: { anonymous_time_user_id: "2" }
+    assert_redirected_to "/admin/mirror/defaults?tab=user"
+    assert_equal 2, RedmineMirror.default_anonymous_time_user_id
+    users = RedmineMirror::Adapters::Users.new
+    assert_equal 2, users.resolve({ "user" => { "70" => "anonymous" } }, 70, required: true)
+    # The project's own account wins.
+    assert_equal 3, users.resolve({ "user" => { "70" => "anonymous" } }, 70, required: true, options: { "anonymous_user_id" => 3 })
+    # The default account must be a member of the project.
+    entries = RedmineMirror::Adapters::TimeEntries.new
+    record = { "hours" => 1, "spent_on" => "2026-11-01", "activity" => { "id" => 5 }, "user" => { "id" => 70 } }
+    mappings = { "user" => { "70" => "anonymous" }, "activity" => { "5" => "9" } }
+    assert_equal 2, entries.payload(record, 1, mappings, ->(*) {})["user_id"]
+    elsewhere = Project.create!(name: "Without the account", identifier: "without-the-account")
+    error = assert_raises(RedmineMirror::Error) { entries.payload(record, elsewhere.id, mappings, ->(*) {}) }
+    assert_match "not an active member", error.message
+    patch "/admin/mirror/defaults/anonymous_time_user", params: { anonymous_time_user_id: "" }
+    assert_nil RedmineMirror.default_anonymous_time_user_id
+    error = assert_raises(RedmineMirror::Error) { users.resolve({ "user" => { "70" => "anonymous" } }, 70, required: true) }
+    assert_match "not imported", error.message
   end
 end

@@ -41,6 +41,15 @@ the form on its own page; **Import CSV** and **Export CSV** are at the top right
   that has neither a default nor a single local namesake (the namesake stays a
   suggestion in the form). Users only take a fallback, such as a generic account (it need
   not be a project member) or *Anonymize*: accounts are matched in each project.
+- **Users without correspondence**: without a fallback of the administrator, a source
+  user the project uses, with neither a correspondence, a local account with the same
+  email nor a single namesake, is **anonymized** (built in). Anonymized users keep their
+  issues, notes and files under Redmine's anonymous user, lose their assignments,
+  watches and user field values, and are not added as members. Their **time entries**
+  need a real account: they are recorded under the project's *Local user for anonymized
+  time* (Users tab) or, failing it, the administrator's default account (Users tab of
+  this page, an active member of each project). They then lose the person's identity;
+  without such an account they are not imported.
 - **Custom field list values**: for a local list or key/value list field, the local value
   of source values, with a fallback too. They apply to every source field mapped to that
   field, for example *10 - Duplicate* → *Duplicate*.

@@ -41,6 +41,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   values of the project's enumeration issue fields, with status, sharing and position,
   through Mirror source (**Project enumerations** shared). Issue values and history,
   which are enumeration IDs, are translated by **Issue custom fields**.
+- **Users anonymized by default**: a source user with neither a correspondence, an
+  account with the same email nor a single namesake is anonymized, unless the
+  administrator sets a fallback (a generic account) or the project does not use the
+  defaults. The administrator also chooses a default account for anonymized time
+  entries (Users tab of the default correspondences), used when a project chooses none;
+  it must be an active member of the project. The pages explain that anonymized time
+  entries lose the person's identity, and are not imported without such an account.
 - **Settings to complete, in one click**: once the source references are read, the
   **Connection** tab (and the checklist of the Mirror page) offers to enable a project
   module a selected Mirror module needs or unselect those Mirror modules, enable mapped

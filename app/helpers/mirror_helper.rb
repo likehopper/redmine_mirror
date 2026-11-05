@@ -371,6 +371,16 @@ module MirrorHelper
           buttons: [[l(:button_mirror_enable_field), { fix: "enable_custom_field", target: field.id }, editor]] }
       end
     end
+    # Anonymized users whose time entries have no account to go to.
+    if setting.selected_modules.include?("time_tracking") && mapped.any? { |row| row.reference_type == "user" && row.mode == "anonymous" }
+      own = setting.module_options.dig("users", "anonymous_user_id").presence
+      default = RedmineMirror.default_anonymous_time_user_id
+      if !own && (!default || !project.users.active.exists?(id: default))
+        items << { text: l(default ? :text_mirror_time_user_not_member : :text_mirror_time_user_missing, name: User.find_by(id: default)&.name),
+          actions: [[l(:label_mirror_fix_mapping), manager && mirror_configuration_path(project, "users")],
+                    [l(:label_mirror_guide_add_member), default && User.current.allowed_to?(:manage_members, project) && settings_project_path(project, tab: "members")]] }
+      end
+    end
     # Data the source project has for a module not selected: members (when this project
     # lets the user manage them), categories and versions.
     catalog.fetch("source_inventory", {}).each do |key, count|

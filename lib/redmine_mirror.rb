@@ -112,6 +112,14 @@ module RedmineMirror
   end
 
   # Register an adapter shipped by another Redmine plugin. See doc/ADAPTERS.md.
+  # The administrator's default account for anonymized time entries (Administration →
+  # Mirror → Default correspondences, Users tab); a project's own choice wins.
+  def self.default_anonymous_time_user_id
+    return nil unless defined?(::User) && defined?(::Setting)
+    id = Integer((Setting.plugin_redmine_mirror rescue {}).to_h["anonymous_time_user_id"].to_s, exception: false)
+    id if id && User.where(id: id, status: User::STATUS_ACTIVE).exists?
+  end
+
   def self.register_adapter(adapter)
     REGISTRY.register(adapter)
   end

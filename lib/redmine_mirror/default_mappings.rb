@@ -23,6 +23,14 @@ module RedmineMirror
     module_function
 
     CSV_COLUMNS = %w[type source_name source_url destination custom_field].freeze
+    # Without an administrator's fallback for users, a source user with neither a
+    # correspondence, an account with the same email nor a single namesake is anonymized.
+    BuiltInRule = Struct.new(:reference_type, :source_key, :source_url, :mode, :destination_id, keyword_init: true)
+    USER_FALLBACK = BuiltInRule.new(reference_type: "user", source_key: nil, source_url: nil, mode: "anonymous", destination_id: nil).freeze
+
+    def built_in_user_fallback?(rules)
+      rules.none? { |rule| rule.reference_type == "user" && rule.source_key.nil? }
+    end
     REQUIRED_COLUMNS = %w[type source_name destination].freeze
 
     # Whether the defaults fill this project by themselves (catalog refresh, administrator's
@@ -40,7 +48,7 @@ module RedmineMirror
     def apply(setting, reset: false)
       return 0 unless MirrorDefaultMapping.schema_current?
       rules = MirrorDefaultMapping.where(source_url: [nil, setting.source_url]).to_a
-      return 0 if rules.empty?
+      rules << USER_FALLBACK if built_in_user_fallback?(rules)
       project = setting.project
       catalog = setting.source_catalog
       existing = project.mirror_reference_mappings.to_a.index_by { |row| [row.reference_type, row.source_id.to_s] }
@@ -55,7 +63,8 @@ module RedmineMirror
           row = existing[[table.key, source_id]]
           next if row && !reset
           rule = pick(table_rules, NameMatch.key(name), setting.source_url)
-          if rule.nil? && row.nil? && (used.nil? || used.include?(source_id)) && !NameMatch.suggest(name, names)
+          if rule.nil? && row.nil? && (used.nil? || used.include?(source_id)) && !NameMatch.suggest(name, names) &&
+             !(table.key == "user" && email_account?(catalog, source_id))
             rule = pick(table_rules, nil, setting.source_url)
           end
           next unless rule
@@ -122,6 +131,12 @@ module RedmineMirror
     def pick(rules, key, url)
       matching = rules.select { |rule| rule.source_key == key }
       matching.find { |rule| rule.source_url == url } || matching.find { |rule| rule.source_url.nil? }
+    end
+
+    # A local account has the email the source shares for this user: the form proposes it.
+    def email_account?(catalog, source_id)
+      mail = catalog.dig("user_details", source_id.to_s, "mail").to_s.strip
+      !mail.empty? && EmailAddress.where("LOWER(address) = ?", mail.downcase).exists?
     end
 
     # The project's choices for a table. Any account may be a default (a generic account

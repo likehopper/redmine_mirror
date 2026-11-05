@@ -46,7 +46,8 @@ module RedmineMirror
         if value == "anonymous"
           return nil unless required
           value = options["anonymous_user_id"]
-          raise Error, "Configure a local user for anonymized time entries" unless value
+          value = RedmineMirror.default_anonymous_time_user_id if value.nil? || value.to_s.empty?
+          raise Error, "Anonymized user: choose a local account for anonymized time entries (Users tab, or the administrator's default), else these time entries are not imported" unless value
         end
         destination_user_id = Integer(value)
         raise Error, "Invalid user mapping" unless destination_user_id.positive?

@@ -191,6 +191,18 @@ class MirrorAdminController < ApplicationController
     redirect_to mirror_admin_defaults_import_form_path
   end
 
+  # The default account of anonymized time entries, kept in the plugin settings.
+  def update_anonymous_time_user
+    id = params[:anonymous_time_user_id].presence
+    if id && !User.where(id: id, status: User::STATUS_ACTIVE).exists?
+      flash[:error] = l(:text_mirror_invalid_configuration)
+    else
+      Setting.plugin_redmine_mirror = (Setting.plugin_redmine_mirror rescue {}).to_h.merge("anonymous_time_user_id" => id.to_s)
+      flash[:notice] = l(:notice_successful_update)
+    end
+    redirect_to mirror_admin_defaults_path(tab: "user")
+  end
+
   # Fills the projects from the source references they already read; no source is read.
   def apply_defaults
     flash[:notice] = l(:text_mirror_defaults_applied, count: RedmineMirror::DefaultMappings.apply_all)
