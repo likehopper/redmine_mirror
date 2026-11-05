@@ -41,6 +41,15 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   values of the project's enumeration issue fields, with status, sharing and position,
   through Mirror source (**Project enumerations** shared). Issue values and history,
   which are enumeration IDs, are translated by **Issue custom fields**.
+- **Repositories module**: Redmine has no repositories API. A source sharing
+  **Repositories** through Mirror source gives each repository's SCM, identifier, URL
+  and encodings, and the links between its revisions and issues; the destination
+  recreates the repositories (with path rewrites for Git repositories copied to the new
+  server), lets Redmine read the revisions, and sets the links from the source's,
+  replacing those Redmine derives from commit messages with source issue numbers.
+  Credentials are a separate shared data, **Repository credentials**, that an
+  administrator must allow explicitly (never by default) and the project share, and
+  the destination project keeps only on request; they never reach the access log.
 - **Users anonymized by default**: a source user with neither a correspondence, an
   account with the same email nor a single namesake is anonymized, unless the
   administrator sets a fallback (a generic account) or the project does not use the

@@ -56,6 +56,7 @@ Version **1.0.0-beta.35** is a pre-release for testing before 1.0.0, not a stabl
 | Tags | Current issue tags (Redmine Tags plugin on both sides); the source shares them (Mirror source) |
 | Agile sprints, Agile issue data | Scrum plugin sprints and backlogs become redmine_agile sprints; issues get their sprint, position and story points (Mirror source) |
 | Saved queries | The project's saved queries of issues, time entries and agile boards, with translated filters (Mirror source) |
+| Repositories | Git and Subversion repositories (definition, optionally credentials) and the links between revisions and issues; the content is copied beforehand (Mirror source) |
 | Project enumerations | Values of issue fields of the Smile Project Enumerations plugin (both sides), with status, sharing and position; issue values follow (Mirror source) |
 
 - Preview before writing, manual runs and automatic schedules.

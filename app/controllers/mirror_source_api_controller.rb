@@ -18,14 +18,15 @@
 
 class MirrorSourceApiController < ApplicationController
   accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :scrum, :queries, :users, :issue_categories,
-    :project_enumerations, :project_enumeration, :download
-  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users issue_categories project_enumerations]
+    :project_enumerations, :project_enumeration, :repositories, :repository_links, :download
+  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users issue_categories project_enumerations repositories]
   before_action :find_document, only: :document
   before_action :find_news, only: :news_item
   before_action :find_attachment, only: :download
   # A missing plugin first: its permissions do not exist either.
   before_action :check_plugin, only: %i[issue_tags scrum project_enumerations project_enumeration]
   before_action :find_project_enumeration, only: :project_enumeration
+  before_action :find_repository, only: :repository_links
   before_action :check_access
 
   helper :attachments
@@ -137,6 +138,32 @@ class MirrorSourceApiController < ApplicationController
     respond_to { |format| format.api }
   end
 
+  # The project's repositories: SCM, identifier, URL and encodings, and their login and
+  # password only when the administrator and the project both allow credentials. The
+  # log names the repositories, never their credentials.
+  def repositories
+    @repositories = @project.repositories.order(:id).to_a
+    @credentials = RedmineMirror::Source.refusal(@project, "repository_credentials", User.current).nil?
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @repositories.size,
+      details: { "repositories" => @repositories.map { |repository| { "id" => repository.id, "title" => repository.identifier.presence || repository.scm_name } },
+                 "credentials" => @credentials })
+    respond_to { |format| format.api }
+  end
+
+  # The links between a repository's changesets and issues, by revision, a page at a time.
+  def repository_links
+    offset = [params[:offset].to_i, 0].max
+    ids = Changeset.where(repository_id: @repository.id).joins(:issues).distinct.order(:id).offset(offset)
+      .limit(RedmineMirror::Source::LINKS_PER_PAGE).pluck(:id)
+    issues = Changeset.where(id: ids).joins(:issues).pluck(:id, "#{Issue.table_name}.id").group_by(&:first)
+    @links = Changeset.where(id: ids).order(:id).pluck(:id, :revision).map { |id, revision| [revision, issues.fetch(id, []).map(&:last).sort] }
+    @total = Changeset.where(repository_id: @repository.id).joins(:issues).distinct.count
+    @offset = offset
+    RedmineMirror::Source.log(@project, request, User.current, "show", object_count: @links.size,
+      details: { "repositories" => [{ "id" => @repository.id, "title" => @repository.identifier.presence || @repository.scm_name }], "links" => @links.size })
+    respond_to { |format| format.api }
+  end
+
   # Shared files go through here, not the attachments API, so that sharing applies
   # and the transfer is logged.
   def download
@@ -183,6 +210,13 @@ class MirrorSourceApiController < ApplicationController
     render_404
   end
 
+  def find_repository
+    @repository = Repository.find(params[:id])
+    @project = @repository.project
+  rescue ActiveRecord::RecordNotFound
+    render_404
+  end
+
   def check_plugin
     available = case action_name
                 when "scrum" then RedmineMirror::Source.scrum_available?
@@ -203,6 +237,7 @@ class MirrorSourceApiController < ApplicationController
     when "users" then "users"
     when "issue_categories" then "issue_categories"
     when "project_enumerations", "project_enumeration" then "project_enumerations"
+    when "repositories", "repository_links" then "repositories"
     when "download" then RedmineMirror::Source::CONTAINERS.fetch(@attachment.container_type)
     else "documents"
     end

@@ -25,12 +25,18 @@ module RedmineMirror
     # issue tags (Redmine Tags plugin by RedmineUP) and Scrum sprints (Scrum plugin) have none.
     # The users API gives logins and emails to administrators only. The categories API
     # lists categories to their managers only, and never says whether they are shared.
-    # Project enumerations (Smile plugin) have an API for their managers only.
-    KINDS = %w[documents news issue_tags scrum queries users issue_categories project_enumerations].freeze
+    # Project enumerations (Smile plugin) have an API for their managers only. Repositories
+    # have no API at all; their credentials are a kind of their own, never allowed by default.
+    KINDS = %w[documents news issue_tags scrum queries users issue_categories project_enumerations repositories repository_credentials].freeze
+    # Kinds an administrator must check explicitly, even before saving a choice.
+    EXPLICIT_KINDS = %w[repository_credentials].freeze
     # Native permission the API account needs for each kind.
     PERMISSIONS = { "documents" => :view_documents, "news" => :view_news, "issue_tags" => :view_issues,
       "scrum" => :view_sprint_board, "queries" => :view_issues, "users" => :view_issues,
-      "issue_categories" => :view_issues, "project_enumerations" => :view_issues }.freeze
+      "issue_categories" => :view_issues, "project_enumerations" => :view_issues,
+      "repositories" => :manage_repository, "repository_credentials" => :manage_repository }.freeze
+    # Changesets linked to issues, per page of a repository's links.
+    LINKS_PER_PAGE = 500
     # Users a destination may ask for in one request.
     USERS_PER_REQUEST = 100
     # Saved queries a project shares: issues, time entries and agile boards.
@@ -103,7 +109,7 @@ module RedmineMirror
     # the administrator saves the choice (installations up to 1.0.0-beta.31), all of it.
     def allowed_kinds
       chosen = settings["source_kinds"]
-      return available_kinds if chosen.nil?
+      return available_kinds - EXPLICIT_KINDS if chosen.nil?
       available_kinds & Array(chosen).map(&:to_s)
     end
 

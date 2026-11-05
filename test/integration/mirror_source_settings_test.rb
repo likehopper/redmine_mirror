@@ -94,7 +94,9 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
   def test_administrator_chooses_the_data_projects_may_share
     log_user("admin", "admin")
     get "/settings/plugin/redmine_mirror"
-    RedmineMirror::Source.available_kinds.each { |kind| assert_select "#settings_source_kind_#{kind}[checked]" }
+    (RedmineMirror::Source.available_kinds - RedmineMirror::Source::EXPLICIT_KINDS).each { |kind| assert_select "#settings_source_kind_#{kind}[checked]" }
+    # Repository credentials are never allowed until the administrator checks them.
+    assert_select "#settings_source_kind_repository_credentials:not([checked])"
     assert_select "#settings_source_kind_scrum", count: RedmineMirror::Source.scrum_available? ? 1 : 0
     post "/settings/plugin/redmine_mirror", params: { settings: { source_enabled: "1", source_kinds: ["", "news", "queries"] } }
     assert_equal %w[news queries], RedmineMirror::Source.allowed_kinds

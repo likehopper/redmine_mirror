@@ -158,6 +158,29 @@ source, *View issues*).
 - Enumerations of time entry and project fields, and the *Project list value* format,
   are not imported.
 
+## Repositories
+
+Redmine has no repositories API: the source runs Mirror 1.0.0-beta.36 or later and
+shares **Repositories** (Mirror source, *Manage repository*).
+
+- Each source repository is recreated with its SCM, identifier, main flag, URL and
+  encodings. The SCM must be enabled here (Administration → Settings → Repositories).
+- **The content is not copied.** A Git repository is a path on the Redmine server: copy
+  it to this server first (`git clone --mirror`, rsync), then add a **path rewrite**
+  (`/var/lib/redmine/git => /srv/git`). A Subversion repository read by URL is read
+  where it is; a local one is copied first (`svnadmin dump`/`load`, `svnsync`).
+- **Credentials** (login and password of a remote repository) come only when the source
+  administrator allows **Repository credentials** (never allowed by default, even
+  before the data are chosen) and the source project shares them, and when this
+  project checks **Keep the credentials**. They are never written in the source's
+  access log, and are stored encrypted with this Redmine's `database_cipher_key`.
+- During the run Redmine reads the revisions (**Read the revisions during the run**),
+  then the links between revisions and issues are set from the source's links,
+  translated into this Redmine's issues. Links Redmine derives from commit messages
+  (`refs #123`) name source issue numbers: they are replaced. Revisions not read yet
+  are linked at a later run.
+- Repositories deleted on the source are not deleted here.
+
 ## Issue history and attachments
 
 *Issue history* imports notes, private notes and field changes with their authors

@@ -167,6 +167,7 @@ end %>
     </p></div>
   <% end %>
   <%# Modules without references or options (hierarchy, watchers, wiki) have nothing to save. %>
-  <%= submit_tag l(:button_save) if adapter.mapping_tables.any? || adapter.anonymous_time_user_required? || adapter.key == "issue_relations" %>
+  <%= render "mirror_settings/repositories_form", adapter: adapter if adapter.key == "repositories" %>
+  <%= submit_tag l(:button_save) if adapter.mapping_tables.any? || adapter.anonymous_time_user_required? || %w[issue_relations repositories].include?(adapter.key) %>
 <% end %>
 <%= render "mirror_settings/user_creation" if adapter.key == "users" %>

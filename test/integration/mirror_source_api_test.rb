@@ -19,7 +19,7 @@ require_relative "../test_helper"
 
 class MirrorSourceApiTest < Redmine::ApiTest::Base
   fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules,
-    :documents, :enumerations, :attachments, :news, :comments, :queries, :issue_categories
+    :documents, :enumerations, :attachments, :news, :comments, :queries, :issue_categories, :repositories, :changesets, :issues
 
   SESSION = "0123456789abcdef0123456789abcdef"
 
@@ -229,6 +229,41 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     ensure
       remove_fake_project_enumerations
     end
+  end
+
+  # Repositories have no API; their credentials need the administrator's explicit choice
+  # and the project's, and never reach the access log.
+  def test_lists_repositories_with_credentials_only_when_both_allow_them
+    repository = Repository.find(10)
+    Changeset.where(repository_id: 10).order(:id).first.issues << Issue.find(1)
+    repository.update_columns(login: "svc")
+    repository.update!(password: "secret")
+    setting = MirrorSourceSetting.find_by!(project: @project)
+    setting.update!(shared_modules: %w[repositories repository_credentials])
+    enabled do
+      get "/projects/ecookbook/mirror/source/repositories.json", headers: mirror_headers
+      assert_response :success
+      row = JSON.parse(response.body).fetch("repositories").find { |entry| entry["id"] == 10 }
+      assert_equal ["Subversion", repository.url], row.values_at("scm", "url")
+      # Not allowed by default, even shared by the project.
+      refute row.key?("password")
+    end
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_kinds" => %w[repositories repository_credentials] }) do
+      get "/projects/ecookbook/mirror/source/repositories.json", headers: mirror_headers
+      row = JSON.parse(response.body).fetch("repositories").find { |entry| entry["id"] == 10 }
+      assert_equal %w[svc secret], row.values_at("login", "password")
+      setting.update!(shared_modules: %w[repositories])
+      get "/projects/ecookbook/mirror/source/repositories.json", headers: mirror_headers
+      refute JSON.parse(response.body).fetch("repositories").first.key?("password")
+      get "/mirror/source/repositories/10/links.json", params: { offset: 0 }, headers: mirror_headers
+      assert_response :success
+      links = JSON.parse(response.body).fetch("repository_links")
+      expected = Changeset.where(repository_id: 10).joins(:issues).distinct.count
+      assert_equal expected, links.fetch("total_count")
+      first = links.fetch("links").first
+      assert_equal Changeset.find_by!(repository_id: 10, revision: first.fetch("revision")).issue_ids.sort, first.fetch("issue_ids")
+    end
+    refute_match "secret", MirrorSourceAccess.where(session_key: SESSION).map { |access| access.details.to_json }.join
   end
 
   def test_each_lock_refuses_and_names_itself

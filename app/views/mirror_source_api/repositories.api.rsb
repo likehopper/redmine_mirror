@@ -1,0 +1,36 @@
+# File: redmine_mirror/app/views/mirror_source_api/repositories.api.rsb
+#
+# Redmine Mirror - modular project import and asynchronous replication.
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 2 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+#
+# The project's repositories; login and password only when credentials are shared.
+
+api.array :repositories, api_meta(total_count: @repositories.size) do
+  @repositories.each do |repository|
+    api.repository do
+      api.id repository.id
+      api.scm repository.scm_name
+      api.identifier repository.identifier.to_s
+      api.is_default repository.is_default?
+      api.url repository.url
+      api.root_url repository.root_url
+      api.path_encoding repository.path_encoding
+      api.log_encoding repository.log_encoding
+      api.report_last_commit(repository.extra_info.is_a?(Hash) ? repository.extra_info["extra_report_last_commit"] : nil)
+      api.changesets_count Changeset.where(repository_id: repository.id).count
+      if @credentials
+        api.login repository.login
+        api.password repository.password
+      end
+    end
+  end
+end

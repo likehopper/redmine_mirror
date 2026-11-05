@@ -146,4 +146,5 @@ module RedmineMirror
   REGISTRY.register(Adapters::AgileSprints.new)
   REGISTRY.register(Adapters::AgileIssues.new)
   REGISTRY.register(Adapters::ProjectQueries.new)
+  REGISTRY.register(Adapters::Repositories.new)
 end

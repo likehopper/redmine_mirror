@@ -1,0 +1,33 @@
+<%#
+File: redmine_mirror/app/views/mirror_settings/_repositories_form.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Options of the Repositories module, inside its tab's form: path rewrites, credentials
+and whether the run reads the revisions.
+%><% options = @setting.module_options.fetch("repositories", {}) %>
+<p><%= l(:text_mirror_repositories) %></p>
+<div class="box tabular" id="mirror-repositories-options">
+  <p><%= label_tag "repositories-path-rewrites", l(:label_mirror_repositories_path_rewrites) %>
+    <%= text_area_tag "module_options[path_rewrites]", options["path_rewrites"], rows: 3, cols: 60, id: "repositories-path-rewrites",
+          placeholder: "/var/lib/redmine/git => /srv/git" %>
+    <em class="info"><%= l(:text_mirror_repositories_path_rewrites) %></em></p>
+  <p><%= label_tag "repositories-credentials", l(:label_mirror_repositories_credentials) %>
+    <%= hidden_field_tag "module_options[credentials]", "0", id: nil %>
+    <%= check_box_tag "module_options[credentials]", "1", options["credentials"] == "1", id: "repositories-credentials" %>
+    <em class="info"><%= l(:text_mirror_repositories_credentials) %></em></p>
+  <p><%= label_tag "repositories-fetch", l(:label_mirror_repositories_fetch) %>
+    <%= hidden_field_tag "module_options[fetch_changesets]", "0", id: nil %>
+    <%= check_box_tag "module_options[fetch_changesets]", "1", options["fetch_changesets"] != "0", id: "repositories-fetch" %>
+    <em class="info"><%= l(:text_mirror_repositories_fetch) %></em></p>
+</div>

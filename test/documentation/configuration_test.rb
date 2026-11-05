@@ -410,6 +410,8 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     fill_in "mirror-default-names", with: "Haute\nUrgente"
     select "High (##{IssuePriority.find_by!(name: 'High').id})", from: "mirror-default-destination"
     click_button "Create"
+    # Wait for each save before opening the next form.
+    assert_selector "#tab-priority.selected"
     visit "/admin/mirror/defaults/new?type=status"
     select "Do not import its issues", from: "mirror-default-destination"
     click_button "Create"
