@@ -37,6 +37,10 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   when it has the column (Share Categories plugin). A category shared by a parent
   project and already imported into that parent's destination project is used by the
   subproject's issues instead of a copy. Mirror source 1.0.0-beta.36 on the source.
+- **Project enumerations module** (Smile Project Enumerations plugin on both sides): the
+  values of the project's enumeration issue fields, with status, sharing and position,
+  through Mirror source (**Project enumerations** shared). Issue values and history,
+  which are enumeration IDs, are translated by **Issue custom fields**.
 
 ## 1.0.0-beta.35 — 2026-11-04
 

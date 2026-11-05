@@ -556,3 +556,6 @@ en:
   text_mirror_project_defaults_buttons: "Apply: fills the references without correspondence. Reset: also replaces the correspondences of references whose name has a default. Neither reads the source again."
   text_mirror_project_defaults_reset_confirm: "Correspondences chosen in this project for references that have a default will be replaced. Continue?"
   text_mirror_project_defaults_applied: "%{count} correspondences saved from the defaults."
+  label_mirror_module_project_enumerations: "Project enumerations"
+  text_mirror_project_enumerations_source_hint: "(Smile Project Enumerations plugin on both sides; the source must run Redmine Mirror and share Project enumerations through its Mirror source module)"
+  text_mirror_source_share_project_enumerations: "Values of the project's enumeration fields, with their status, sharing and position (Smile Project Enumerations plugin)"

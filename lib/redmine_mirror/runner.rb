@@ -51,7 +51,7 @@ module RedmineMirror
       lookup = lambda do |key, id|
         mapping = @mapping_store.find(key, id)
         result = mapping ? mapping.fetch("destination_id") : planned_correspondences[[key, id]]
-        if !result && %w[project_versions agile_sprints issue_categories].include?(key) && @mapping_store.respond_to?(:find_related_mapping)
+        if !result && %w[project_versions agile_sprints issue_categories project_enumerations].include?(key) && @mapping_store.respond_to?(:find_related_mapping)
           shared = @mapping_store.find_related_mapping(key, id)
           result = shared && shared.fetch("destination_id")
         end

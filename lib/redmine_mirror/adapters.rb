@@ -27,6 +27,7 @@ require File.join(File.dirname(__FILE__), "adapters/attachments")
 require File.join(File.dirname(__FILE__), "adapters/relations")
 
 require File.join(File.dirname(__FILE__), "adapters/project_references")
+require File.join(File.dirname(__FILE__), "adapters/project_enumerations")
 
 require File.join(File.dirname(__FILE__), "adapters/issue_state")
 require File.join(File.dirname(__FILE__), "adapters/hierarchy")

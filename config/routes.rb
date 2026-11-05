@@ -56,4 +56,6 @@ get "projects/:project_id/mirror/source/scrum", to: "mirror_source_api#scrum", a
 get "projects/:project_id/mirror/source/queries", to: "mirror_source_api#queries", as: "mirror_source_queries"
 get "projects/:project_id/mirror/source/users", to: "mirror_source_api#users", as: "mirror_source_users"
 get "projects/:project_id/mirror/source/issue_categories", to: "mirror_source_api#issue_categories", as: "mirror_source_issue_categories"
+get "projects/:project_id/mirror/source/project_enumerations", to: "mirror_source_api#project_enumerations", as: "mirror_source_project_enumerations"
+get "mirror/source/project_enumerations/:id", to: "mirror_source_api#project_enumeration", as: "mirror_source_project_enumeration"
 get "mirror/source/attachments/:id/download", to: "mirror_source_api#download", as: "mirror_source_download"

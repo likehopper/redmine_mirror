@@ -17,13 +17,15 @@
 # administrator, the project and its sharing allow it, and logged request by request.
 
 class MirrorSourceApiController < ApplicationController
-  accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :scrum, :queries, :users, :issue_categories, :download
-  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users issue_categories]
+  accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :scrum, :queries, :users, :issue_categories,
+    :project_enumerations, :project_enumeration, :download
+  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users issue_categories project_enumerations]
   before_action :find_document, only: :document
   before_action :find_news, only: :news_item
   before_action :find_attachment, only: :download
   # A missing plugin first: its permissions do not exist either.
-  before_action :check_plugin, only: %i[issue_tags scrum]
+  before_action :check_plugin, only: %i[issue_tags scrum project_enumerations project_enumeration]
+  before_action :find_project_enumeration, only: :project_enumeration
   before_action :check_access
 
   helper :attachments
@@ -120,6 +122,21 @@ class MirrorSourceApiController < ApplicationController
     respond_to { |format| format.api }
   end
 
+  # The project's own enumerations (Smile Project Enumerations plugin): field, value,
+  # status, sharing and position. Those shared by a parent project come with the parent.
+  def project_enumerations
+    @enumerations = ::ProjectEnumeration.where(project_id: @project.id).preload(:custom_field).order(:id).to_a
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @enumerations.size,
+      details: { "project_enumerations" => @enumerations.map { |enumeration| { "id" => enumeration.id, "title" => enumeration.value } } })
+    respond_to { |format| format.api }
+  end
+
+  def project_enumeration
+    RedmineMirror::Source.log(@project, request, User.current, "show", object_count: 1,
+      details: { "project_enumerations" => [{ "id" => @enumeration.id, "title" => @enumeration.value }] })
+    respond_to { |format| format.api }
+  end
+
   # Shared files go through here, not the attachments API, so that sharing applies
   # and the transfer is logged.
   def download
@@ -159,8 +176,19 @@ class MirrorSourceApiController < ApplicationController
     render_404
   end
 
+  def find_project_enumeration
+    @enumeration = ::ProjectEnumeration.find(params[:id])
+    @project = @enumeration.project
+  rescue ActiveRecord::RecordNotFound
+    render_404
+  end
+
   def check_plugin
-    available = action_name == "scrum" ? RedmineMirror::Source.scrum_available? : RedmineMirror::Source.tags_available?
+    available = case action_name
+                when "scrum" then RedmineMirror::Source.scrum_available?
+                when "project_enumerations", "project_enumeration" then RedmineMirror::Source.project_enumerations_available?
+                else RedmineMirror::Source.tags_available?
+                end
     return if available
     response.headers[RedmineMirror::Source::REFUSAL_HEADER] = "unavailable"
     render_404
@@ -174,6 +202,7 @@ class MirrorSourceApiController < ApplicationController
     when "queries" then "queries"
     when "users" then "users"
     when "issue_categories" then "issue_categories"
+    when "project_enumerations", "project_enumeration" then "project_enumerations"
     when "download" then RedmineMirror::Source::CONTAINERS.fetch(@attachment.container_type)
     else "documents"
     end

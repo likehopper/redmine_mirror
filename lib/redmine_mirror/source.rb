@@ -25,11 +25,12 @@ module RedmineMirror
     # issue tags (Redmine Tags plugin by RedmineUP) and Scrum sprints (Scrum plugin) have none.
     # The users API gives logins and emails to administrators only. The categories API
     # lists categories to their managers only, and never says whether they are shared.
-    KINDS = %w[documents news issue_tags scrum queries users issue_categories].freeze
+    # Project enumerations (Smile plugin) have an API for their managers only.
+    KINDS = %w[documents news issue_tags scrum queries users issue_categories project_enumerations].freeze
     # Native permission the API account needs for each kind.
     PERMISSIONS = { "documents" => :view_documents, "news" => :view_news, "issue_tags" => :view_issues,
       "scrum" => :view_sprint_board, "queries" => :view_issues, "users" => :view_issues,
-      "issue_categories" => :view_issues }.freeze
+      "issue_categories" => :view_issues, "project_enumerations" => :view_issues }.freeze
     # Users a destination may ask for in one request.
     USERS_PER_REQUEST = 100
     # Saved queries a project shares: issues, time entries and agile boards.
@@ -76,6 +77,11 @@ module RedmineMirror
       defined?(::Sprint) && Issue.column_names.include?("sprint_id") ? true : false
     end
 
+    # Project enumerations need the Smile Project Enumerations plugin on this Redmine.
+    def project_enumerations_available?
+      defined?(::ProjectEnumeration) ? true : false
+    end
+
     # Categories shared with subprojects (a patch or plugin adding issue_categories.sharing).
     def category_sharing?
       IssueCategory.column_names.include?("sharing")
@@ -87,6 +93,7 @@ module RedmineMirror
         case kind
         when "issue_tags" then tags_available?
         when "scrum" then scrum_available?
+        when "project_enumerations" then project_enumerations_available?
         else true
         end
       end

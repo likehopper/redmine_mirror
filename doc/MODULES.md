@@ -140,6 +140,24 @@ name, description, status, due date and sharing.
 - Existing local objects without a correspondence are never adopted; Redmine reports
   name collisions.
 
+## Project enumerations
+
+For issue custom fields of the *Project enumeration* format (Smile Project Enumerations
+plugin, needed on both sides). The plugin's API serves them to their managers only: the
+source runs Mirror 1.0.0-beta.36 or later and shares **Project enumerations** (Mirror
+source, *View issues*).
+
+- The module tab maps each source enumeration field to a local field of the same
+  format, or ignores it with its values. The fields are those of **Issue custom
+  fields**: one mapping for both modules.
+- Each value of the source project is created in the destination project with its
+  status (open, locked, closed), sharing and position, before the issues.
+- Issue values and their history are enumeration IDs: **Issue custom fields** translates
+  them through these correspondences. A value shared by a parent project takes the
+  parent's imported value: import the parent first.
+- Enumerations of time entry and project fields, and the *Project list value* format,
+  are not imported.
+
 ## Issue history and attachments
 
 *Issue history* imports notes, private notes and field changes with their authors

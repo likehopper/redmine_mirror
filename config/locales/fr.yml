@@ -556,3 +556,6 @@ fr:
   text_mirror_project_defaults_buttons: "Appliquer : complète les références sans correspondance. Revenir aux défauts : remplace aussi les correspondances des références dont le nom a un défaut. Aucun des deux ne relit la source."
   text_mirror_project_defaults_reset_confirm: "Les correspondances choisies dans ce projet pour des références qui ont un défaut seront remplacées. Continuer ?"
   text_mirror_project_defaults_applied: "%{count} correspondances enregistrées depuis les défauts."
+  label_mirror_module_project_enumerations: "Énumérations de projet"
+  text_mirror_project_enumerations_source_hint: "(plugin Smile Project Enumerations des deux côtés ; la source doit faire tourner Redmine Mirror et partager les Énumérations de projet par son module Mirror source)"
+  text_mirror_source_share_project_enumerations: "Valeurs des champs énumération du projet, avec leur statut, partage et position (plugin Smile Project Enumerations)"

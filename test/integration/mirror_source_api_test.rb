@@ -200,6 +200,37 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     end
   end
 
+  # Project enumerations need the Smile plugin on the source.
+  def test_project_enumerations_need_the_plugin_on_the_source
+    MirrorSourceSetting.find_by!(project: @project).update!(shared_modules: %w[project_enumerations])
+    enabled do
+      get "/projects/ecookbook/mirror/source/project_enumerations.json", headers: mirror_headers
+      assert_response 404
+      assert_equal "unavailable", response.headers["X-Mirror-Source-Refusal"]
+    end
+    extend MirrorFakeProjectEnumerations
+    begin
+      install_fake_project_enumerations
+      MirrorSourceSetting.find_by!(project: @project).update!(shared_modules: %w[project_enumerations])
+      field = enumeration_field("Client site")
+      first = ProjectEnumeration.create!(project: @project, custom_field: field, value: "Paris", sharing: "descendants", position: 1)
+      ProjectEnumeration.create!(project: Project.find(2), custom_field: field, value: "Elsewhere")
+      enabled do
+        get "/projects/ecookbook/mirror/source/project_enumerations.json", headers: mirror_headers
+        assert_response :success
+        rows = JSON.parse(response.body).fetch("project_enumerations")
+        assert_equal [[first.id, "Paris", "descendants", 1]], rows.map { |row| row.values_at("id", "value", "sharing", "position") }
+        assert_equal [field.id, "IssueCustomField"], rows.first.fetch("custom_field").values_at("id", "type")
+        get "/mirror/source/project_enumerations/#{first.id}.json", headers: mirror_headers
+        assert_equal "Paris", JSON.parse(response.body).dig("project_enumeration", "value")
+        get "/mirror/source/project_enumerations/0.json", headers: mirror_headers
+        assert_response 404
+      end
+    ensure
+      remove_fake_project_enumerations
+    end
+  end
+
   def test_each_lock_refuses_and_names_itself
     get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
     assert_response :forbidden

@@ -1,0 +1,27 @@
+# File: redmine_mirror/app/views/mirror_source_api/project_enumeration.api.rsb
+#
+# Redmine Mirror - modular project import and asynchronous replication.
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 2 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+#
+# One enumeration, so that a destination in mirror mode can confirm a deletion.
+
+api.project_enumeration do
+  enumeration = @enumeration
+  api.project(id: @project.id, name: @project.name)
+  api.id enumeration.id
+  api.custom_field(id: enumeration.custom_field_id, name: enumeration.custom_field&.name, field_format: enumeration.custom_field&.field_format,
+    type: enumeration.custom_field&.type)
+  api.value enumeration.value
+  api.status enumeration.status
+  api.sharing enumeration.sharing
+  api.position enumeration.position
+end

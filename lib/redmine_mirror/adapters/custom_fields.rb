@@ -215,7 +215,7 @@ module RedmineMirror
         unless field.field_format == format && field.multiple? == !!definition["multiple"]
           raise Error, "Source custom field ##{source_id} and destination field \"#{field.name}\" have incompatible formats or multiplicity"
         end
-        raise Error, "Unsupported custom field format #{format}" unless (SCALAR_FORMATS + %w[list enumeration user version]).include?(format)
+        raise Error, "Unsupported custom field format #{format}" unless (SCALAR_FORMATS + %w[list enumeration user version project_enumeration]).include?(format)
         return value if value.nil? || value == "" || value == []
         translate = lambda do |entry|
           case format
@@ -233,6 +233,11 @@ module RedmineMirror
           when "version"
             target = lookup.call("project_versions", Integer(entry))
             raise Error, "Missing custom field version correspondence" unless target
+            target.to_s
+          when "project_enumeration"
+            # Smile Project Enumerations: the value is an enumeration of the project.
+            target = lookup.call("project_enumerations", Integer(entry))
+            raise Error, "Missing project enumeration correspondence for custom field source ID #{source_id}: select the Project enumerations module" unless target
             target.to_s
           when "text"
             # Long text fields with "Text formatting: full" follow the destination format.

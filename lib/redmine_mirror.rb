@@ -125,6 +125,7 @@ module RedmineMirror
   REGISTRY.register(Adapters::Relations.new)
   REGISTRY.register(Adapters::Categories.new)
   REGISTRY.register(Adapters::Versions.new)
+  REGISTRY.register(Adapters::ProjectEnumerations.new)
   REGISTRY.register(Adapters::Hierarchy.new)
   REGISTRY.register(Adapters::Watchers.new)
   REGISTRY.register(Adapters::CustomFields.new)
