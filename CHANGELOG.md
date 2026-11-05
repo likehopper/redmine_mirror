@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.36 — 2026-11-05
 
 - **Default correspondences, import with errors**: an import no longer stops at the
   first 20 errors. Every refused line is listed with its number, content and error, and
