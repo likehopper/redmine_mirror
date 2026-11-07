@@ -30,8 +30,11 @@ module RedmineMirror
       SCALAR_FORMATS = %w[string text int float date bool link].freeze
       # Cross-field correspondences, besides the standard ones: a source list field mapped
       # to "priority" feeds the destination priority, and the source priority can also go
-      # to a destination list field (option "priority_field").
+      # to a destination list field (option "priority_field"). The source tracker can go to
+      # one too (option "tracker_field"), so that remapping a tracker keeps its name.
       PRIORITY = "priority"
+      TRACKER = "tracker"
+      COPIED = [PRIORITY, TRACKER].freeze
       def key; "issue_custom_fields"; end
       def mapping_tables; [CustomFieldMappingTable.new]; end
 
@@ -105,7 +108,7 @@ module RedmineMirror
       end
 
       def configuration_options(input, project)
-        raise Error, "Unsupported custom field options" unless (input.keys - %w[value_mappings priority_fallback priority_field priority_values]).empty?
+        raise Error, "Unsupported custom field options" unless (input.keys - %w[value_mappings priority_fallback priority_field priority_values tracker_field tracker_values]).empty?
         values = input.fetch("value_mappings", {})
         raise Error, "Invalid custom field value mappings" unless values.is_a?(Hash)
         catalog = project.mirror_project_setting.source_catalog
@@ -125,15 +128,17 @@ module RedmineMirror
           raise Error, "Choose the fallback priority" unless fallback && IssuePriority.active.exists?(id: fallback)
           options["priority_fallback"] = fallback.to_s
         end
-        if input["priority_field"].present?
-          field = CustomFieldMappingTable.new.local_records(project).find { |candidate| candidate.id.to_s == input["priority_field"].to_s }
-          raise Error, "The source priority needs a single-value list field" unless field && priority_target?(field)
+        COPIED.each do |attribute|
+          next if input["#{attribute}_field"].blank?
+          field = CustomFieldMappingTable.new.local_records(project).find { |candidate| candidate.id.to_s == input["#{attribute}_field"].to_s }
+          raise Error, "The source #{attribute} needs a single-value list field" unless field && priority_target?(field)
           raise Error, "Another source field already goes to this field" if rows.where(mode: "existing", destination_id: field.id).exists?
-          entries = input.fetch("priority_values", {})
-          raise Error, "Invalid priority value mappings" unless entries.is_a?(Hash)
-          raise Error, "Unknown source priority" unless (entries.keys - catalog.fetch("priority", {}).keys).empty?
-          options.merge!("priority_field" => field.id.to_s, "priority_values" => entries)
+          entries = input.fetch("#{attribute}_values", {})
+          raise Error, "Invalid #{attribute} value mappings" unless entries.is_a?(Hash)
+          raise Error, "Unknown source #{attribute}" unless (entries.keys - catalog.fetch(attribute, {}).keys).empty?
+          options.merge!("#{attribute}_field" => field.id.to_s, "#{attribute}_values" => entries)
         end
+        raise Error, "The source priority and tracker cannot go to the same field" if options["priority_field"] && options["priority_field"] == options["tracker_field"]
         options
       end
 
@@ -159,13 +164,15 @@ module RedmineMirror
         source_id if source_id && cross_options(project)
       end
 
-      # The destination field receiving the source priority, or nil.
-      def priority_field(project)
-        id = cross_options(project)&.fetch("priority_field", nil)
+      # The destination field receiving the source priority (or tracker), or nil.
+      def copy_field(project, attribute = PRIORITY)
+        id = cross_options(project)&.fetch("#{attribute}_field", nil)
         return nil if id.blank?
         project.all_issue_custom_fields.find { |field| field.id.to_s == id.to_s } ||
-          raise(Error, "The destination custom field chosen for the source priority is not enabled in this project")
+          raise(Error, "The destination custom field chosen for the source #{attribute} is not enabled in this project")
       end
+
+      def priority_field(project); copy_field(project); end
 
       # The destination priority for a value of the field feeding it. An empty value takes
       # the fallback priority, as does a value without correspondence, with a warning.
@@ -181,11 +188,11 @@ module RedmineMirror
         id
       end
 
-      # The destination field value for a source priority, when the priority goes to a field.
-      def priority_value(source_priority, field:, project:)
-        return source_priority if source_priority.to_s.empty?
-        target = cross_options(project).to_h.dig("priority_values", source_priority.to_s)
-        raise Error, "Missing value mapping for source priority ##{source_priority}" if target.blank?
+      # The destination field value for a source priority (or tracker) going to a field.
+      def priority_value(source_id, field:, project:, attribute: PRIORITY)
+        return source_id if source_id.to_s.empty?
+        target = cross_options(project).to_h.dig("#{attribute}_values", source_id.to_s)
+        raise Error, "Missing value mapping for source #{attribute} ##{source_id}" if target.blank?
         permitted = field.possible_values_options.map { |label, id| (id || label).to_s }
         raise Error, "Invalid destination custom field value" unless permitted.include?(target.to_s)
         target.to_s
@@ -315,10 +322,10 @@ module RedmineMirror
           TextFormat.warning("#{error.message}; the value was not imported")
           nil
         end
-        begin
-          if record["priority"] && (field = priority_field(project))
-            check_available(field, record, issue, mappings, "choose another field for the source priority")
-            pairs << [field.id.to_s, priority_value(record.dig("priority", "id"), field: field, project: project)]
+        COPIED.each do |attribute|
+          if record[attribute] && (field = copy_field(project, attribute))
+            check_available(field, record, issue, mappings, "choose another field for the source #{attribute}")
+            pairs << [field.id.to_s, priority_value(record.dig(attribute, "id"), field: field, project: project, attribute: attribute)]
           end
         rescue Error => error
           TextFormat.warning("#{error.message}; the value was not imported")

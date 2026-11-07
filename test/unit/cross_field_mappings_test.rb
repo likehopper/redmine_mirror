@@ -110,6 +110,24 @@ class MirrorCrossFieldMappingsTest < ActiveSupport::TestCase
     assert_raises(RedmineMirror::Error) { @fields.configuration_options(input, @project) }
   end
 
+  # Source trackers 1 "Risk" and 2 "Bug" both become the local tracker; "Source tracker" keeps their names.
+  def test_a_remapped_tracker_keeps_its_name_in_a_field
+    origin = IssueCustomField.create!(name: "Source tracker", field_format: "list", possible_values: %w[Risk Bug], is_for_all: true, trackers: Tracker.all)
+    input = { "value_mappings" => {}, "priority_fallback" => @low.id.to_s, "tracker_field" => origin.id.to_s, "tracker_values" => { "1" => "Risk", "2" => "Bug" } }
+    @setting.update!(source_catalog: @setting.source_catalog.merge("tracker" => { "1" => "Risk", "2" => "Bug" }))
+    @setting.update!(module_options: { @fields.key => @fields.configuration_options(input, @project) })
+    @mappings["tracker"]["2"] = @issue.tracker_id
+    RedmineMirror::TextFormat.reset_flags
+    assert_equal({ origin.id.to_s => "Risk" }, @fields.imported_values(@record, project_id: @project.id, mappings: @mappings, lookup: ->(*) {}, issue: @issue))
+    record = { "user" => { "id" => 1 }, "created_on" => "2026-01-01T12:00:00Z", "notes" => "", "details" => [
+      { "property" => "attr", "name" => "tracker_id", "old_value" => "2", "new_value" => "1" }] }
+    attributes = RedmineMirror::Adapters::Journals.new.imported_attributes(record, @mappings.merge("user" => { "1" => 1 }), lookup: ->(*) {}, project: @project)
+    tracker = @issue.tracker_id.to_s
+    assert_equal [["attr", "tracker_id", tracker, tracker], ["cf", origin.id.to_s, "Bug", "Risk"]], attributes.fetch("details")
+    assert_raises(RedmineMirror::Error) { @fields.configuration_options(input.merge("tracker_values" => { "9" => "Risk" }), @project) }
+    assert_raises(RedmineMirror::Error) { @fields.configuration_options(input.merge("priority_field" => origin.id.to_s), @project) }
+  end
+
   def test_only_one_single_value_list_feeds_the_priority
     second = @project.mirror_reference_mappings.new(reference_type: "custom_field", source_id: 951, mode: "priority")
     assert_not second.valid?

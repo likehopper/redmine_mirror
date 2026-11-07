@@ -131,6 +131,8 @@ fr:
   label_mirror_priority_field: "Copier aussi dans le champ"
   label_mirror_priority_field_none: "Aucun champ"
   text_mirror_priority_field: "Un champ liste à valeur unique qui reçoit la priorité source, valeur par valeur. Enregistrer pour faire correspondre ses valeurs."
+  label_mirror_source_tracker: "Tracker source"
+  text_mirror_tracker_field: "Un champ liste à valeur unique qui reçoit le tracker source, valeur par valeur : un tracker associé à un autre y garde son nom. Enregistrer pour faire correspondre ses valeurs."
   text_mirror_priority_from_field: "La priorité des demandes vient du champ source \"%{field}\" (onglet Champs personnalisés) : ce tableau n'est pas utilisé."
   label_mirror_anonymous_time_user: "Compte local pour le temps anonymisé"
   permission_manage_mirror: "Configurer Mirror"

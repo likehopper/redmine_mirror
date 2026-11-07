@@ -16,6 +16,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.37 — 2026-11-07
+
+- **Source tracker copied into a field**: in **Issue custom fields**, the source tracker
+  can also go to a local single-value list field, value by value, like the source
+  priority. Issues of a tracker mapped to another local tracker keep its name there;
+  tracker changes in the history also change that field. Existing configurations are
+  unchanged.
+
 ## 1.0.0-beta.36 — 2026-11-05
 
 - **Default correspondences, import with errors**: an import no longer stops at the

@@ -131,6 +131,8 @@ en:
   label_mirror_priority_field: "Also copy into the field"
   label_mirror_priority_field_none: "No field"
   text_mirror_priority_field: "A single-value list field receiving the source priority, value by value. Save to map its values."
+  label_mirror_source_tracker: "Source tracker"
+  text_mirror_tracker_field: "A single-value list field receiving the source tracker, value by value: a tracker mapped to another one keeps its name there. Save to map its values."
   text_mirror_priority_from_field: "The priority of issues comes from the source field \"%{field}\" (Custom fields tab): this table is not used."
   label_mirror_anonymous_time_user: "Local user for anonymized time"
   permission_manage_mirror: "Configure Mirror"

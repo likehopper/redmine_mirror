@@ -108,6 +108,15 @@ module RedmineMirror
           end
           [property, name, *values]
         end
+        # A source tracker copied into a field: its changes are also changes of that field,
+        # even when the tracker itself is ignored or remapped.
+        if project && (field = (fields.copy_field(project, CustomFields::TRACKER) rescue nil))
+          record.fetch("details", []).select { |detail| detail["property"] == "attr" && detail["name"] == "tracker_id" }.each do |detail|
+            details << ["cf", field.id.to_s, *%w[old_value new_value].map { |key| fields.priority_value(detail[key], field: field, project: project, attribute: CustomFields::TRACKER) }]
+          rescue Error => error
+            TextFormat.warning("#{error.message}; the history change was not imported")
+          end
+        end
         { "user_id" => author_id(record, mappings), "created_on" => Time.iso8601(record.fetch("created_on")).utc.iso8601,
           "notes" => TextFormat.convert(record["notes"].to_s), "private_notes" => !!record["private_notes"], "details" => details }
       end

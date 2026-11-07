@@ -21,11 +21,6 @@ Planned features, deferred designs and known issues still looking for a solution
 Ideas and open problems, not commitments: no dates, no fixed order. Shipped work is in
 the [changelog](CHANGELOG.md).
 
-## In progress
-
-- **Remap instead of ignore.** Send the issues of an unwanted tracker to another tracker,
-  optionally keeping the source tracker name in a custom field.
-
 ## Planned features
 
 ### Agile data and tags

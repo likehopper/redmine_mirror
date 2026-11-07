@@ -233,10 +233,15 @@ and list values one by one. Two cross-field correspondences come on top of these
   **Priority without a value**, given to issues with an empty or unmapped value. The
   Priorities table of **Issues** is then not used;
 - the **Source priority** can also be copied into a local single-value list (a
-  *criticity*): choose the field, save, then map the priorities to its values.
+  *criticity*): choose the field, save, then map the priorities to its values;
+- the **Source tracker** can be copied the same way into a local single-value list
+  (an *origin*). A source tracker mapped to another local tracker in **Issues** (a
+  *Risk* imported as a *Task*) keeps its name there. Values named like the source
+  trackers are proposed until the values are saved.
 
 History and saved queries follow: a severity change becomes a priority change, a
-source priority change a change of the field receiving it.
+source priority change a change of the field receiving it. A tracker change stays a
+tracker change, and also changes the field receiving the source tracker.
 
 ![Cross-field correspondences](screenshots/configuration/40-cross-field-mappings.png)
 
