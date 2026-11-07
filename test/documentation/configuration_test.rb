@@ -150,6 +150,7 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     open_module_tab "issue_custom_fields"
     within("#mirror-table-custom_field") { find("tbody tr", text: "Severity").find("select").select("Priority (standard field)") }
     select find("#mirror-priority-field option", text: /\ACriticity/).text, from: "mirror-priority-field"
+    select find("#mirror-tracker-field option", text: /\AOrigin/).text, from: "mirror-tracker-field"
     click_button "Save"
     assert_selector "#flash_notice"
     severity = project.mirror_reference_mappings.find_by!(reference_type: "custom_field", mode: "priority").source_id
@@ -160,6 +161,8 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     within("#mirror-source-priority-values") do
       { "Low" => "Minor", "Normal" => "Minor", "High" => "Major", "Urgent" => "Critical", "Immediate" => "Critical" }.each { |priority, value| map_row(priority, value) }
     end
+    # Values named like the source trackers are proposed.
+    within("#mirror-source-tracker-values") { assert_equal "Bug", find("td", text: "Bug", exact_text: true).ancestor("tr").find("select").value }
     screenshot "40-cross-field-mappings", "#tab-content-mirror"
     click_button "Save"
     assert_selector "#flash_notice"
@@ -199,6 +202,7 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     first, second, _, fourth = project.issues.order(:id).first(4)
     assert_equal [["Urgent", "Major"], ["High", "Minor"], ["Normal", "Minor"]],
                  [first, second, fourth].map { |issue| [issue.priority.name, issue.custom_field_value(criticity)] }
+    assert_equal "Bug", first.custom_field_value(IssueCustomField.find_by!(name: "Origin"))
     raised = first.journals.find_by!(notes: "Mirror fixture: severity raised")
     assert_equal [["attr", "priority_id", IssuePriority.find_by!(name: "Low").id.to_s, first.priority_id.to_s], ["cf", criticity.id.to_s, "Minor", "Major"]],
                  raised.details.order(:id).map { |detail| [detail.property, detail.prop_key, detail.old_value, detail.value] }
@@ -511,6 +515,9 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     end
     # Receives the source priority (step 8, cross-field correspondences).
     IssueCustomField.create!(name: "Criticity", field_format: "list", possible_values: %w[Minor Major Critical],
+                             is_for_all: true, is_filter: true, trackers: Tracker.all)
+    # Receives the source tracker (step 8b): a remapped tracker keeps its name there.
+    IssueCustomField.create!(name: "Origin", field_format: "list", possible_values: %w[Bug Feature Support],
                              is_for_all: true, is_filter: true, trackers: Tracker.all)
   end
 
