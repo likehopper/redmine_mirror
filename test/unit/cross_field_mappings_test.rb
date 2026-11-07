@@ -122,8 +122,10 @@ class MirrorCrossFieldMappingsTest < ActiveSupport::TestCase
     record = { "user" => { "id" => 1 }, "created_on" => "2026-01-01T12:00:00Z", "notes" => "", "details" => [
       { "property" => "attr", "name" => "tracker_id", "old_value" => "2", "new_value" => "1" }] }
     attributes = RedmineMirror::Adapters::Journals.new.imported_attributes(record, @mappings.merge("user" => { "1" => 1 }), lookup: ->(*) {}, project: @project)
-    tracker = @issue.tracker_id.to_s
-    assert_equal [["attr", "tracker_id", tracker, tracker], ["cf", origin.id.to_s, "Bug", "Risk"]], attributes.fetch("details")
+    # Both source trackers give the local one: only the field shows the change.
+    assert_equal [["cf", origin.id.to_s, "Bug", "Risk"]], attributes.fetch("details")
+    # Choosing the field, with no values yet, takes the values named like the source trackers.
+    assert_equal({ "1" => "Risk", "2" => "Bug" }, @fields.configuration_options(input.except("tracker_values"), @project).fetch("tracker_values"))
     assert_raises(RedmineMirror::Error) { @fields.configuration_options(input.merge("tracker_values" => { "9" => "Risk" }), @project) }
     assert_raises(RedmineMirror::Error) { @fields.configuration_options(input.merge("priority_field" => origin.id.to_s), @project) }
   end

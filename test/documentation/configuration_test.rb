@@ -161,7 +161,8 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     within("#mirror-source-priority-values") do
       { "Low" => "Minor", "Normal" => "Minor", "High" => "Major", "Urgent" => "Critical", "Immediate" => "Critical" }.each { |priority, value| map_row(priority, value) }
     end
-    # Values named like the source trackers are proposed.
+    # Choosing the field saved the values named like the source trackers.
+    assert_includes project.mirror_project_setting.reload.module_options.dig("issue_custom_fields", "tracker_values").values, "Bug"
     within("#mirror-source-tracker-values") { assert_equal "Bug", find("td", text: "Bug", exact_text: true).ancestor("tr").find("select").value }
     screenshot "40-cross-field-mappings", "#tab-content-mirror"
     click_button "Save"

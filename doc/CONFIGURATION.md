@@ -236,8 +236,8 @@ and list values one by one. Two cross-field correspondences come on top of these
   *criticity*): choose the field, save, then map the priorities to its values;
 - the **Source tracker** can be copied the same way into a local single-value list
   (an *origin*). A source tracker mapped to another local tracker in **Issues** (a
-  *Risk* imported as a *Task*) keeps its name there. Values named like the source
-  trackers are proposed until the values are saved.
+  *Risk* imported as a *Task*) keeps its name there. Choosing the field takes the
+  values named like the source trackers; check the others, then save.
 
 History and saved queries follow: a severity change becomes a priority change, a
 source priority change a change of the field receiving it. A tracker change stays a

@@ -106,6 +106,8 @@ module RedmineMirror
             TextFormat.note("history_details_skipped")
             next
           end
+          # Two source values mapped to the same local one: no change left to show.
+          next if values.first.present? && values.first == values.last
           [property, name, *values]
         end
         # A source tracker copied into a field: its changes are also changes of that field,

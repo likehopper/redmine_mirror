@@ -136,6 +136,11 @@ module RedmineMirror
           entries = input.fetch("#{attribute}_values", {})
           raise Error, "Invalid #{attribute} value mappings" unless entries.is_a?(Hash)
           raise Error, "Unknown source #{attribute}" unless (entries.keys - catalog.fetch(attribute, {}).keys).empty?
+          # A tracker field just chosen takes the values named like the source trackers.
+          if attribute == TRACKER && entries.empty?
+            labels = field.possible_values_options.to_h { |label, id| [label, (id || label).to_s] }
+            entries = catalog.fetch(TRACKER, {}).filter_map { |id, name| [id, labels[name]] if labels[name] }.to_h
+          end
           options.merge!("#{attribute}_field" => field.id.to_s, "#{attribute}_values" => entries)
         end
         raise Error, "The source priority and tracker cannot go to the same field" if options["priority_field"] && options["priority_field"] == options["tracker_field"]

@@ -16,6 +16,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.38 — 2026-11-07
+
+- **Source tracker copied into a field**: choosing the field saves the values named
+  like the source trackers (in beta.37 each value had to be chosen and saved). The
+  configuration guide walks through the source tracker copy.
+- **History**: a change between two source values mapped to the same local value (two
+  source trackers imported as one) is no longer imported as a change to the same value.
+
 ## 1.0.0-beta.37 — 2026-11-07
 
 - **Source tracker copied into a field**: in **Issue custom fields**, the source tracker
