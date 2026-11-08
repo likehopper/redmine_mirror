@@ -158,7 +158,14 @@ module RedmineMirror
           if apply && action != "unchanged"
             if mapping
               # Custom field updates retain their own conflict checks and native validation.
-              @destination_client.update("#{adapter.collection}/#{mapping.fetch('destination_id')}.json", adapter.entity => rest_payload.except("custom_fields"))
+              attributes = rest_payload.except("custom_fields")
+              # With the issue history imported, a REST update would add a journal repeating it.
+              if adapter.is_a?(Adapters::Issues) && @mapping_store.is_a?(DatabaseStore) && adapters.any? { |entry| entry.is_a?(Adapters::Journals) }
+                @destination_user ||= User.find(@destination_client.get("users/current.json").fetch("user").fetch("id"))
+                adapter.update_locally(mapping.fetch("destination_id"), attributes, @destination_user)
+              else
+                @destination_client.update("#{adapter.collection}/#{mapping.fetch('destination_id')}.json", adapter.entity => attributes)
+              end
               destination_record_id = mapping.fetch("destination_id")
             else
               created = @destination_client.create("#{adapter.collection}.json", adapter.entity => rest_payload)

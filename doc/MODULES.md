@@ -201,7 +201,12 @@ Both write through local models, so the worker must share the destination's data
 and attachment storage. New source journals and files are added on later runs. A journal
 or file changed on the source (an edited note, a text converted differently) is updated
 locally when it was not changed locally. A local change is a conflict, or overwritten in
-[mirror mode](#mirror-mode). REST updates also create local journals; they are kept.
+[mirror mode](#mirror-mode). With this module selected, an imported issue is updated
+locally, with the destination API account's permissions, workflow and Redmine's
+validations, but without a journal nor a notification: the history comes from the source.
+Other local issues it changes (closed duplicates, rescheduled followers) are journaled and
+notified as usual. Without it, issues are updated through the REST API, which journals and notifies the
+update as the API account.
 
 ## Issue relations
 

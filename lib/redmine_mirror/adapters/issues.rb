@@ -123,6 +123,30 @@ module RedmineMirror
         held
       end
 
+      # Update an imported issue as the REST API would (same account, permissions, workflow
+      # and validations), but without a journal: when the history comes from the source,
+      # Redmine's journal of the update, as the API account, would repeat a source change or
+      # record Mirror's own remapping, and notify it.
+      def update_locally(target_id, attributes, user)
+        previous = User.current
+        issue = Issue.find(target_id)
+        User.current = user
+        raise Error, "The destination API account may not edit issue ##{issue.id}" unless issue.attributes_editable?(user)
+        # A journal as for a REST update, so that other issues changed with it (closed
+        # duplicates, rescheduled followers) are journaled as usual. This issue's own
+        # entry is then removed, never notified.
+        journal = issue.init_journal(user)
+        journal.notify = false
+        issue.safe_attributes = attributes
+        raise Error, "Destination rejected issue ##{issue.id}: #{issue.errors.full_messages.join(', ')}" unless issue.save
+        journal.destroy if journal.persisted?
+      rescue ActiveRecord::ActiveRecordError => error
+        # Stale object, deadlock, a plugin callback: an object error, like a REST refusal.
+        raise Error, "Destination rejected issue ##{target_id}: #{error.message}"
+      ensure
+        User.current = previous
+      end
+
       # REST creation uses the API actor and current timestamps. Restore validated
       # historical metadata locally without triggering another journal or notification.
       def restore_metadata(payload, target_id, project_id)

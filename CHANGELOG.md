@@ -16,6 +16,15 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.39 — 2026-11-08
+
+- **No duplicate history after an issue update**: with **Issue history** selected, an
+  imported issue is updated locally instead of through the REST API, with the same
+  account, permissions, workflow and validations, but without the journal and the
+  notification Redmine adds for a REST update. A change no longer appears twice, and
+  remapping a tracker or status no longer adds an entry to every issue nor emails its
+  watchers. Without the module, issues are still updated through the REST API.
+
 ## 1.0.0-beta.38 — 2026-11-07
 
 - **Source tracker copied into a field**: choosing the field saves the values named

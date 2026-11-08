@@ -74,6 +74,9 @@ class MirrorCopyDocumentationTest < ApplicationSystemTestCase
     run = synchronize
     assert_equal "succeeded", run.status
     refute_match(/edited locally/, issue.reload.subject)
+    # The history comes from the source: no entry for the REST update, by the API account.
+    api_account = User.find_by_api_key(ENV.fetch("MIRROR_DESTINATION_API_KEY"))
+    refute issue.journals.where(user_id: api_account.id).any? { |journal| journal.notes.blank? }
     visit "/projects/#{PROJECT}/mirror/synchronizations/#{run.id}?action_filter=update"
     screenshot "03-local-edit-overwritten", "#mirror-log"
   end
