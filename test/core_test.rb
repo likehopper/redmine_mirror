@@ -530,6 +530,20 @@ class MirrorCoreTest < Minitest::Test
     assert_equal({ "records" => 2, "with_parent" => 1 }, catalog.dig("module_statistics", "issue_hierarchy"))
   end
 
+  # A refused module is noted with its reason; the other modules are still read.
+  def test_module_catalog_keeps_reading_after_a_refused_module
+    client = Object.new
+    issue = @issue
+    client.define_singleton_method(:each_record) { |_collection, _params| [issue].each }
+    client.define_singleton_method(:get) { |path, _params = {}| path == "projects/1.json" ? { "project" => { "id" => 1 } } : raise("Unexpected path #{path}") }
+    refused = RedmineMirror::Adapters::Hierarchy.new
+    def refused.key; "agile_sprints"; end
+    def refused.records(*); raise RedmineMirror::Error, "The source API key needs View sprint board in the source project"; end
+    catalog = RedmineMirror::SourceCatalog.new(client: client, project_id: 1, adapters: [refused, RedmineMirror::Adapters::Hierarchy.new]).fetch
+    assert_equal({ "agile_sprints" => "The source API key needs View sprint board in the source project" }, catalog["module_errors"])
+    assert_equal 1, catalog.dig("module_statistics", "issue_hierarchy", "records")
+  end
+
   def test_invalid_url_is_reported_as_a_mirror_error
     assert_raises(RedmineMirror::Error) { RedmineMirror::Client.new(url: "https://invalid host", api_key: "key") }
   end

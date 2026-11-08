@@ -31,16 +31,23 @@ Redmine renders every settings tab on load: only the selected Mirror sub-tab is 
     <% end %></p>
 <% elsif @setting.persisted? && @setting.catalog_status == "failed" %>
   <div class="flash error" id="mirror-catalog-status"><%= l(:text_mirror_catalog_failed, error: @setting.catalog_error) %></div>
+<% elsif @setting.persisted? && (module_errors = @setting.source_catalog["module_errors"]).present? %>
+  <div class="flash warning" id="mirror-catalog-module-errors"><%= l(:text_mirror_catalog_module_errors) %>
+    <ul><% module_errors.each do |key, message| %><li><%= l(:text_mirror_catalog_module_error, module: mirror_module_label(key), error: message) %></li><% end %></ul></div>
 <% end %>
-<div class="mirror-tabs"><div class="tabs" id="mirror-settings-subtabs"><ul>
-  <li><%= link_to l(:label_mirror_connection), mirror_configuration_path(@project), class: (@mirror_tab == "connection" ? "selected" : nil) %></li>
-  <% if @setting.persisted? %>
-    <li><%= link_to l(:label_mirror_schedule), mirror_configuration_path(@project, "schedule"), class: (@mirror_tab == "schedule" ? "selected" : nil) %></li>
-    <% @adapters.each do |adapter| %>
-      <li><%= link_to mirror_configuration_path(@project, adapter.key), class: (@mirror_tab == adapter.key ? "selected" : nil) do %><%= l(adapter.label) %><% if unmapped[adapter.key] %> <span class="mirror-badge" title="<%= l(:label_mirror_to_map, count: unmapped[adapter.key]) %>"><%= unmapped[adapter.key] %></span><% end %><% end %></li>
-    <% end %>
+<%# A vertical menu, grouped: some thirty module tabs do not fit in a row of tabs. %>
+<div class="mirror-settings-layout">
+<nav class="mirror-side-tabs" id="mirror-settings-subtabs" aria-label="<%= l(:label_mirror) %>">
+  <% mirror_tab_groups(@setting.persisted? ? @adapters : []).each do |group, entries| %>
+    <h4><%= l("label_mirror_tab_group_#{group}") %></h4>
+    <ul>
+      <% entries.each do |key, label| %>
+        <li><%= link_to mirror_configuration_path(@project, key == "connection" ? nil : key), class: (@mirror_tab == key ? "selected" : nil), aria: { current: (@mirror_tab == key ? "page" : nil) } do %><%= label %><% if unmapped[key] %> <span class="mirror-badge" title="<%= l(:label_mirror_to_map, count: unmapped[key]) %>"><%= unmapped[key] %></span><% end %><% end %></li>
+      <% end %>
+    </ul>
   <% end %>
-</ul></div></div>
+</nav>
+<div class="mirror-settings-panel">
 <% if @mirror_tab == "connection" %>
   <%= render "mirror_settings/connection" %>
 <% elsif @mirror_tab == "schedule" %>
@@ -48,3 +55,5 @@ Redmine renders every settings tab on load: only the selected Mirror sub-tab is 
 <% else %>
   <%= render "mirror_settings/mappings", adapter: @adapters.find { |entry| entry.key == @mirror_tab } %>
 <% end %>
+</div>
+</div>

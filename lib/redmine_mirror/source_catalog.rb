@@ -35,50 +35,56 @@ module RedmineMirror
       formats = Hash.new(0)
       statistics = {}
       @adapters.each_with_index do |adapter, index|
-        counts = statistics[adapter.key] = { "records" => 0 }
-        progress&.call(index + 1, @adapters.size, adapter.key, 0)
-        adapter.mapping_tables.each { |table| tables[table.key] ||= {} }
-        adapter.catalog_references(@client, @project_id).each do |kind, references|
-          raise Error, "Undeclared module mapping table" unless tables.key?(kind)
-          references.each do |reference|
-            id = Integer(reference.fetch("id"))
-            tables[kind][id.to_s] = reference.fetch("name", "##{id}")
-            table = adapter.mapping_tables.find { |entry| entry.key == kind }
-            if table && !table.metadata_fields.empty?
-              (tables["#{kind}_definitions"] ||= {})[id.to_s] = reference.select { |key, _| table.metadata_fields.include?(key) }
-            end
-          end
-        end
-        adapter.records(@client, @project_id).each_with_index do |record, count|
-          progress&.call(index + 1, @adapters.size, adapter.key, count + 1)
-          next unless record.fetch("project").fetch("id").to_i == @project_id.to_i
-          counts["records"] += 1
-          # Counts add up; per-key counts (sizes, titles, users) add up key by key.
-          adapter.catalog_statistics(record).each do |name, value|
-            counts[name] = value.is_a?(Hash) ? counts.fetch(name, {}).merge(value) { |_, total, more| total + more } : counts.fetch(name, 0) + value
-          end
-          # Historical authors and observers may not be project members. Discover
-          # their remote identities without creating any destination accounts.
-          if tables.key?("user")
-            adapter.referenced_users(record).each do |reference|
+        # One refused module (a missing permission, a plugin absent on the source) does not
+        # hide the references of the others: the configuration says which and why.
+        begin
+          counts = statistics[adapter.key] = { "records" => 0 }
+          progress&.call(index + 1, @adapters.size, adapter.key, 0)
+          adapter.mapping_tables.each { |table| tables[table.key] ||= {} }
+          adapter.catalog_references(@client, @project_id).each do |kind, references|
+            raise Error, "Undeclared module mapping table" unless tables.key?(kind)
+            references.each do |reference|
               id = Integer(reference.fetch("id"))
-              tables["user"][id.to_s] = reference.fetch("name", "##{id}")
+              tables[kind][id.to_s] = reference.fetch("name", "##{id}")
+              table = adapter.mapping_tables.find { |entry| entry.key == kind }
+              if table && !table.metadata_fields.empty?
+                (tables["#{kind}_definitions"] ||= {})[id.to_s] = reference.select { |key, _| table.metadata_fields.include?(key) }
+              end
             end
           end
-          adapter.mapping_tables.each do |table|
-            table.references(record).each do |reference|
-              id = Integer(reference.fetch("id"))
-              tables[table.key][id.to_s] = reference.fetch("name", "##{id}")
-              used[table.key] << id.to_s
+          adapter.records(@client, @project_id).each_with_index do |record, count|
+            progress&.call(index + 1, @adapters.size, adapter.key, count + 1)
+            next unless record.fetch("project").fetch("id").to_i == @project_id.to_i
+            counts["records"] += 1
+            # Counts add up; per-key counts (sizes, titles, users) add up key by key.
+            adapter.catalog_statistics(record).each do |name, value|
+              counts[name] = value.is_a?(Hash) ? counts.fetch(name, {}).merge(value) { |_, total, more| total + more } : counts.fetch(name, 0) + value
+            end
+            # Historical authors and observers may not be project members. Discover
+            # their remote identities without creating any destination accounts.
+            if tables.key?("user")
+              adapter.referenced_users(record).each do |reference|
+                id = Integer(reference.fetch("id"))
+                tables["user"][id.to_s] = reference.fetch("name", "##{id}")
+              end
+            end
+            adapter.mapping_tables.each do |table|
+              table.references(record).each do |reference|
+                id = Integer(reference.fetch("id"))
+                tables[table.key][id.to_s] = reference.fetch("name", "##{id}")
+                used[table.key] << id.to_s
+              end
+            end
+            adapter.text_samples(record).each do |text|
+              format = TextFormat.detect(text.to_s)
+              formats[format || "plain"] += 1 unless text.to_s.strip.empty?
+            end
+            adapter.used_references(record).each do |kind, ids|
+              used[kind].concat(ids.map { |id| Integer(id).to_s }) if tables.key?(kind)
             end
           end
-          adapter.text_samples(record).each do |text|
-            format = TextFormat.detect(text.to_s)
-            formats[format || "plain"] += 1 unless text.to_s.strip.empty?
-          end
-          adapter.used_references(record).each do |kind, ids|
-            used[kind].concat(ids.map { |id| Integer(id).to_s }) if tables.key?(kind)
-          end
+        rescue Error => error
+          (tables["module_errors"] ||= {})[adapter.key] = error.message
         end
       end
       user_details(tables) if tables.fetch("user", {}).any?

@@ -331,6 +331,20 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     assert_select "#tab-content-mirror .mirror-mapping-table", count: 0
   end
 
+  # The tabs are a vertical menu grouped by kind; a module the source refused is named,
+  # the references of the others stay usable.
+  def test_grouped_menu_and_refused_module_warning
+    @setting.update!(selected_modules: %w[issue_tracking time_tracking wiki],
+      source_catalog: @setting.source_catalog.merge("module_errors" => { "wiki" => "The source API key needs View wiki in the source project" }))
+    log_user("admin", "admin")
+    settings
+    assert_select "#mirror-settings-subtabs h4", text: "Configuration"
+    assert_select "#mirror-settings-subtabs h4", text: "Issues"
+    assert_select "#mirror-settings-subtabs h4", text: "Contents"
+    assert_select "#mirror-settings-subtabs a.selected[aria-current=page]", text: "Connection"
+    assert_select "#mirror-catalog-module-errors li", text: "Wiki: The source API key needs View wiki in the source project"
+  end
+
   # After a refused first connection the form comes back filled, except the API key,
   # once: the next visit starts empty again.
   def test_refused_first_connection_fills_the_form_again_once

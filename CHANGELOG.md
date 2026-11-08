@@ -31,6 +31,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   subprojects, at any depth, that run Mirror source and that the API account can see,
   with their modules. It needs the administrator switch and the project module, but no
   shared data, and each access is logged. The connection check uses it.
+- **Vertical menu**: the Mirror settings tabs become a menu beside the page, grouped
+  (configuration, references, issues, contents, other modules), above the page on
+  narrow screens: some thirty module tabs no longer wrap into rows.
+- **A refused module no longer fails the reference refresh**: the other modules are read,
+  and the configuration names each refused module with its reason (a missing
+  permission, a plugin absent on the source).
 
 ## 1.0.0-beta.39 — 2026-11-08
 

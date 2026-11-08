@@ -35,6 +35,26 @@ module MirrorHelper
   end
 
   # Data of the Mirror tab, rendered inside Redmine's project settings page.
+  # Module tabs by group in the vertical menu; modules of other plugins go to "other".
+  MIRROR_TAB_GROUPS = {
+    "references" => %w[users issue_categories project_versions project_enumerations project_members],
+    "issues" => %w[issue_tracking time_tracking issue_attachments issue_relations issue_hierarchy issue_watchers
+      issue_custom_fields issue_journals issue_tags agile_issues],
+    "contents" => %w[wiki documents project_files news project_queries repositories]
+  }.freeze
+
+  # [[group, [[tab key, label], ...]], ...] for the selected modules, empty groups left out.
+  def mirror_tab_groups(adapters)
+    general = [["connection", l(:label_mirror_connection)]]
+    general << ["schedule", l(:label_mirror_schedule)] if @setting&.persisted?
+    groups = { "general" => general }
+    adapters.each do |adapter|
+      group = MIRROR_TAB_GROUPS.find { |_, keys| keys.include?(adapter.key) }&.first || "other"
+      (groups[group] ||= []) << [adapter.key, l(adapter.label)]
+    end
+    %w[general references issues contents other].filter_map { |group| [group, groups[group]] if groups[group] }
+  end
+
   def prepare_mirror_configuration(project)
     @setting = project.mirror_project_setting || project.build_mirror_project_setting
     # A refused first connection comes back with what was typed, except the API key.
