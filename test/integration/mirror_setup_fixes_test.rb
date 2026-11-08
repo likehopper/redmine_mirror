@@ -53,6 +53,10 @@ class MirrorSetupFixesTest < Redmine::IntegrationTest
     assert_select "#mirror-checklist li", text: /Members \(3\)/
     assert_select "#mirror-checklist li", text: /Issue categories/, count: 0
     assert_select "label.mirror-module-source-off", text: /Wiki/
+    # Greyed: a module missing on the source cannot be selected, a selected one unselected.
+    assert_select "#connection_modules_wiki[checked]:not([disabled])"
+    assert_select "label.mirror-module-source-off input[disabled]"
+    assert_select "label.mirror-module-source-off input:not([checked]):not([disabled])", count: 0
   end
 
   def test_fixes_enable_unselect_and_select

@@ -400,6 +400,21 @@ class MirrorSettingsControllerTest < ActionController::TestCase
     assert_equal [34, []], [setting.source_project_id, setting.selected_modules]
   end
 
+  # The source modules are known from the first save: the module list greys the others.
+  def test_new_connection_stores_the_source_modules
+    @setting.destroy
+    client = Object.new
+    def client.get(path, params = {})
+      raise RedmineMirror::Error, "Redmine API returned HTTP 404" unless path == "projects/legacy-app.json" && params["include"] == "enabled_modules"
+      { "project" => { "id" => 34, "identifier" => "legacy-app", "enabled_modules" => [{ "name" => "issue_tracking" }] } }
+    end
+    RedmineMirror::Client.stub(:new, client) do
+      patch :update_connection, params: { project_id: @project.identifier,
+        connection: { source_url: "https://source.example/redmine", source_project_id: "legacy-app", api_key: "source-key" } }
+    end
+    assert_equal ["issue_tracking"], @project.reload.mirror_project_setting.source_catalog["source_modules"]
+  end
+
   def test_missing_api_key_is_named
     @setting.destroy
     patch :update_connection, params: { project_id: @project.identifier,

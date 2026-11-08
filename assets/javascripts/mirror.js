@@ -120,6 +120,8 @@ $(function () {
         $("#mirror-connection-form label[data-source-module]").each(function () {
           var off = $.inArray(String($(this).data("source-module")), modules) < 0;
           $(this).toggleClass("mirror-module-source-off", off).find(".mirror-module-off-hint").toggle(off);
+          var box = $(this).find("input[type=checkbox]");
+          box.prop("disabled", off && !box.prop("checked"));
         });
       })
       .fail(function (xhr) { result.text(xhr.status + " " + xhr.statusText); })

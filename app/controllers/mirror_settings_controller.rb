@@ -55,6 +55,7 @@ class MirrorSettingsController < ApplicationController
       end
       @setting.source_project_id = source.fetch("id")
       @setting.source_project_identifier = source["identifier"]
+      @setting.source_catalog = @setting.source_catalog.merge("source_modules" => source["modules"]) if source["modules"]
     end
     @setting.selected_modules = input[:modules] || []
     @setting.source_text_format = input[:source_text_format] if input[:source_text_format].present?
@@ -328,10 +329,12 @@ class MirrorSettingsController < ApplicationController
     raise RedmineMirror::Error, l(:text_mirror_source_not_allowed) unless RedmineMirror.allowed_source_url?(url)
   end
 
-  # Read the source project once to store its numeric ID and identifier.
+  # Read the source project once to store its numeric ID and identifier, and its modules
+  # so that the module list greys the missing ones before the references are read.
   def resolve_source_project(reference)
-    project = @setting.source_client.get("projects/#{reference}.json").fetch("project")
-    { "id" => Integer(project.fetch("id")), "identifier" => project["identifier"] }
+    project = @setting.source_client.get("projects/#{reference}.json", "include" => "enabled_modules").fetch("project")
+    modules = project["enabled_modules"].map { |entry| entry["name"].to_s } if project["enabled_modules"].is_a?(Array)
+    { "id" => Integer(project.fetch("id")), "identifier" => project["identifier"], "modules" => modules }
   rescue RedmineMirror::Error, KeyError, TypeError, ArgumentError
     raise RedmineMirror::Error, l(:text_mirror_source_project_not_found)
   end

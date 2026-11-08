@@ -37,6 +37,9 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 - **A refused module no longer fails the reference refresh**: the other modules are read,
   and the configuration names each refused module with its reason (a missing
   permission, a plugin absent on the source).
+- **Modules missing on the source are greyed**: the source project's modules are read
+  when the connection is first saved, so the module list greys the ones it has not
+  enabled straight away (a selected one can still be unselected); a check greys them too.
 
 ## 1.0.0-beta.39 — 2026-11-08
 

@@ -117,6 +117,8 @@ table.mirror-module-statistics td:first-child { text-align: left; }
 /* Mirror source: refused accesses stand out in the access log. */
 tr.mirror-source-refused td { color: #c22; }
 .mirror-module-hint { display: inline; }
+/* Connection form: a module the source project has not enabled is greyed. */
+label.mirror-module-source-off { color: #999; }
 
 /* Administration > Mirror sidebar and source page. */
 .mirror-admin-sidebar a.selected { font-weight: bold; }
