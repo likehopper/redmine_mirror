@@ -379,12 +379,34 @@ class MirrorSettingsControllerTest < ActionController::TestCase
     @setting.destroy
     RedmineMirror::Client.stub(:new, source_project_client(34, "legacy-app")) do
       patch :update_connection, params: { project_id: @project.identifier,
-        connection: { source_url: "https://source.example/redmine", source_project_id: "unknown-app", api_key: "typed-secret", modules: ["wiki", "not-a-module"] } }
+        connection: { source_url: "https://source.example/redmine", source_project_id: "unknown-app", api_key: "typed-secret" } }
     end
     assert flash[:error]
-    assert_equal({ "source_url" => "https://source.example/redmine", "source_project_id" => "unknown-app", "source_text_format" => "", "modules" => ["wiki"] },
+    assert_equal({ "source_url" => "https://source.example/redmine", "source_project_id" => "unknown-app", "source_text_format" => "" },
       session[:mirror_typed_connection])
     assert_nil @project.reload.mirror_project_setting
+  end
+
+  # The connection is saved first; the modules are chosen once the source is known.
+  def test_new_connection_is_saved_without_modules
+    @setting.destroy
+    RedmineMirror::Client.stub(:new, source_project_client(34, "legacy-app")) do
+      patch :update_connection, params: { project_id: @project.identifier,
+        connection: { source_url: "https://source.example/redmine", source_project_id: "legacy-app", api_key: "source-key" } }
+    end
+    assert_nil flash[:error]
+    setting = @project.reload.mirror_project_setting
+    assert_equal [34, []], [setting.source_project_id, setting.selected_modules]
+  end
+
+  def test_missing_api_key_is_named
+    @setting.destroy
+    patch :update_connection, params: { project_id: @project.identifier,
+      connection: { source_url: "https://source.example/redmine", source_project_id: "legacy-app", api_key: "" } }
+    assert_equal "Enter the API key of the source account.", flash[:error]
+    post :check_connection, params: { project_id: @project.identifier,
+      connection: { source_url: "https://source.example/redmine", source_project_id: "legacy-app", api_key: "" } }
+    assert_select "#mirror-connection-check-failed", text: /Enter the API key of the source account/
   end
 
   def test_connection_check_needs_the_manage_permission

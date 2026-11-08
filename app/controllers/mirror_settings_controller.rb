@@ -47,6 +47,7 @@ class MirrorSettingsController < ApplicationController
     end
     @setting.source_url = url
     @setting.api_key = input[:api_key] if input[:api_key].present?
+    raise RedmineMirror::Error, l(:text_mirror_api_key_missing) if @setting.api_key.blank?
     unless @setting.persisted? && [@setting.source_project_id.to_s, @setting.source_project_identifier].include?(reference)
       source = resolve_source_project(reference)
       if @setting.persisted? && @setting.source_project_id != source.fetch("id")
@@ -83,7 +84,8 @@ class MirrorSettingsController < ApplicationController
       check_source_allowed(@setting.source_url)
     end
     @setting.api_key = input[:api_key] if input[:api_key].present?
-    check = RedmineMirror::ConnectionCheck.new(client: @setting.source_client, project_reference: reference).run
+    raise RedmineMirror::Error, l(:text_mirror_api_key_missing) if @setting.api_key.blank?
+    check =RedmineMirror::ConnectionCheck.new(client: @setting.source_client, project_reference: reference).run
     render partial: "mirror_settings/connection_check", locals: { check: check }
   rescue RedmineMirror::Error, ActionController::ParameterMissing, KeyError => error
     render partial: "mirror_settings/connection_check", locals: { check: { "error" => "input", "detail" => error.is_a?(RedmineMirror::Error) ? error.message : l(:text_mirror_invalid_configuration) } }
@@ -316,8 +318,7 @@ class MirrorSettingsController < ApplicationController
     return if @setting.persisted? || !connection.is_a?(ActionController::Parameters)
     session[:mirror_typed_connection] = { "source_url" => connection[:source_url].to_s[0, 200],
       "source_project_id" => connection[:source_project_id].to_s[0, 100],
-      "source_text_format" => connection[:source_text_format].to_s[0, 20],
-      "modules" => Array(connection[:modules]).map(&:to_s) & RedmineMirror::REGISTRY.keys.map(&:to_s) }
+      "source_text_format" => connection[:source_text_format].to_s[0, 20] }
   end
 
   # A source must be allowed in the plugin settings; while none is, administrators

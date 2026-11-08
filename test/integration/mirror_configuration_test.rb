@@ -337,13 +337,13 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     @setting.destroy
     log_user("admin", "admin")
     patch "/projects/ecookbook/mirror/settings/connection", params: { connection: { source_url: "https://source.example/redmine",
-      source_project_id: "Not valid", api_key: "typed-secret", source_text_format: "markdown", modules: ["wiki"] } }
+      source_project_id: "Not valid", api_key: "typed-secret", source_text_format: "markdown" } }
     follow_redirect!
     assert_select "#flash_error", text: /source project identifier/
     assert_select "#connection_source_url[value=?]", "https://source.example/redmine"
     assert_select "#connection_source_project_id[value=?]", "Not valid"
     assert_select "#connection_source_text_format option[selected][value=markdown]"
-    assert_select "#connection_modules_wiki[checked]"
+    assert_select "#mirror-modules-after-save"
     assert_no_match "typed-secret", response.body
     settings
     assert_select "#connection_source_project_id[value=?]", "Not valid", count: 0

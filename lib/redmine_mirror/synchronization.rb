@@ -26,6 +26,7 @@ module RedmineMirror
         raise Error, "Mirror module is disabled" unless setting.project.module_enabled?(:mirror)
         raise Error, "Synchronization already queued or running" if setting.running_run_id || setting.project.mirror_sync_runs.where(status: %w[queued running]).exists?
         raise Error, "Unavailable modules: #{setting.unavailable_modules.join(', ')}" if setting.unavailable_modules.any?
+        raise Error, ::I18n.t(:text_mirror_no_module_selected) if setting.selected_modules.empty?
         setting.project.mirror_sync_runs.create!(apply: apply, trigger: trigger, requested_by: user, confirm_deletions: apply && confirm_deletions,
           module_totals: JSON.generate(setting.selected_modules.to_h { |key| [key, 0] }))
       end
@@ -89,6 +90,7 @@ module RedmineMirror
         setting.with_lock do
           next unless setting.auto_sync_enabled? && (setting.next_sync_at.nil? || setting.next_sync_at <= now)
           next unless setting.project.module_enabled?(:mirror)
+          next if setting.selected_modules.empty?
           next if setting.running_run_id || setting.project.mirror_sync_runs.where(status: %w[queued running]).exists?
           setting.project.mirror_sync_runs.create!(apply: true, trigger: "automatic", module_totals: JSON.generate(setting.selected_modules.to_h { |key| [key, 0] }))
           setting.update_columns(next_sync_at: now + setting.sync_interval_minutes.minutes)

@@ -48,6 +48,9 @@ class MirrorNavigationTest < ApplicationSystemTestCase
     end
     log_user("admin", "admin")
     visit "/projects/ecookbook/settings/mirror"
+    # A new connection shows no module: they are chosen once it is saved.
+    assert_selector "#mirror-modules-after-save"
+    assert_no_selector "#connection_modules_wiki"
     fill_in "connection_source_url", with: "https://source.example"
     fill_in "connection_source_project_id", with: "legacy-app"
     fill_in "connection_api_key", with: "typed-key"
@@ -56,10 +59,20 @@ class MirrorNavigationTest < ApplicationSystemTestCase
       assert_selector "#mirror-connection-check-passed", text: "Source project: Legacy app (legacy-app, #34)"
     end
     assert_selector "#mirror-connection-check-passed", text: "Members not readable with this API key."
-    assert_selector "label.mirror-module-source-off", text: /Wiki/
-    assert_no_selector "label.mirror-module-source-off", text: /\AIssues/
     assert_equal "typed-key", find("#connection_api_key").value
     assert_nil Project.find(1).mirror_project_setting
+    # Saved without modules, the connection then lists them; a check marks the source ones.
+    setting = MirrorProjectSetting.new(project: Project.find(1), source_url: "https://source.example", source_project_id: 34, source_project_identifier: "legacy-app")
+    setting.api_key = "stored-key"
+    setting.save!
+    visit "/projects/ecookbook/settings/mirror"
+    assert_selector "#mirror-no-module-selected"
+    RedmineMirror::Client.stub(:new, source) do
+      click_button "Check"
+      assert_selector "#mirror-connection-check-passed"
+    end
+    assert_selector "label.mirror-module-source-off", text: /Wiki/
+    assert_no_selector "label.mirror-module-source-off", text: /\AIssues/
   end
 end
 

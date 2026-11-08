@@ -23,6 +23,10 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   the source project, its Mirror source module, the members and subprojects the key can
   see; the module list marks the modules not enabled in the source project. Members
   check only the sources an administrator allowed, as when saving.
+- **Connection first, modules next**: a new connection is saved without modules; the
+  module list appears once it is saved. Until a module is selected, no run is queued,
+  by hand or on schedule. A missing API key is named as such instead of "Source project
+  not found", and a refused first connection keeps what was typed, except the key.
 
 ## 1.0.0-beta.39 — 2026-11-08
 

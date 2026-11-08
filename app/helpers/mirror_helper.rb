@@ -42,7 +42,6 @@ module MirrorHelper
     if !@setting.persisted? && typed.is_a?(Hash)
       @setting.source_url = typed["source_url"].to_s
       @setting.source_project_identifier = typed["source_project_id"].to_s
-      @setting.selected_modules = Array(typed["modules"])
       @setting.source_text_format = typed["source_text_format"] if RedmineMirror::TextFormat::SOURCE_FORMATS.include?(typed["source_text_format"])
     end
     @adapters = @setting.persisted? ? @setting.adapters : []
@@ -85,7 +84,7 @@ module MirrorHelper
               else :done
               end
     unmapped = mirror_unmapped_counts(project, setting)
-    mappings = catalog != :done ? :todo : (unmapped.empty? ? :done : :todo)
+    mappings = catalog != :done || setting.selected_modules.empty? || unmapped.any? ? :todo : :done
     synchronized = connected && runs.where(apply: true).exists?
     previewed = synchronized || (connected && runs.where(apply: false).exists?)
     [

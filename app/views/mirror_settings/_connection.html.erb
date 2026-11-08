@@ -49,6 +49,13 @@ Connection: source Redmine and project, API key, source text format and modules.
         <% if (counts = @setting.source_catalog["text_formats"]).present? %>
           <%= l(:text_mirror_detected_text_formats, formats: counts.sort_by { |_, count| -count.to_i }.map { |format, count| "#{l("label_mirror_text_format_#{format}")} #{count}" }.join(", ")) %>
         <% end %></em></p>
+    <%# The modules are chosen once the connection is saved and the source modules known. %>
+    <% if !@setting.persisted? %>
+    <p id="mirror-modules-after-save"><label><%= l(:label_mirror_modules) %></label><em class="info"><%= l(:text_mirror_modules_after_save) %></em></p>
+    <% else %>
+    <% if @setting.selected_modules.empty? %>
+      <p class="warning" id="mirror-no-module-selected"><%= l(:text_mirror_no_module_selected) %></p>
+    <% end %>
     <p><label><%= l(:label_mirror_modules) %></label>
       <%= hidden_field_tag "connection[modules][]", "" %>
       <% source_modules = @setting.source_catalog["source_modules"] %>
@@ -61,6 +68,7 @@ Connection: source Redmine and project, API key, source text format and modules.
       <em class="info"><%= l(:text_mirror_modules_help) %></em></p>
     <% if @setting.unavailable_modules.any? %>
       <p id="mirror-unavailable-modules" class="warning"><%= l(:text_mirror_unavailable_modules, modules: @setting.unavailable_modules.map { |key| mirror_module_label(key) }.join(", ")) %></p>
+    <% end %>
     <% end %>
   </div>
   <% no_source = !@setting.persisted? && !admin && allowed.empty? %>

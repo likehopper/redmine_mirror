@@ -131,8 +131,9 @@ a link to the page of the next one.
   text; choose a format to force it. Texts are converted to this Redmine's text format,
   and issue references point to the imported issues; the detected formats are shown
   after saving;
-- **Modules** to import. Dependencies are added on save: *Time tracking* adds *Issues*,
-  and both add *Users*.
+- **Modules** to import, listed once the connection is saved: the connection can be
+  saved first, and nothing runs until a module is selected. Dependencies are added on
+  save: *Time tracking* adds *Issues*, and both add *Users*.
 
 ![Connection](screenshots/configuration/08-connection.png)
 

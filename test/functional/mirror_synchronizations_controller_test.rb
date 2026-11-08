@@ -159,6 +159,15 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     assert_equal 1, @project.mirror_sync_runs.count
   end
 
+  # A connection saved before its modules are chosen runs nothing, by hand or on schedule.
+  def test_connection_without_modules_runs_nothing
+    @setting.update!(selected_modules: [], auto_sync_enabled: true, sync_interval_minutes: 15, next_sync_at: 1.minute.ago)
+    post :create, params: { project_id: @project.identifier, mode: "preview" }
+    assert_equal "No module selected yet: choose what to import, then save.", flash[:error]
+    RedmineMirror::Synchronization.stub(:execute, nil) { RedmineMirror::Synchronization.tick }
+    assert_equal 0, @project.mirror_sync_runs.count
+  end
+
   # Runner double: one object fails in the preview; the apply run reports it again.
   class PartialRunner
     attr_reader :calls

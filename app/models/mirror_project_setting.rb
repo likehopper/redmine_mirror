@@ -141,8 +141,8 @@ class MirrorProjectSetting < ActiveRecord::Base
     JSON.parse(self[:selected_modules].presence || "[]")
   end
 
+  # The connection is saved first, the modules chosen afterwards: runs need them (Synchronization).
   def validate_connection
-    errors.add(:base, "Select at least one module") if selected_modules.empty?
     errors.add(:base, "Unavailable modules: #{unavailable_modules.join(', ')}") if unavailable_modules.any?
     begin
       source_client
