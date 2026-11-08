@@ -18,8 +18,8 @@
 
 class MirrorSourceApiController < ApplicationController
   accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :scrum, :queries, :users, :issue_categories,
-    :project_enumerations, :project_enumeration, :repositories, :repository_links, :download
-  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users issue_categories project_enumerations repositories]
+    :project_enumerations, :project_enumeration, :repositories, :repository_links, :download, :subprojects
+  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users issue_categories project_enumerations repositories subprojects]
   before_action :find_document, only: :document
   before_action :find_news, only: :news_item
   before_action :find_attachment, only: :download
@@ -51,6 +51,18 @@ class MirrorSourceApiController < ApplicationController
     @news = @project.news.preload(:author, comments: :author, attachments: :author).order(:id).to_a
     RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @news.size,
       details: { "news" => @news.map { |item| { "id" => item.id, "title" => item.title, "comments" => item.comments.size, "files" => item.attachments.size } } })
+    respond_to { |format| format.api }
+  end
+
+  # The subprojects, at any depth, that this account can see and that run Mirror source
+  # themselves, with their modules: a project that did not enable Mirror source is never
+  # listed. Redmine 4.0's projects API can neither filter by parent nor list modules.
+  def subprojects
+    table = Project.table_name
+    @subprojects = Project.visible.where("#{table}.lft > ? AND #{table}.rgt < ?", @project.lft, @project.rgt)
+      .preload(:enabled_modules).order("#{table}.lft").to_a.select { |child| child.module_enabled?(:mirror_source) }
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @subprojects.size,
+      details: { "subprojects" => @subprojects.map { |child| { "id" => child.id, "identifier" => child.identifier } } })
     respond_to { |format| format.api }
   end
 
@@ -235,6 +247,7 @@ class MirrorSourceApiController < ApplicationController
     when "scrum" then "scrum"
     when "queries" then "queries"
     when "users" then "users"
+    when "subprojects" then "subprojects"
     when "issue_categories" then "issue_categories"
     when "project_enumerations", "project_enumeration" then "project_enumerations"
     when "repositories", "repository_links" then "repositories"

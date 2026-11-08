@@ -266,6 +266,28 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     refute_match "secret", MirrorSourceAccess.where(session_key: SESSION).map { |access| access.details.to_json }.join
   end
 
+  # Only subprojects running Mirror source that the account can see, at any depth, in
+  # tree order; no data needs sharing, but the administrator and project locks apply.
+  def test_lists_the_visible_subprojects_running_mirror_source
+    get "/projects/ecookbook/mirror/source/subprojects.json", headers: mirror_headers
+    assert_equal "disabled", response.headers["X-Mirror-Source-Refusal"]
+    [3, 5, 6].each { |id| Project.find(id).enable_module!(:mirror_source) }
+    enabled do
+      get "/projects/ecookbook/mirror/source/subprojects.json", headers: mirror_headers
+      assert_response :success
+      subprojects = JSON.parse(response.body).fetch("subprojects")
+      assert_equal [["private-child", 1], ["project6", 5], ["subproject1", 1]], subprojects.map { |child| child.values_at("identifier", "parent_id") }
+      assert_includes subprojects.first.fetch("enabled_modules"), "mirror_source"
+      # dlopper is no member of the private child: only the public subprojects.
+      get "/projects/ecookbook/mirror/source/subprojects.json", headers: mirror_headers("dlopper", "foo")
+      assert_equal %w[project6 subproject1], JSON.parse(response.body).fetch("subprojects").map { |child| child["identifier"] }
+      @project.disable_module!(:mirror_source)
+      get "/projects/ecookbook/mirror/source/subprojects.json", headers: mirror_headers
+      assert_equal "module", response.headers["X-Mirror-Source-Refusal"]
+    end
+    assert_equal [3, 2], MirrorSourceAccess.where(action: "list").order(:id).pluck(:object_count)
+  end
+
   def test_each_lock_refuses_and_names_itself
     get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
     assert_response :forbidden

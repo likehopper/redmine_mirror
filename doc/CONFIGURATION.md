@@ -138,9 +138,11 @@ a link to the page of the next one.
 ![Connection](screenshots/configuration/08-connection.png)
 
 **Check** tries the connection without saving it: the account the API key belongs to,
-the source project, whether its Mirror source module is enabled, how many members and
-which subprojects the key can see. The module list then marks the modules not enabled
-in the source project. A saved connection is checked with its stored key unless
+the source project, whether its Mirror source module is enabled, how many members the
+key can see, and the subprojects that run Mirror source and that the key can see. Only a
+source running Mirror source lists subprojects, once its administrator enabled it and
+the source project enabled the module; no data needs to be shared for this list. The
+module list then marks the modules not enabled in the source project. A saved connection is checked with its stored key unless
 another one is typed.
 
 Saving checks the connection; the worker then loads the source references, which can

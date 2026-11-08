@@ -42,7 +42,6 @@ class MirrorNavigationTest < ApplicationSystemTestCase
       case path
       when "users/current.json" then { "user" => { "login" => "reader", "firstname" => "Mirror", "lastname" => "Reader" } }
       when "projects/legacy-app.json" then { "project" => { "id" => 34, "identifier" => "legacy-app", "name" => "Legacy app", "enabled_modules" => [{ "name" => "issue_tracking" }] } }
-      when "projects.json" then { "projects" => [], "total_count" => 0 }
       else raise RedmineMirror::Error, "Redmine API returned HTTP 403 for GET #{path}"
       end
     end
@@ -59,6 +58,7 @@ class MirrorNavigationTest < ApplicationSystemTestCase
       assert_selector "#mirror-connection-check-passed", text: "Source project: Legacy app (legacy-app, #34)"
     end
     assert_selector "#mirror-connection-check-passed", text: "Members not readable with this API key."
+    assert_selector "#mirror-connection-check-subprojects", text: "Subprojects not listed: the source does not run a Redmine Mirror version that lists them."
     assert_equal "typed-key", find("#connection_api_key").value
     assert_nil Project.find(1).mirror_project_setting
     # Saved without modules, the connection then lists them; a check marks the source ones.

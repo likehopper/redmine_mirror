@@ -1,0 +1,31 @@
+# File: redmine_mirror/app/views/mirror_source_api/subprojects.api.rsb
+#
+# Redmine Mirror - modular project import and asynchronous replication.
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 2 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+#
+# The subprojects running Mirror source that the account can see, in tree order, with
+# their parent and modules.
+
+api.array :subprojects, api_meta(total_count: @subprojects.size) do
+  @subprojects.each do |child|
+    api.project do
+      api.id child.id
+      api.identifier child.identifier
+      api.name child.name
+      api.parent_id child.parent_id
+      api.status child.status
+      api.array :enabled_modules do
+        child.enabled_module_names.each { |name| api.module name }
+      end
+    end
+  end
+end

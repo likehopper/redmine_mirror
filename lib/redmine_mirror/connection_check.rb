@@ -19,30 +19,27 @@ module RedmineMirror
   # Whose API key it is, which project it designates and what that project offers, in a
   # few small reads made during the web request. The catalog stays the worker's job.
   class ConnectionCheck
-    # Redmine 4.0 cannot filter projects by parent: subprojects are found in the projects
-    # the key sees, read up to this many pages of 100.
-    PROJECT_PAGES = 10
-
     def initialize(client:, project_reference:)
       @client, @project_reference = client, project_reference
     end
 
     # A Hash: "account", "project" (id, identifier, name), "source_modules", "members"
-    # (count, nil when unreadable), "subprojects" (id, identifier, name; nil when
-    # unreadable), "subprojects_complete"; or "error" ("account" or "project") with
-    # "detail" when the key or the project is refused.
+    # (count, nil when unreadable), "subprojects" (id, identifier, name, parent_id,
+    # modules) or, when the source does not list them, nil and "subprojects_refusal"
+    # (the Mirror source lock: disabled, module... or unavailable); or "error"
+    # ("account" or "project") with "detail" when the key or the project is refused.
     def run
       user = read("account") { @client.get("users/current.json").fetch("user") }
       project = read("project") do
         @client.get("projects/#{@project_reference}.json", "include" => "enabled_modules").fetch("project")
       end
       id = Integer(project.fetch("id"))
-      subprojects, complete = subprojects_of(id)
+      subprojects, refusal = subprojects_of(id)
       name = [user["firstname"], user["lastname"]].join(" ").strip
       { "account" => name.empty? ? user["login"].to_s : name,
         "project" => { "id" => id, "identifier" => project["identifier"].to_s, "name" => project["name"].to_s },
         "source_modules" => Array(project["enabled_modules"]).map { |entry| entry["name"].to_s },
-        "members" => members_count(id), "subprojects" => subprojects, "subprojects_complete" => complete }
+        "members" => members_count(id), "subprojects" => subprojects, "subprojects_refusal" => refusal }
     rescue Failure => failure
       { "error" => failure.step, "detail" => failure.message }
     end
@@ -71,22 +68,17 @@ module RedmineMirror
       nil
     end
 
+    # Only Mirror source lists subprojects, and only those running Mirror source that the
+    # key can see: Redmine's own API cannot tell them apart without reading every project.
     def subprojects_of(project_id)
-      found = []
-      offset = 0
-      PROJECT_PAGES.times do
-        page = @client.get("projects.json", "offset" => offset, "limit" => 100)
-        records = page.fetch("projects")
-        records.each do |record|
-          next unless record.dig("parent", "id").to_i == project_id
-          found << { "id" => Integer(record.fetch("id")), "identifier" => record["identifier"].to_s, "name" => record["name"].to_s }
-        end
-        offset += records.length
-        return [found, true] if records.empty? || offset >= Integer(page.fetch("total_count"))
+      records = @client.get("projects/#{project_id}/mirror/source/subprojects.json").fetch("subprojects")
+      subprojects = records.map do |record|
+        { "id" => Integer(record.fetch("id")), "identifier" => record["identifier"].to_s, "name" => record["name"].to_s,
+          "parent_id" => record["parent_id"] && Integer(record["parent_id"]), "modules" => Array(record["enabled_modules"]).map(&:to_s) }
       end
-      [found, false]
-    rescue Error, KeyError, TypeError, ArgumentError
-      [nil, false]
+      [subprojects, nil]
+    rescue Error, KeyError, TypeError, ArgumentError => error
+      [nil, error.message[/\(Mirror source: ([a-z_]+)\)/, 1] || "unavailable"]
     end
   end
 end

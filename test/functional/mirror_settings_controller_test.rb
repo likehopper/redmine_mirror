@@ -317,7 +317,8 @@ class MirrorSettingsControllerTest < ActionController::TestCase
       when "users/current.json" then { "user" => { "login" => "reader", "firstname" => "Mirror", "lastname" => "Reader" } }
       when "projects/legacy-app.json" then { "project" => { "id" => 34, "identifier" => "legacy-app", "name" => "Legacy app", "enabled_modules" => [{ "name" => "issue_tracking" }] } }
       when "projects/34/memberships.json" then { "memberships" => [], "total_count" => 3 }
-      when "projects.json" then { "projects" => [{ "id" => 35, "identifier" => "legacy-web", "name" => "Legacy web", "parent" => { "id" => 34 } }], "total_count" => 1 }
+      when "projects/34/mirror/source/subprojects.json"
+        { "subprojects" => [{ "id" => 35, "identifier" => "legacy-web", "name" => "Legacy web", "parent_id" => 34, "enabled_modules" => ["mirror_source"] }], "total_count" => 1 }
       else raise RedmineMirror::Error, "Redmine API returned HTTP 404 for GET #{path}"
       end
     end
@@ -339,7 +340,7 @@ class MirrorSettingsControllerTest < ActionController::TestCase
     assert_select "li", text: "API key of: Mirror Reader"
     assert_select "li", text: "Source project: Legacy app (legacy-app, #34)"
     assert_select "li", text: "Members readable: 3"
-    assert_select "li", text: /Subprojects visible with this API key \(1\): Legacy web \(legacy-web\)/
+    assert_select "li", text: /Subprojects running Mirror source visible with this API key \(1\): Legacy web \(legacy-web\)/
     assert_nil @project.reload.mirror_project_setting
   end
 

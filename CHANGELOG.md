@@ -27,6 +27,10 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   module list appears once it is saved. Until a module is selected, no run is queued,
   by hand or on schedule. A missing API key is named as such instead of "Source project
   not found", and a refused first connection keeps what was typed, except the key.
+- **Mirror source lists subprojects**: a source project running Mirror source lists its
+  subprojects, at any depth, that run Mirror source and that the API account can see,
+  with their modules. It needs the administrator switch and the project module, but no
+  shared data, and each access is logged. The connection check uses it.
 
 ## 1.0.0-beta.39 — 2026-11-08
 
