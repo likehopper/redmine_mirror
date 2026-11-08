@@ -104,6 +104,28 @@ $(function () {
   $("input.mirror-special-choice:checked").each(function () { special(this); });
   $(document).on("change", "input.mirror-special-choice", function () { special(this); });
 
+  // Connection check: send the typed connection without saving it, show the result, then
+  // mark the modules the source project has not enabled. The form's PATCH override is
+  // left out: the check is a POST.
+  $(document).on("click", "#mirror-connection-check", function () {
+    var button = $(this);
+    var result = $("#mirror-connection-check-result").text(button.data("checking"));
+    button.prop("disabled", true);
+    $.ajax({ url: button.data("url"), type: "POST",
+      data: button.closest("form").find(":input").not("[name=_method]").serialize() })
+      .done(function (html) {
+        result.html(html);
+        var modules = result.find("[data-source-modules]").data("source-modules");
+        if (!modules) return;
+        $("#mirror-connection-form label[data-source-module]").each(function () {
+          var off = $.inArray(String($(this).data("source-module")), modules) < 0;
+          $(this).toggleClass("mirror-module-source-off", off).find(".mirror-module-off-hint").toggle(off);
+        });
+      })
+      .fail(function (xhr) { result.text(xhr.status + " " + xhr.statusText); })
+      .always(function () { button.prop("disabled", false); });
+  });
+
   // Catalog refresh or execution in progress: reload while the Mirror content is visible,
   // unless a form field has been edited. Not in automated browsers (system and
   // documentation tests): they reload themselves, and a reload in the middle of a step

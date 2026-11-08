@@ -32,6 +32,35 @@ class MirrorNavigationTest < ApplicationSystemTestCase
     assert_selector "#tab-mirror.selected"
     assert_selector 'input[name="connection[source_url]"]'
   end
+
+  # Check shows what the typed connection reaches without leaving the form, and marks the
+  # modules the source project has not enabled.
+  def test_connection_check_keeps_the_form_and_marks_source_modules
+    Project.find(1).enable_module!(:mirror)
+    source = Object.new
+    def source.get(path, _params = {})
+      case path
+      when "users/current.json" then { "user" => { "login" => "reader", "firstname" => "Mirror", "lastname" => "Reader" } }
+      when "projects/legacy-app.json" then { "project" => { "id" => 34, "identifier" => "legacy-app", "name" => "Legacy app", "enabled_modules" => [{ "name" => "issue_tracking" }] } }
+      when "projects.json" then { "projects" => [], "total_count" => 0 }
+      else raise RedmineMirror::Error, "Redmine API returned HTTP 403 for GET #{path}"
+      end
+    end
+    log_user("admin", "admin")
+    visit "/projects/ecookbook/settings/mirror"
+    fill_in "connection_source_url", with: "https://source.example"
+    fill_in "connection_source_project_id", with: "legacy-app"
+    fill_in "connection_api_key", with: "typed-key"
+    RedmineMirror::Client.stub(:new, source) do
+      click_button "Check"
+      assert_selector "#mirror-connection-check-passed", text: "Source project: Legacy app (legacy-app, #34)"
+    end
+    assert_selector "#mirror-connection-check-passed", text: "Members not readable with this API key."
+    assert_selector "label.mirror-module-source-off", text: /Wiki/
+    assert_no_selector "label.mirror-module-source-off", text: /\AIssues/
+    assert_equal "typed-key", find("#connection_api_key").value
+    assert_nil Project.find(1).mirror_project_setting
+  end
 end
 
 class MirrorMappingSystemTest < ApplicationSystemTestCase

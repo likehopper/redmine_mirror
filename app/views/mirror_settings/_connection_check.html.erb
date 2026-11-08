@@ -1,0 +1,37 @@
+<%#
+File: redmine_mirror/app/views/mirror_settings/_connection_check.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Result of the connection check (RedmineMirror::ConnectionCheck), shown in the form.
+%><% if check["error"] %>
+  <div class="flash error" id="mirror-connection-check-failed">
+    <%= l("text_mirror_connection_check_#{check['error']}_refused") %>
+    <br><em class="info"><%= check["detail"] %></em>
+  </div>
+<% else %>
+  <% project = check["project"] %>
+  <%= content_tag :div, class: "flash notice", id: "mirror-connection-check-passed", data: { source_modules: check["source_modules"] } do %>
+    <ul>
+      <li><%= l(:text_mirror_connection_check_account, name: check["account"]) %></li>
+      <li><%= l(:text_mirror_connection_check_project, name: project["name"], identifier: project["identifier"], id: project["id"]) %></li>
+      <li><%= check["source_modules"].include?("mirror_source") ? l(:text_mirror_connection_check_mirror_source_on) : l(:text_mirror_connection_check_mirror_source_off) %></li>
+      <li><%= check["members"] ? l(:text_mirror_connection_check_members, count: check["members"]) : l(:text_mirror_connection_check_members_unreadable) %></li>
+      <li><% if check["subprojects"].nil? %><%= l(:text_mirror_connection_check_subprojects_unreadable) %>
+        <% elsif check["subprojects"].empty? %><%= l(:text_mirror_connection_check_no_subprojects) %>
+        <% else %><%= l(:text_mirror_connection_check_subprojects, count: check["subprojects"].size, names: check["subprojects"].map { |child| "#{child['name']} (#{child['identifier']})" }.join(", ")) %><% end %>
+        <% unless check["subprojects"].nil? || check["subprojects_complete"] %><br><em class="info"><%= l(:text_mirror_connection_check_subprojects_cut) %></em><% end %></li>
+    </ul>
+    <em class="info"><%= l(:text_mirror_connection_check_not_saved) %></em>
+  <% end %>
+<% end %>

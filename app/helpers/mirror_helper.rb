@@ -37,6 +37,14 @@ module MirrorHelper
   # Data of the Mirror tab, rendered inside Redmine's project settings page.
   def prepare_mirror_configuration(project)
     @setting = project.mirror_project_setting || project.build_mirror_project_setting
+    # A refused first connection comes back with what was typed, except the API key.
+    typed = session.delete(:mirror_typed_connection)
+    if !@setting.persisted? && typed.is_a?(Hash)
+      @setting.source_url = typed["source_url"].to_s
+      @setting.source_project_identifier = typed["source_project_id"].to_s
+      @setting.selected_modules = Array(typed["modules"])
+      @setting.source_text_format = typed["source_text_format"] if RedmineMirror::TextFormat::SOURCE_FORMATS.include?(typed["source_text_format"])
+    end
     @adapters = @setting.persisted? ? @setting.adapters : []
     tabs = ["connection"] + (@setting.persisted? ? ["schedule"] + @adapters.map(&:key) : [])
     @mirror_tab = tabs.include?(params[:mirror_tab]) ? params[:mirror_tab] : "connection"

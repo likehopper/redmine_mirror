@@ -39,15 +39,8 @@ class MirrorSettingsController < ApplicationController
   def update_connection
     input = params.require(:connection).permit(:source_url, :source_project_id, :api_key, :source_text_format, modules: [])
     url = input.fetch(:source_url).strip.sub(%r{/+\z}, "")
-    # The source project is entered by identifier or numeric ID.
-    reference = input.fetch(:source_project_id).to_s.strip
-    raise RedmineMirror::Error, l(:text_mirror_invalid_source_project) unless reference.match?(SOURCE_PROJECT)
-    # A source must be allowed in the plugin settings; while none is, administrators
-    # may still connect to any source.
-    free = User.current.admin? && RedmineMirror.allowed_source_urls.empty?
-    if !free && !@setting.persisted? && !RedmineMirror.allowed_source_url?(url)
-      raise RedmineMirror::Error, l(:text_mirror_source_not_allowed)
-    end
+    reference = source_project_reference(input)
+    check_source_allowed(url) unless @setting.persisted?
     if @setting.persisted? && @setting.source_url != url
       # Keep existing correspondence identities stable; rebinding needs an explicit future reset flow.
       raise RedmineMirror::Error, "This project's source cannot be changed after configuration"
@@ -71,11 +64,29 @@ class MirrorSettingsController < ApplicationController
       flash[:notice] = l(:text_mirror_catalog_requested)
     else
       flash[:error] = @setting.errors.full_messages.to_sentence
+      keep_typed_connection
     end
     redirect_to configuration_path
   rescue RedmineMirror::Error, ArgumentError, KeyError => error
     flash[:error] = error.is_a?(RedmineMirror::Error) ? error.message : l(:text_mirror_invalid_configuration)
+    keep_typed_connection
     redirect_to configuration_path
+  end
+
+  # Read the connection typed in the form without saving anything: mirror.js shows the
+  # result in the form. A saved connection keeps its source and, left blank, its key.
+  def check_connection
+    input = params.require(:connection).permit(:source_url, :source_project_id, :api_key)
+    reference = source_project_reference(input)
+    unless @setting.persisted?
+      @setting.source_url = input.fetch(:source_url).strip.sub(%r{/+\z}, "")
+      check_source_allowed(@setting.source_url)
+    end
+    @setting.api_key = input[:api_key] if input[:api_key].present?
+    check = RedmineMirror::ConnectionCheck.new(client: @setting.source_client, project_reference: reference).run
+    render partial: "mirror_settings/connection_check", locals: { check: check }
+  rescue RedmineMirror::Error, ActionController::ParameterMissing, KeyError => error
+    render partial: "mirror_settings/connection_check", locals: { check: { "error" => "input", "detail" => error.is_a?(RedmineMirror::Error) ? error.message : l(:text_mirror_invalid_configuration) } }
   end
 
   def refresh
@@ -288,6 +299,33 @@ class MirrorSettingsController < ApplicationController
   end
 
   SOURCE_PROJECT = /\A(?:[1-9]\d*|[a-z][a-z0-9_-]{0,99})\z/
+
+  # The source project is entered by identifier or numeric ID.
+  def source_project_reference(input)
+    reference = input.fetch(:source_project_id).to_s.strip
+    raise RedmineMirror::Error, l(:text_mirror_invalid_source_project) unless reference.match?(SOURCE_PROJECT)
+    reference
+  end
+
+  # The form of a refused first connection is shown again with what was typed
+  # (prepare_mirror_configuration reads it once). Never the API key: the session may be a
+  # cookie, whose size also bounds the kept values. Not the flash: some Redmine versions
+  # display every flash entry.
+  def keep_typed_connection
+    connection = params[:connection]
+    return if @setting.persisted? || !connection.is_a?(ActionController::Parameters)
+    session[:mirror_typed_connection] = { "source_url" => connection[:source_url].to_s[0, 200],
+      "source_project_id" => connection[:source_project_id].to_s[0, 100],
+      "source_text_format" => connection[:source_text_format].to_s[0, 20],
+      "modules" => Array(connection[:modules]).map(&:to_s) & RedmineMirror::REGISTRY.keys.map(&:to_s) }
+  end
+
+  # A source must be allowed in the plugin settings; while none is, administrators
+  # may still connect to any source.
+  def check_source_allowed(url)
+    return if User.current.admin? && RedmineMirror.allowed_source_urls.empty?
+    raise RedmineMirror::Error, l(:text_mirror_source_not_allowed) unless RedmineMirror.allowed_source_url?(url)
+  end
 
   # Read the source project once to store its numeric ID and identifier.
   def resolve_source_project(reference)

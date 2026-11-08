@@ -16,6 +16,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+- **Check the connection before saving it**: the **Check** button of the **Connection**
+  tab reads the typed source without saving anything and shows the API key's account,
+  the source project, its Mirror source module, the members and subprojects the key can
+  see; the module list marks the modules not enabled in the source project. Members
+  check only the sources an administrator allowed, as when saving.
+
 ## 1.0.0-beta.39 — 2026-11-08
 
 - **No duplicate history after an issue update**: with **Issue history** selected, an

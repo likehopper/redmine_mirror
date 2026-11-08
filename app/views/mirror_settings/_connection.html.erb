@@ -55,14 +55,19 @@ Connection: source Redmine and project, API key, source text format and modules.
       <% RedmineMirror::REGISTRY.resolve(RedmineMirror::REGISTRY.keys).select(&:selectable?).each do |adapter| %>
         <% next unless adapter.available? || @setting.selected_modules.include?(adapter.key) %>
         <% source_off = source_modules && adapter.source_project_module && !source_modules.include?(adapter.source_project_module.to_s) %>
-        <label class="block<%= ' mirror-module-source-off' if source_off %>"><%= check_box_tag "connection[modules][]", adapter.key, @setting.selected_modules.include?(adapter.key), id: "connection_modules_#{adapter.key}" %> <%= l(adapter.label) %><% if adapter.respond_to?(:selection_hint) && adapter.selection_hint %> <em class="info mirror-module-hint"><%= l(adapter.selection_hint) %></em><% end %><% if source_off %> <em class="info mirror-module-hint"><%= l(:text_mirror_module_off_on_source) %></em><% end %></label>
+        <%# The connection check (mirror.js) marks the modules again from data-source-module. %>
+        <%= content_tag :label, class: "block#{' mirror-module-source-off' if source_off}", data: { source_module: adapter.source_project_module } do %><%= check_box_tag "connection[modules][]", adapter.key, @setting.selected_modules.include?(adapter.key), id: "connection_modules_#{adapter.key}" %> <%= l(adapter.label) %><% if adapter.respond_to?(:selection_hint) && adapter.selection_hint %> <em class="info mirror-module-hint"><%= l(adapter.selection_hint) %></em><% end %><% if adapter.source_project_module %> <em class="info mirror-module-hint mirror-module-off-hint"<%= ' style="display:none"'.html_safe unless source_off %>><%= l(:text_mirror_module_off_on_source) %></em><% end %><% end %>
       <% end %>
       <em class="info"><%= l(:text_mirror_modules_help) %></em></p>
     <% if @setting.unavailable_modules.any? %>
       <p id="mirror-unavailable-modules" class="warning"><%= l(:text_mirror_unavailable_modules, modules: @setting.unavailable_modules.map { |key| mirror_module_label(key) }.join(", ")) %></p>
     <% end %>
   </div>
-  <%= submit_tag l(:button_save), disabled: !@setting.persisted? && !admin && allowed.empty? %>
+  <% no_source = !@setting.persisted? && !admin && allowed.empty? %>
+  <%= submit_tag l(:button_save), disabled: no_source %>
+  <%= button_tag l(:button_mirror_connection_check), type: "button", id: "mirror-connection-check", disabled: no_source,
+    data: { url: project_mirror_connection_check_path(@project), checking: l(:text_mirror_connection_checking) } %>
+  <div id="mirror-connection-check-result" aria-live="polite"></div>
 <% end %>
 <% if @setting.persisted? %>
   <%= button_to l(:button_mirror_refresh), project_mirror_refresh_path(@project), method: :post, disabled: @setting.catalog_refreshing? %>

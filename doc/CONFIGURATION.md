@@ -136,6 +136,12 @@ a link to the page of the next one.
 
 ![Connection](screenshots/configuration/08-connection.png)
 
+**Check** tries the connection without saving it: the account the API key belongs to,
+the source project, whether its Mirror source module is enabled, how many members and
+which subprojects the key can see. The module list then marks the modules not enabled
+in the source project. A saved connection is checked with its stored key unless
+another one is typed.
+
 Saving checks the connection; the worker then loads the source references, which can
 take a few minutes on large projects. The page shows its progress and refreshes until
 it has finished. The URL and project cannot be changed afterwards. **Refresh source

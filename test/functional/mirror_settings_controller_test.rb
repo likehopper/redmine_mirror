@@ -310,4 +310,86 @@ class MirrorSettingsControllerTest < ActionController::TestCase
     assert_nil @project.mirror_reference_mappings.find_by(reference_type: "user", source_id: 7)
   end
 
+  def checked_source_client
+    client = Object.new
+    def client.get(path, _params = {})
+      case path
+      when "users/current.json" then { "user" => { "login" => "reader", "firstname" => "Mirror", "lastname" => "Reader" } }
+      when "projects/legacy-app.json" then { "project" => { "id" => 34, "identifier" => "legacy-app", "name" => "Legacy app", "enabled_modules" => [{ "name" => "issue_tracking" }] } }
+      when "projects/34/memberships.json" then { "memberships" => [], "total_count" => 3 }
+      when "projects.json" then { "projects" => [{ "id" => 35, "identifier" => "legacy-web", "name" => "Legacy web", "parent" => { "id" => 34 } }], "total_count" => 1 }
+      else raise RedmineMirror::Error, "Redmine API returned HTTP 404 for GET #{path}"
+      end
+    end
+    client
+  end
+
+  # The check reads the typed connection and saves nothing, not even a new setting.
+  def test_connection_check_reports_without_saving
+    @setting.destroy
+    @request.session[:user_id] = 2
+    connection = { source_url: "https://source.example/redmine/", source_project_id: "legacy-app", api_key: "source-key" }
+    with_settings(plugin_redmine_mirror: { "allowed_source_urls" => "https://source.example/redmine" }) do
+      RedmineMirror::Client.stub(:new, checked_source_client) do
+        post :check_connection, params: { project_id: @project.identifier, connection: connection }
+      end
+    end
+    assert_response :success
+    assert_select "#mirror-connection-check-passed[data-source-modules=?]", '["issue_tracking"]'
+    assert_select "li", text: "API key of: Mirror Reader"
+    assert_select "li", text: "Source project: Legacy app (legacy-app, #34)"
+    assert_select "li", text: "Members readable: 3"
+    assert_select "li", text: /Subprojects visible with this API key \(1\): Legacy web \(legacy-web\)/
+    assert_nil @project.reload.mirror_project_setting
+  end
+
+  # Members reach only allowed sources, as when saving; no request leaves for the others.
+  def test_connection_check_refuses_a_source_not_allowed
+    @setting.destroy
+    @request.session[:user_id] = 2
+    RedmineMirror::Client.stub(:new, ->(**) { raise "no request may reach this source" }) do
+      post :check_connection, params: { project_id: @project.identifier,
+        connection: { source_url: "https://internal.example", source_project_id: "legacy-app", api_key: "source-key" } }
+    end
+    assert_response :success
+    assert_select "#mirror-connection-check-failed", text: /This source Redmine URL is not allowed/
+  end
+
+  # A saved connection is checked against its own source, with its key when none is typed.
+  def test_connection_check_of_a_saved_connection_keeps_its_source_and_key
+    used = nil
+    RedmineMirror::Client.stub(:new, ->(**options) { used = options; checked_source_client }) do
+      post :check_connection, params: { project_id: @project.identifier,
+        connection: { source_url: "https://other.example", source_project_id: "legacy-app", api_key: "" } }
+    end
+    assert_select "#mirror-connection-check-passed"
+    assert_equal ["https://source.example/redmine", "private-api-key"], used.values_at(:url, :api_key)
+    assert_equal 12, @setting.reload.source_project_id
+  end
+
+  def test_connection_check_names_the_refused_project
+    RedmineMirror::Client.stub(:new, checked_source_client) do
+      post :check_connection, params: { project_id: @project.identifier, connection: { source_project_id: "unknown" } }
+    end
+    assert_select "#mirror-connection-check-failed", text: /Source project not found or not visible/
+  end
+
+  # A refused first connection is shown again with what was typed, never with the key.
+  def test_refused_first_connection_keeps_the_typed_values_except_the_key
+    @setting.destroy
+    RedmineMirror::Client.stub(:new, source_project_client(34, "legacy-app")) do
+      patch :update_connection, params: { project_id: @project.identifier,
+        connection: { source_url: "https://source.example/redmine", source_project_id: "unknown-app", api_key: "typed-secret", modules: ["wiki", "not-a-module"] } }
+    end
+    assert flash[:error]
+    assert_equal({ "source_url" => "https://source.example/redmine", "source_project_id" => "unknown-app", "source_text_format" => "", "modules" => ["wiki"] },
+      session[:mirror_typed_connection])
+    assert_nil @project.reload.mirror_project_setting
+  end
+
+  def test_connection_check_needs_the_manage_permission
+    @request.session[:user_id] = 3
+    post :check_connection, params: { project_id: @project.identifier, connection: { source_project_id: "legacy-app" } }
+    assert_response 403
+  end
 end

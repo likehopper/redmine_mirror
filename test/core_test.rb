@@ -589,4 +589,54 @@ class MirrorCoreTest < Minitest::Test
     end
     assert_empty offenders
   end
+
+  class CheckedSource
+    def initialize(pages, memberships: true)
+      @pages, @memberships = pages, memberships
+    end
+
+    def get(path, params = {})
+      case path
+      when "users/current.json" then { "user" => { "login" => "reader", "firstname" => "Mirror", "lastname" => "Reader" } }
+      when "projects/shop.json"
+        { "project" => { "id" => 5, "identifier" => "shop", "name" => "Shop", "enabled_modules" => [{ "name" => "issue_tracking" }, { "name" => "mirror_source" }] } }
+      when "projects/5/memberships.json"
+        raise RedmineMirror::Error, "Redmine API returned HTTP 403" unless @memberships
+        { "memberships" => [], "total_count" => 4 }
+      when "projects.json"
+        { "projects" => @pages.fetch(params["offset"] / 100, []), "total_count" => @pages.flatten.size }
+      else raise RedmineMirror::Error, "Redmine API returned HTTP 404 for GET #{path}"
+      end
+    end
+  end
+
+  # The check names the key's account, the project, its modules, members and the
+  # subprojects found in the projects the key sees.
+  def test_connection_check_reads_the_project_and_its_subprojects
+    pages = [[{ "id" => 5, "name" => "Shop" }, { "id" => 6, "identifier" => "shop-web", "name" => "Web", "parent" => { "id" => 5 } }] +
+      Array.new(98) { |index| { "id" => 100 + index, "name" => "Other" } },
+      [{ "id" => 7, "identifier" => "shop-app", "name" => "App", "parent" => { "id" => 5 } }]]
+    result = RedmineMirror::ConnectionCheck.new(client: CheckedSource.new(pages), project_reference: "shop").run
+    assert_equal "Mirror Reader", result["account"]
+    assert_equal({ "id" => 5, "identifier" => "shop", "name" => "Shop" }, result["project"])
+    assert_equal %w[issue_tracking mirror_source], result["source_modules"]
+    assert_equal 4, result["members"]
+    assert_equal %w[shop-web shop-app], result["subprojects"].map { |project| project["identifier"] }
+    assert result["subprojects_complete"]
+  end
+
+  def test_connection_check_names_the_refused_step_and_tolerates_unreadable_members
+    result = RedmineMirror::ConnectionCheck.new(client: CheckedSource.new([], memberships: false), project_reference: "missing").run
+    assert_equal "project", result["error"]
+    assert_match(/404/, result["detail"])
+    result = RedmineMirror::ConnectionCheck.new(client: CheckedSource.new([], memberships: false), project_reference: "shop").run
+    assert_nil result["members"]
+    assert_equal [], result["subprojects"]
+  end
+
+  def test_connection_check_says_when_the_project_list_was_cut
+    pages = Array.new(RedmineMirror::ConnectionCheck::PROJECT_PAGES + 1) { |page| Array.new(100) { |index| { "id" => 1000 + page * 100 + index } } }
+    result = RedmineMirror::ConnectionCheck.new(client: CheckedSource.new(pages), project_reference: "shop").run
+    refute result["subprojects_complete"]
+  end
 end
