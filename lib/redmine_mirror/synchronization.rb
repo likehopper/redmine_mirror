@@ -69,7 +69,9 @@ module RedmineMirror
           catalog["ai_suggestions"] = previous if previous
           setting.update_columns(source_catalog: JSON.generate(catalog), source_project_identifier: identifier,
             catalog_status: "ready", catalog_error: nil, catalog_progress: nil, updated_at: Time.current)
-          # The administrator's defaults fill the references still without correspondence.
+          # A subproject takes its parent's correspondences first, then the administrator's
+          # defaults fill the references still without correspondence.
+          ParentMappings.apply(setting)
           DefaultMappings.apply(setting) if DefaultMappings.automatic?(setting)
         rescue StandardError => error
           # Unexpected exception text can contain URLs, credentials or private records.
@@ -186,6 +188,19 @@ module RedmineMirror
             setting.update_columns(values)
           end
         end
+      end
+      queue_subprojects(setting, run)
+    end
+
+    # After its parent, each subproject configured from it runs the same way (preview or
+    # apply), so that their issues find the parent's versions, categories and issues. A
+    # subproject already queued or running, or without modules, is left as it is.
+    def self.queue_subprojects(setting, run)
+      return unless %w[succeeded partial].include?(run.reload.status)
+      setting.child_settings.preload(:project).each do |child|
+        enqueue(child, apply: run.apply?, trigger: "parent", user: run.requested_by)
+      rescue Error
+        next
       end
     end
   end

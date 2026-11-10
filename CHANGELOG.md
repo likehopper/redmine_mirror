@@ -18,6 +18,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 ## Unreleased
 
+- **Subprojects**: the **Connection** tab lists the source subprojects running Mirror
+  source that the API key can see. Each one checked is created under its local parent
+  with the name and identifier chosen, or linked to an existing subproject, with Mirror
+  and the modules it needs, and a Mirror configuration taken from the parent: same
+  source and key, options, and the parent's correspondences for the references it has
+  none for (its own override them). A parent's successful run queues its subprojects'
+  runs (launch origin *Parent project*). Nothing is unlinked or removed. Migration 19.
 - **Check the connection before saving it**: the **Check** button of the **Connection**
   tab reads the typed source without saving anything and shows the API key's account,
   the source project, its Mirror source module, the members and subprojects the key can

@@ -169,6 +169,29 @@ A red counter on a module tab gives the number of references it still has to map
 
 ![Modules to map](screenshots/configuration/09-modules-to-map.png)
 
+### Subprojects
+
+When the source subprojects run Mirror source, the bottom of the **Connection** tab lists
+those the API key can see, once the references are read. For each one to import, check
+it and choose its local subproject: an existing subproject of this project (the one with
+the source identifier, or name, is proposed), or **Create** with the name and identifier
+to give it locally. Its modules default to this project's modules that the source
+subproject has enabled.
+
+**Configure the checked subprojects** then, for each one:
+
+- creates it under its local parent (*Add subprojects* on that parent), or takes the
+  existing one (*Select project modules* on it);
+- enables Mirror and the Redmine modules its Mirror modules need;
+- gives it a Mirror configuration taken from this one: same source and API key (a new
+  key saved here reaches it), same options, and this project's correspondences for the
+  references it has none for, once its own references are read. Change them in its own
+  Mirror tab to override them; members follow its user and role correspondences.
+
+A subproject whose source parent is not configured is refused: check its parent too.
+After a successful preview or synchronization here, each configured subproject runs the
+same way (launch origin *Parent project*). Nothing is ever unlinked or removed.
+
 ## 7. Map users
 
 **Users** lists the users found in the source data. Map each one to a member of the

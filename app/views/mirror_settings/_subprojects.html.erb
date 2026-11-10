@@ -1,0 +1,70 @@
+<%#
+File: redmine_mirror/app/views/mirror_settings/_subprojects.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Connection tab: the source subprojects and their local subprojects (RedmineMirror::Subprojects).
+%><h3 id="mirror-subprojects"><%= l(:label_mirror_subprojects) %></h3>
+<% if (parent = @setting.parent_setting) %>
+  <p id="mirror-subprojects-from-parent"><%= l(:text_mirror_subprojects_from_parent, project: link_to(parent.project.name, mirror_configuration_path(parent.project))).html_safe %></p>
+<% else %>
+  <% catalog = @setting.source_catalog %>
+  <% subprojects = RedmineMirror::Subprojects.new(@setting) %>
+  <% if !catalog.key?("subprojects") %>
+    <p><em class="info"><%= l(:text_mirror_subprojects_not_read) %></em></p>
+  <% elsif catalog["subprojects"].nil? %>
+    <p><em class="info"><%= l(:text_mirror_connection_check_subprojects_refused, reason: l(%w[disabled module].include?(catalog["subprojects_refusal"]) ? "text_mirror_connection_check_subprojects_#{catalog['subprojects_refusal']}" : :text_mirror_connection_check_subprojects_unavailable)) %></em></p>
+  <% elsif catalog["subprojects"].empty? %>
+    <p><em class="info"><%= l(:text_mirror_connection_check_no_subprojects) %></em></p>
+  <% else %>
+    <p><em class="info"><%= l(:text_mirror_subprojects_help) %></em></p>
+    <%= form_tag project_mirror_subprojects_path(@project), id: "mirror-subprojects-form" do %>
+      <table class="list mirror-subprojects">
+        <thead><tr><th></th><th><%= l(:label_mirror_subproject_source) %></th><th><%= l(:label_mirror_subproject_local) %></th><th><%= l(:label_mirror_modules) %></th></tr></thead>
+        <tbody>
+          <% subprojects.rows.each do |row| %>
+            <% field = "subprojects[#{row['id']}]" %>
+            <tr id="mirror-subproject-<%= row['id'] %>">
+              <% if (child = subprojects.linked[row["id"]]) %>
+                <td><span class="icon-only icon-checked" title="<%= l(:label_mirror_subproject_configured) %>"></span></td>
+                <td style="padding-left: <%= row['depth'] %>em"><%= row["name"] %> <em class="info"><%= row["identifier"] %></em></td>
+                <td><%= link_to child.project.name, mirror_configuration_path(child.project) %></td>
+                <td><%= child.selected_modules.map { |key| mirror_module_label(key) }.join(", ") %></td>
+              <% else %>
+                <% target = subprojects.default_target(row) %>
+                <td><%= check_box_tag "#{field}[include]", "1", false, id: "mirror-subproject-#{row['id']}-include", "aria-label": row["name"] %></td>
+                <td style="padding-left: <%= row['depth'] %>em"><%= row["name"] %> <em class="info"><%= row["identifier"] %></em></td>
+                <td>
+                  <%= select_tag "#{field}[target]", options_for_select([[l(:label_mirror_subproject_create), "new"]] + subprojects.candidates.map { |project| [project.name, project.id.to_s] }, target ? target.id.to_s : "new"), id: "mirror-subproject-#{row['id']}-target" %>
+                  <span class="mirror-subproject-new">
+                    <%= text_field_tag "#{field}[name]", row["name"], size: 24, placeholder: l(:field_name), "aria-label": l(:field_name) %>
+                    <%= text_field_tag "#{field}[identifier]", row["identifier"], size: 16, placeholder: l(:field_identifier), "aria-label": l(:field_identifier) %>
+                  </span>
+                </td>
+                <td>
+                  <% modules = subprojects.default_modules(row) %>
+                  <details><summary><%= l(:text_mirror_subproject_modules_count, count: modules.size) %></summary>
+                    <% modules.each do |key| %>
+                      <label class="block"><%= check_box_tag "#{field}[modules][]", key, true, id: "mirror-subproject-#{row['id']}-module-#{key}" %> <%= mirror_module_label(key) %></label>
+                    <% end %>
+                  </details>
+                </td>
+              <% end %>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+      <p><%= submit_tag l(:button_mirror_subprojects_apply) %></p>
+    <% end %>
+  <% end %>
+<% end %>

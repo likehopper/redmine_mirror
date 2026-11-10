@@ -128,6 +128,13 @@ $(function () {
       .always(function () { button.prop("disabled", false); });
   });
 
+  // Subprojects table: the name and identifier are for a subproject to create only.
+  var subprojectTarget = function (select) {
+    $(select).siblings(".mirror-subproject-new").toggle($(select).val() === "new");
+  };
+  $("#mirror-subprojects-form select[name$='[target]']").each(function () { subprojectTarget(this); });
+  $(document).on("change", "#mirror-subprojects-form select[name$='[target]']", function () { subprojectTarget(this); });
+
   // Catalog refresh or execution in progress: reload while the Mirror content is visible,
   // unless a form field has been edited. Not in automated browsers (system and
   // documentation tests): they reload themselves, and a reload in the middle of a step

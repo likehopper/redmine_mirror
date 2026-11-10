@@ -34,7 +34,7 @@ module RedmineMirror
         @client.get("projects/#{@project_reference}.json", "include" => "enabled_modules").fetch("project")
       end
       id = Integer(project.fetch("id"))
-      subprojects, refusal = subprojects_of(id)
+      subprojects, refusal = subprojects(id)
       name = [user["firstname"], user["lastname"]].join(" ").strip
       { "account" => name.empty? ? user["login"].to_s : name,
         "project" => { "id" => id, "identifier" => project["identifier"].to_s, "name" => project["name"].to_s },
@@ -42,6 +42,20 @@ module RedmineMirror
         "members" => members_count(id), "subprojects" => subprojects, "subprojects_refusal" => refusal }
     rescue Failure => failure
       { "error" => failure.step, "detail" => failure.message }
+    end
+
+    # [subprojects, nil], or [nil, refusal]. Only Mirror source lists subprojects, and only
+    # those running Mirror source that the key can see: Redmine's own API cannot tell them
+    # apart without reading every project.
+    def subprojects(project_id)
+      records = @client.get("projects/#{project_id}/mirror/source/subprojects.json").fetch("subprojects")
+      subprojects = records.map do |record|
+        { "id" => Integer(record.fetch("id")), "identifier" => record["identifier"].to_s, "name" => record["name"].to_s,
+          "parent_id" => record["parent_id"] && Integer(record["parent_id"]), "modules" => Array(record["enabled_modules"]).map(&:to_s) }
+      end
+      [subprojects, nil]
+    rescue Error, KeyError, TypeError, ArgumentError => error
+      [nil, error.message[/\(Mirror source: ([a-z_]+)\)/, 1] || "unavailable"]
     end
 
     private
@@ -66,19 +80,6 @@ module RedmineMirror
       Integer(@client.get("projects/#{project_id}/memberships.json", "limit" => 1).fetch("total_count"))
     rescue Error, KeyError, TypeError, ArgumentError
       nil
-    end
-
-    # Only Mirror source lists subprojects, and only those running Mirror source that the
-    # key can see: Redmine's own API cannot tell them apart without reading every project.
-    def subprojects_of(project_id)
-      records = @client.get("projects/#{project_id}/mirror/source/subprojects.json").fetch("subprojects")
-      subprojects = records.map do |record|
-        { "id" => Integer(record.fetch("id")), "identifier" => record["identifier"].to_s, "name" => record["name"].to_s,
-          "parent_id" => record["parent_id"] && Integer(record["parent_id"]), "modules" => Array(record["enabled_modules"]).map(&:to_s) }
-      end
-      [subprojects, nil]
-    rescue Error, KeyError, TypeError, ArgumentError => error
-      [nil, error.message[/\(Mirror source: ([a-z_]+)\)/, 1] || "unavailable"]
     end
   end
 end

@@ -19,7 +19,7 @@ class MirrorSyncRun < ActiveRecord::Base
   belongs_to :project
   belongs_to :requested_by, class_name: "User", optional: true
   validates :status, inclusion: { in: %w[queued running succeeded partial failed cancelled] }
-  validates :trigger, inclusion: { in: %w[manual automatic operator] }
+  validates :trigger, inclusion: { in: %w[manual automatic operator parent] }
 
   # partial: finished, but some objects failed and were skipped (on_error "skip").
   STATUSES = %w[queued running succeeded partial failed cancelled].freeze
@@ -41,7 +41,7 @@ class MirrorSyncRun < ActiveRecord::Base
   def stalled_in_queue?(now = Time.current)
     status == "queued" && created_at && created_at < now - QUEUE_WARNING_DELAY
   end
-  TRIGGERS = %w[manual automatic operator].freeze
+  TRIGGERS = %w[manual automatic operator parent].freeze
 
   def progress_percentage
     return 100 if %w[succeeded partial].include?(status)

@@ -61,6 +61,8 @@ class MirrorSettingsController < ApplicationController
     @setting.source_text_format = input[:source_text_format] if input[:source_text_format].present?
     if @setting.valid?
       @setting.save!
+      # Subprojects configured from this project share its key (Subprojects).
+      @setting.child_settings.update_all(encrypted_api_key: @setting[:encrypted_api_key]) if input[:api_key].present?
       # The worker reads the source references; saving stays immediate.
       @setting.request_catalog_refresh!
       flash[:notice] = l(:text_mirror_catalog_requested)
@@ -90,6 +92,17 @@ class MirrorSettingsController < ApplicationController
     render partial: "mirror_settings/connection_check", locals: { check: check }
   rescue RedmineMirror::Error, ActionController::ParameterMissing, KeyError => error
     render partial: "mirror_settings/connection_check", locals: { check: { "error" => "input", "detail" => error.is_a?(RedmineMirror::Error) ? error.message : l(:text_mirror_invalid_configuration) } }
+  end
+
+  # Link the chosen source subprojects to local subprojects, created or existing, each with
+  # its own Mirror configuration taken from this one (RedmineMirror::Subprojects).
+  def update_subprojects
+    return render_404 unless @setting.persisted? && @setting.parent_setting_id.nil?
+    input = params[:subprojects].respond_to?(:to_unsafe_h) ? params[:subprojects].to_unsafe_h : {}
+    result = RedmineMirror::Subprojects.new(@setting).apply(input, User.current)
+    flash[:notice] = l(:text_mirror_subprojects_linked, count: result.linked.size, names: result.linked.map(&:name).join(", ")) if result.linked.any?
+    flash[:error] = result.errors.map { |name, message| l(:text_mirror_catalog_module_error, module: name, error: message) }.join(" ; ") if result.errors.any?
+    redirect_to configuration_path(nil, anchor: "mirror-subprojects")
   end
 
   def refresh

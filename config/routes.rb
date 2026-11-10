@@ -33,6 +33,7 @@ patch "admin/mirror/defaults/anonymous_time_user", to: "mirror_admin#update_anon
 get "projects/:project_id/mirror/settings", to: "mirror_settings#show", as: "project_mirror_settings"
 patch "projects/:project_id/mirror/settings/connection", to: "mirror_settings#update_connection", as: "project_mirror_connection"
 post "projects/:project_id/mirror/settings/connection/check", to: "mirror_settings#check_connection", as: "project_mirror_connection_check"
+post "projects/:project_id/mirror/settings/subprojects", to: "mirror_settings#update_subprojects", as: "project_mirror_subprojects"
 post "projects/:project_id/mirror/settings/refresh", to: "mirror_settings#refresh", as: "project_mirror_refresh"
 patch "projects/:project_id/mirror/settings/modules/:module_key", to: "mirror_settings#update_mappings", as: "project_mirror_mappings"
 post "projects/:project_id/mirror/settings/modules/:module_key/ai/:table", to: "mirror_settings#request_ai", as: "project_mirror_ai"

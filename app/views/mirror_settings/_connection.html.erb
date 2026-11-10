@@ -96,3 +96,6 @@ Connection: source Redmine and project, API key, source text format and modules.
       <em class="info"><%= l(:text_mirror_project_defaults_buttons) %></em></p>
   </div>
 <% end %>
+<% if @setting.persisted? %>
+  <%= render "mirror_settings/subprojects" %>
+<% end %>

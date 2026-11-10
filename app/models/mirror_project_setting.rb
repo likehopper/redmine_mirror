@@ -18,7 +18,7 @@
 class MirrorProjectSetting < ActiveRecord::Base
   SYNC_INTERVALS = [5, 15, 30, 60, 360, 1440].freeze
   # Columns of the latest migrations; extend this list with each new migration.
-  LATEST_COLUMNS = %w[source_project_identifier source_text_format on_error catalog_status source_wins ai_status use_default_mappings].freeze
+  LATEST_COLUMNS = %w[source_project_identifier source_text_format on_error catalog_status source_wins ai_status use_default_mappings parent_setting_id].freeze
   ON_ERROR = %w[skip stop].freeze
 
   def self.schema_current?
@@ -26,6 +26,9 @@ class MirrorProjectSetting < ActiveRecord::Base
   end
   validates :sync_interval_minutes, inclusion: { in: SYNC_INTERVALS }
   belongs_to :project
+  # Subprojects configured from this project's settings (RedmineMirror::Subprojects).
+  belongs_to :parent_setting, class_name: "MirrorProjectSetting", optional: true
+  has_many :child_settings, class_name: "MirrorProjectSetting", foreign_key: :parent_setting_id, dependent: :nullify
   validates :project_id, uniqueness: true
   validates :source_project_id, numericality: { only_integer: true, greater_than: 0 }
   validates :source_text_format, inclusion: { in: RedmineMirror::TextFormat::SOURCE_FORMATS }

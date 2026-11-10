@@ -31,6 +31,8 @@ module RedmineMirror
       # Mirror modules have data there; and what unselected modules would bring.
       tables["source_modules"] = project["enabled_modules"].map { |entry| entry["name"].to_s } if project["enabled_modules"].is_a?(Array)
       tables["source_inventory"] = inventory
+      # The subprojects running Mirror source, for the Connection tab's subproject table.
+      tables["subprojects"], tables["subprojects_refusal"] = subprojects
       used = Hash.new { |hash, key| hash[key] = [] }
       formats = Hash.new(0)
       statistics = {}
@@ -105,6 +107,13 @@ module RedmineMirror
     # the account cannot list them (or anything else goes wrong: it is only a hint). One
     # small request each.
     INVENTORY = { "project_members" => "memberships", "issue_categories" => "issue_categories", "project_versions" => "versions" }.freeze
+
+    # Only a hint for the Connection tab: a failure never stops the references.
+    def subprojects
+      ConnectionCheck.new(client: @client, project_reference: @project_id).subprojects(Integer(@project_id))
+    rescue StandardError
+      [nil, "unavailable"]
+    end
 
     def inventory
       INVENTORY.to_h do |module_key, collection|
