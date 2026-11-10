@@ -586,6 +586,7 @@ en:
   text_mirror_connection_check_not_saved: "Nothing was saved: save the form to keep this connection."
   text_mirror_modules_after_save: "Chosen after saving the connection, once the source project's modules are known."
   text_mirror_no_module_selected: "No module selected yet: choose what to import, then save."
+  text_mirror_check_other_project_needs_key: "Another source project can be checked with its own API key only: type one."
   text_mirror_api_key_missing: "Enter the API key of the source account."
   label_mirror_tab_group_general: "Configuration"
   label_mirror_tab_group_references: "References"

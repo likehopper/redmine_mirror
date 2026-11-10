@@ -17,6 +17,7 @@
 # pending links and imported objects. The configuration is in the project settings.
 
 class MirrorController < ApplicationController
+  include RedmineMirror::PlainFlash
   include RedmineMirror::Authorization
   helper MirrorHelper
   before_action :find_project_by_project_id

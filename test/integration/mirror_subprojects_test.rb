@@ -59,6 +59,8 @@ class MirrorSubprojectsTest < Redmine::IntegrationTest
     app = Project.find_by!(identifier: "boutique-app")
     assert_equal [@project, shop], [shop.parent, app.parent]
     assert_equal "Boutique web", shop.name
+    # Created private: the source subproject may be private.
+    refute shop.is_public?
     # Redmine's project tree bounds stay consistent.
     assert_equal [shop, app, Project.find(3)].map(&:id).sort, (Project.find(1).descendants.pluck(:id) & [shop, app, Project.find(3)].map(&:id)).sort
     assert_includes Project.find(shop.id).descendants, app
@@ -88,6 +90,32 @@ class MirrorSubprojectsTest < Redmine::IntegrationTest
     patch "/projects/ecookbook/mirror/settings/connection", params: { connection: { source_url: @setting.source_url, source_project_id: "12",
       api_key: "new-parent-key", modules: ["issue_tracking"] } }
     assert_equal "new-parent-key", child.reload.api_key
+    # A subproject given its own key keeps it.
+    child.update!(api_key: "own-child-key")
+    patch "/projects/ecookbook/mirror/settings/connection", params: { connection: { source_url: @setting.source_url, source_project_id: "12",
+      api_key: "third-parent-key", modules: ["issue_tracking"] } }
+    assert_equal "own-child-key", child.reload.api_key
+  end
+
+  # Source names reach the flash, which Redmine prints as HTML: they are escaped.
+  def test_source_names_are_escaped_in_messages
+    @setting.update!(source_catalog: @setting.source_catalog.merge("subprojects" =>
+      [{ "id" => 104, "identifier" => "evil", "name" => "<img src=x onerror=alert(1)>", "parent_id" => 999, "modules" => %w[issue_tracking] }]))
+    log_user("admin", "admin")
+    configure("104" => { include: "1", target: "new", name: "Evil", identifier: "evil", modules: ["issue_tracking"] })
+    follow_redirect!
+    assert_includes response.body, "&lt;img src=x onerror=alert(1)&gt;"
+    assert_not_includes response.body, "<img src=x onerror"
+  end
+
+  # A new project's modules follow Redmine's rule: the creator's role chooses them.
+  def test_new_subproject_modules_need_the_default_role_to_choose_them
+    Role.find(2).add_permission!(:manage_mirror, :add_subprojects)
+    Project.default_member_role.remove_permission!(:select_project_modules)
+    log_user("dlopper", "foo")
+    configure("101" => { include: "1", target: "new", name: "Boutique web", identifier: "boutique-web", modules: ["issue_tracking"] })
+    assert_match(/Select project modules permission/, flash[:error])
+    assert_nil Project.find_by(identifier: "boutique-web")
   end
 
   # The list is read again in one request, without the whole references.
@@ -134,13 +162,34 @@ class MirrorSubprojectsTest < Redmine::IntegrationTest
     assert_equal({ 1 => 1, 2 => 3 }, child_project.mirror_reference_mappings.where(reference_type: "tracker").pluck(:source_id, :destination_id).to_h)
   end
 
+  # A user the parent maps is taken even when not yet a member of the subproject (the
+  # worker runs as anonymous; the Members module adds them later).
+  def test_subproject_takes_the_parent_user_correspondences
+    @setting.update!(source_catalog: @setting.source_catalog.merge("user" => { "7" => "Remote Alice" }))
+    @project.mirror_reference_mappings.create!(reference_type: "user", source_id: 7, mode: "existing", destination_id: 2)
+    child_project = Project.create!(name: "Empty child", identifier: "empty-child", parent: @project, enabled_module_names: %w[mirror issue_tracking])
+    child = MirrorProjectSetting.new(project: child_project, parent_setting: @setting, source_url: @setting.source_url, source_project_id: 105)
+    child.selected_modules = %w[issue_tracking]
+    child[:encrypted_api_key] = @setting[:encrypted_api_key]
+    child.source_catalog = { "user" => { "7" => "Remote Alice" } }
+    child.save!
+    assert_empty child_project.members
+    User.current = User.anonymous
+    assert_equal 1, RedmineMirror::ParentMappings.apply(child.reload)
+    assert_equal 2, child_project.mirror_reference_mappings.find_by!(reference_type: "user", source_id: 7).destination_id
+  ensure
+    User.current = nil
+  end
+
   # A parent's successful run queues its subprojects' runs, the same way.
   def test_parent_run_queues_its_subprojects
     log_user("admin", "admin")
     configure("103" => { include: "1", target: "3", modules: ["issue_tracking"] })
     run = @project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "succeeded", requested_by: User.find(1))
     RedmineMirror::Synchronization.queue_subprojects(@setting, run)
-    queued = Project.find(3).mirror_sync_runs.sole
+    runs = Project.find(3).mirror_sync_runs.to_a
+    assert_equal 1, runs.size
+    queued = runs.first
     assert_equal [true, "parent", "queued", 1], [queued.apply?, queued.trigger, queued.status, queued.requested_by_id]
     failed = @project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "failed")
     RedmineMirror::Synchronization.queue_subprojects(@setting, failed)

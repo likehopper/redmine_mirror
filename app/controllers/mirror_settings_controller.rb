@@ -17,6 +17,7 @@
 # connect only to source URLs an administrator allowed in the plugin settings.
 
 class MirrorSettingsController < ApplicationController
+  include RedmineMirror::PlainFlash
   include RedmineMirror::Authorization
   helper MirrorHelper
   before_action :find_project_by_project_id
@@ -46,6 +47,7 @@ class MirrorSettingsController < ApplicationController
       raise RedmineMirror::Error, "This project's source cannot be changed after configuration"
     end
     @setting.source_url = url
+    previous_key = @setting[:encrypted_api_key]
     @setting.api_key = input[:api_key] if input[:api_key].present?
     raise RedmineMirror::Error, l(:text_mirror_api_key_missing) if @setting.api_key.blank?
     unless @setting.persisted? && [@setting.source_project_id.to_s, @setting.source_project_identifier].include?(reference)
@@ -61,8 +63,11 @@ class MirrorSettingsController < ApplicationController
     @setting.source_text_format = input[:source_text_format] if input[:source_text_format].present?
     if @setting.valid?
       @setting.save!
-      # Subprojects configured from this project share its key (Subprojects).
-      @setting.child_settings.update_all(encrypted_api_key: @setting[:encrypted_api_key]) if input[:api_key].present?
+      # Subprojects configured from this project share its key (Subprojects); one given
+      # another key in its own settings keeps it.
+      if input[:api_key].present? && previous_key
+        @setting.child_settings.where(encrypted_api_key: previous_key).update_all(encrypted_api_key: @setting[:encrypted_api_key])
+      end
       # The worker reads the source references; saving stays immediate.
       @setting.request_catalog_refresh!
       flash[:notice] = l(:text_mirror_catalog_requested)
@@ -86,9 +91,13 @@ class MirrorSettingsController < ApplicationController
       @setting.source_url = input.fetch(:source_url).strip.sub(%r{/+\z}, "")
       check_source_allowed(@setting.source_url)
     end
+    # The stored key reads only the configured source project: managers never see it.
+    if @setting.persisted? && input[:api_key].blank? && ![@setting.source_project_id.to_s, @setting.source_project_identifier].include?(reference)
+      raise RedmineMirror::Error, l(:text_mirror_check_other_project_needs_key)
+    end
     @setting.api_key = input[:api_key] if input[:api_key].present?
     raise RedmineMirror::Error, l(:text_mirror_api_key_missing) if @setting.api_key.blank?
-    check =RedmineMirror::ConnectionCheck.new(client: @setting.source_client, project_reference: reference).run
+    check = RedmineMirror::ConnectionCheck.new(client: @setting.source_client, project_reference: reference).run
     render partial: "mirror_settings/connection_check", locals: { check: check }
   rescue RedmineMirror::Error, ActionController::ParameterMissing, KeyError => error
     render partial: "mirror_settings/connection_check", locals: { check: { "error" => "input", "detail" => error.is_a?(RedmineMirror::Error) ? error.message : l(:text_mirror_invalid_configuration) } }
@@ -110,7 +119,10 @@ class MirrorSettingsController < ApplicationController
     return render_404 unless @setting.persisted? && @setting.parent_setting_id.nil?
     subprojects, refusal = RedmineMirror::ConnectionCheck.new(client: @setting.source_client, project_reference: @setting.source_project_id)
       .subprojects(@setting.source_project_id)
-    @setting.update_columns(source_catalog: JSON.generate(@setting.source_catalog.merge("subprojects" => subprojects, "subprojects_refusal" => refusal)))
+    # lock! reloads the row: a catalog the worker saved meanwhile is kept.
+    @setting.with_lock do
+      @setting.update_columns(source_catalog: JSON.generate(@setting.source_catalog.merge("subprojects" => subprojects, "subprojects_refusal" => refusal)))
+    end
     redirect_to configuration_path(nil, anchor: "mirror-subprojects")
   rescue RedmineMirror::Error => error
     flash[:error] = error.message

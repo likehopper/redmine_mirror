@@ -16,6 +16,7 @@
 # Exclude or recheck scoped conflicts without resetting fingerprints or changing local data.
 
 class MirrorConflictsController < ApplicationController
+  include RedmineMirror::PlainFlash
   include RedmineMirror::Authorization
   before_action :find_project_by_project_id
   before_action -> { authorize_mirror(:run) }

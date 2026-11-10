@@ -17,6 +17,7 @@
 # activity and load; as a source, the projects sharing data and every access to it.
 
 class MirrorAdminController < ApplicationController
+  include RedmineMirror::PlainFlash
   layout "admin"
   self.main_menu = false
   menu_item :mirror_admin

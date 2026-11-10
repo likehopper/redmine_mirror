@@ -358,6 +358,7 @@ class MirrorSettingsControllerTest < ActionController::TestCase
 
   # A saved connection is checked against its own source, with its key when none is typed.
   def test_connection_check_of_a_saved_connection_keeps_its_source_and_key
+    @setting.update_columns(source_project_id: 34, source_project_identifier: "legacy-app")
     used = nil
     RedmineMirror::Client.stub(:new, ->(**options) { used = options; checked_source_client }) do
       post :check_connection, params: { project_id: @project.identifier,
@@ -365,12 +366,26 @@ class MirrorSettingsControllerTest < ActionController::TestCase
     end
     assert_select "#mirror-connection-check-passed"
     assert_equal ["https://source.example/redmine", "private-api-key"], used.values_at(:url, :api_key)
-    assert_equal 12, @setting.reload.source_project_id
+    assert_equal 34, @setting.reload.source_project_id
+  end
+
+  # The stored key reads only the configured project: another one needs a key typed.
+  def test_connection_check_of_another_project_needs_a_typed_key
+    RedmineMirror::Client.stub(:new, ->(**) { raise "the stored key must not be used" }) do
+      post :check_connection, params: { project_id: @project.identifier, connection: { source_project_id: "legacy-app", api_key: "" } }
+    end
+    assert_select "#mirror-connection-check-failed", text: /Another source project can be checked with its own API key only/
+    used = nil
+    RedmineMirror::Client.stub(:new, ->(**options) { used = options; checked_source_client }) do
+      post :check_connection, params: { project_id: @project.identifier, connection: { source_project_id: "legacy-app", api_key: "typed-key" } }
+    end
+    assert_select "#mirror-connection-check-passed"
+    assert_equal "typed-key", used[:api_key]
   end
 
   def test_connection_check_names_the_refused_project
     RedmineMirror::Client.stub(:new, checked_source_client) do
-      post :check_connection, params: { project_id: @project.identifier, connection: { source_project_id: "unknown" } }
+      post :check_connection, params: { project_id: @project.identifier, connection: { source_project_id: "unknown", api_key: "typed-key" } }
     end
     assert_select "#mirror-connection-check-failed", text: /Source project not found or not visible/
   end

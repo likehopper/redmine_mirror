@@ -586,6 +586,7 @@ fr:
   text_mirror_connection_check_not_saved: "Rien n'est enregistré : enregistrez le formulaire pour garder cette connexion."
   text_mirror_modules_after_save: "Choisis après l'enregistrement de la connexion, une fois connus les modules du projet source."
   text_mirror_no_module_selected: "Aucun module sélectionné : choisissez ce qu'il faut importer, puis enregistrez."
+  text_mirror_check_other_project_needs_key: "Un autre projet source ne peut être vérifié qu'avec sa propre clé API : saisissez-en une."
   text_mirror_api_key_missing: "Saisissez la clé API du compte source."
   label_mirror_tab_group_general: "Configuration"
   label_mirror_tab_group_references: "Références"

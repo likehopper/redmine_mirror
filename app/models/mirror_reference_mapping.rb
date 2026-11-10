@@ -44,9 +44,18 @@ class MirrorReferenceMapping < ActiveRecord::Base
     elsif mode == "anonymous"
       errors.add(:base, "Anonymization is only supported for users") unless table.anonymous_allowed?
       errors.add(:destination_id, :invalid) unless destination_id.nil?
-    elsif !table.local_records(project).any? { |record| record.id == destination_id } && !default_account?
+    elsif !table.local_records(project).any? { |record| record.id == destination_id } && !default_account? && !parent_correspondence?
       errors.add(:destination_id, :invalid)
     end
+  end
+
+  # A subproject takes its parent's correspondences (RedmineMirror::ParentMappings), read by
+  # the worker: a user the parent maps need not be a member of the subproject yet, the
+  # Members module adds them.
+  def parent_correspondence?
+    parent = project.mirror_project_setting&.parent_setting
+    !!parent && parent.project.mirror_reference_mappings.where(reference_type: reference_type, source_id: source_id, mode: "existing",
+      destination_id: destination_id).exists?
   end
 
   # An administrator's default may name an account outside the project, such as a generic

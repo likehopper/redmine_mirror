@@ -16,6 +16,7 @@
 # Save what the project shares with Mirror destinations (Mirror source tab).
 
 class MirrorSourceSettingsController < ApplicationController
+  include RedmineMirror::PlainFlash
   before_action :find_project_by_project_id
   before_action :authorize
 

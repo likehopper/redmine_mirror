@@ -45,11 +45,12 @@ module RedmineMirror
       @linked ||= @setting.child_settings.preload(:project).index_by(&:source_project_id)
     end
 
-    # Local subprojects without a Mirror configuration of their own, in tree order.
+    # Local subprojects the person can see, without a Mirror configuration of their own, in
+    # tree order.
     # Read again each time: creating a subproject moves the tree bounds (lft, rgt) in the
     # database, not in the project already loaded.
     def candidates
-      Project.find(@project.id).descendants.where.not(status: Project::STATUS_ARCHIVED)
+      Project.find(@project.id).descendants.visible.where.not(status: Project::STATUS_ARCHIVED)
         .where.not(id: MirrorProjectSetting.select(:project_id)).order(:lft).to_a
     end
 
@@ -99,8 +100,13 @@ module RedmineMirror
 
     def create_project(row, entry, parent, user)
       raise Error, ::I18n.t(:text_mirror_subproject_create_denied, project: parent.name) unless user.allowed_to?(:add_subprojects, parent)
-      project = Project.new(name: entry["name"].to_s.strip.presence || row["name"], identifier: entry["identifier"].to_s.strip.presence || row["identifier"],
-        is_public: parent.is_public?, inherit_members: false)
+      name = entry["name"].to_s.strip.presence || row["name"]
+      # As in Redmine's form, choosing a new project's modules needs the creator's role to.
+      unless user.admin? || Project.default_member_role&.has_permission?(:select_project_modules)
+        raise Error, ::I18n.t(:text_mirror_subproject_modules_denied, project: name)
+      end
+      # Private: the source subproject may be private, whatever its local parent is.
+      project = Project.new(name: name, identifier: entry["identifier"].to_s.strip.presence || row["identifier"], is_public: false, inherit_members: false)
       project.parent = parent
       project.save!
       # As Redmine does for a project created by someone who is not an administrator.

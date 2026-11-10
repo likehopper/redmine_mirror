@@ -16,6 +16,7 @@
 # Enqueue authorized project work and expose filtered execution diagnostics.
 
 class MirrorSynchronizationsController < ApplicationController
+  include RedmineMirror::PlainFlash
   include RedmineMirror::Authorization
   helper MirrorHelper
   before_action :find_project_by_project_id
