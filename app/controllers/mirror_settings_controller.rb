@@ -105,6 +105,18 @@ class MirrorSettingsController < ApplicationController
     redirect_to configuration_path(nil, anchor: "mirror-subprojects")
   end
 
+  # Read the source subprojects again (one request), without the whole references.
+  def refresh_subprojects
+    return render_404 unless @setting.persisted? && @setting.parent_setting_id.nil?
+    subprojects, refusal = RedmineMirror::ConnectionCheck.new(client: @setting.source_client, project_reference: @setting.source_project_id)
+      .subprojects(@setting.source_project_id)
+    @setting.update_columns(source_catalog: JSON.generate(@setting.source_catalog.merge("subprojects" => subprojects, "subprojects_refusal" => refusal)))
+    redirect_to configuration_path(nil, anchor: "mirror-subprojects")
+  rescue RedmineMirror::Error => error
+    flash[:error] = error.message
+    redirect_to configuration_path(nil, anchor: "mirror-subprojects")
+  end
+
   def refresh
     return render_404 unless @setting.persisted?
     @setting.request_catalog_refresh!

@@ -90,6 +90,24 @@ class MirrorSubprojectsTest < Redmine::IntegrationTest
     assert_equal "new-parent-key", child.reload.api_key
   end
 
+  # The list is read again in one request, without the whole references.
+  def test_refreshes_the_subproject_list_alone
+    @setting.update!(source_catalog: { "tracker" => { "1" => "Bug" } })
+    source = Object.new
+    def source.get(path, _params = {})
+      raise RedmineMirror::Error, "Redmine API returned HTTP 404 for GET #{path}" unless path == "projects/12/mirror/source/subprojects.json"
+      { "subprojects" => [{ "id" => 101, "identifier" => "web-shop", "name" => "Web shop", "parent_id" => 12, "enabled_modules" => ["issue_tracking"] }] }
+    end
+    log_user("admin", "admin")
+    get "/projects/ecookbook/settings/mirror"
+    assert_select "#mirror-subprojects-form", count: 0
+    RedmineMirror::Client.stub(:new, source) { post "/projects/ecookbook/mirror/settings/subprojects/refresh" }
+    assert_redirected_to "/projects/ecookbook/settings/mirror#mirror-subprojects"
+    assert_equal({ "1" => "Bug" }, @setting.reload.source_catalog["tracker"])
+    get "/projects/ecookbook/settings/mirror"
+    assert_select "#mirror-subproject-101-include"
+  end
+
   def test_creating_needs_the_add_subprojects_permission
     Role.find(2).add_permission!(:manage_mirror)
     Role.find(2).remove_permission!(:add_subprojects)

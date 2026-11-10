@@ -34,6 +34,7 @@ get "projects/:project_id/mirror/settings", to: "mirror_settings#show", as: "pro
 patch "projects/:project_id/mirror/settings/connection", to: "mirror_settings#update_connection", as: "project_mirror_connection"
 post "projects/:project_id/mirror/settings/connection/check", to: "mirror_settings#check_connection", as: "project_mirror_connection_check"
 post "projects/:project_id/mirror/settings/subprojects", to: "mirror_settings#update_subprojects", as: "project_mirror_subprojects"
+post "projects/:project_id/mirror/settings/subprojects/refresh", to: "mirror_settings#refresh_subprojects", as: "project_mirror_subprojects_refresh"
 post "projects/:project_id/mirror/settings/refresh", to: "mirror_settings#refresh", as: "project_mirror_refresh"
 patch "projects/:project_id/mirror/settings/modules/:module_key", to: "mirror_settings#update_mappings", as: "project_mirror_mappings"
 post "projects/:project_id/mirror/settings/modules/:module_key/ai/:table", to: "mirror_settings#request_ai", as: "project_mirror_ai"

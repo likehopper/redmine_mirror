@@ -67,4 +67,5 @@ Connection tab: the source subprojects and their local subprojects (RedmineMirro
       <p><%= submit_tag l(:button_mirror_subprojects_apply) %></p>
     <% end %>
   <% end %>
+  <%= button_to l(:button_mirror_subprojects_refresh), project_mirror_subprojects_refresh_path(@project), method: :post, id: "mirror-subprojects-refresh" %>
 <% end %>

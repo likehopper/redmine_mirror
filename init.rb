@@ -38,7 +38,7 @@ Redmine::Plugin.register :redmine_mirror do
       permission :view_mirror, { mirror: [:index], mirror_synchronizations: [:show] }, read: true, require: :member
       permission :run_mirror, { mirror: [:index], mirror_synchronizations: [:show, :create, :cancel], mirror_conflicts: [:update] }, require: :member
       permission :manage_mirror, { projects: [:settings], mirror: [:index], mirror_synchronizations: [:show, :create, :cancel, :update],
-        mirror_conflicts: [:update], mirror_settings: [:show, :update_connection, :check_connection, :update_subprojects, :update_mappings, :refresh, :request_ai, :update_defaults, :apply_defaults, :fix_setup] }, require: :member
+        mirror_conflicts: [:update], mirror_settings: [:show, :update_connection, :check_connection, :update_subprojects, :refresh_subprojects, :update_mappings, :refresh, :request_ai, :update_defaults, :apply_defaults, :fix_setup] }, require: :member
     end
   end
   # Mirror source, when this Redmine is a source: a project shares chosen data with Mirror
