@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.42 — 2026-11-12
 
 - **Missing source modules stay grey, without false API warnings**: the reference
   refresh no longer calls an adapter when the source project's module list already
