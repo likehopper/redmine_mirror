@@ -54,8 +54,13 @@ class MirrorProjectSetting < ActiveRecord::Base
     self[:selected_modules] = JSON.generate(RedmineMirror::REGISTRY.resolve(Array(value).reject(&:blank?)).map(&:key))
   end
 
+  # Parsed once per stored version: a catalog of thousands of users weighs hundreds of
+  # kilobytes, and pages and validations read it once per row. Callers that change the
+  # Hash write it back (source_catalog=, update_columns), which stores a new version.
   def source_catalog
-    JSON.parse(self[:source_catalog].presence || "{}")
+    raw = self[:source_catalog].presence || "{}"
+    @parsed_source_catalog = [raw, JSON.parse(raw)] unless @parsed_source_catalog&.first.equal?(raw)
+    @parsed_source_catalog.last
   end
 
   # Reading every source issue can take minutes: the worker does it (Synchronization).

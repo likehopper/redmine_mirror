@@ -44,9 +44,17 @@ class MirrorReferenceMapping < ActiveRecord::Base
     elsif mode == "anonymous"
       errors.add(:base, "Anonymization is only supported for users") unless table.anonymous_allowed?
       errors.add(:destination_id, :invalid) unless destination_id.nil?
-    elsif !table.local_records(project).any? { |record| record.id == destination_id } && !default_account? && !parent_correspondence?
+    elsif !local_destination?(table) && !default_account? && !parent_correspondence?
       errors.add(:destination_id, :invalid)
     end
+  end
+
+  # One query rather than loading the choices: a members manager chooses among every
+  # account, thousands of them, and a page saves one row per source user.
+  def local_destination?(table)
+    records = table.local_records(project)
+    return records.where(id: destination_id).exists? if records.is_a?(ActiveRecord::Relation)
+    records.any? { |record| record.id == destination_id }
   end
 
   # A subproject takes its parent's correspondences (RedmineMirror::ParentMappings), read by

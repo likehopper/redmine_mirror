@@ -31,7 +31,7 @@ module RedmineMirror
       return 0 unless parent
       project = setting.project
       catalog = setting.source_catalog
-      existing = project.mirror_reference_mappings.pluck(:reference_type, :source_id).map { |kind, id| [kind, id.to_s] }
+      existing = project.mirror_reference_mappings.pluck(:reference_type, :source_id).to_set { |kind, id| [kind, id.to_s] }
       parent.project.mirror_reference_mappings.to_a.count do |row|
         next false if existing.include?([row.reference_type, row.source_id.to_s])
         next false unless catalog.fetch(row.reference_type, {}).key?(row.source_id.to_s)

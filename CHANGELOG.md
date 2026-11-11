@@ -18,6 +18,11 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 ## Unreleased
 
+- **Large user lists**: with thousands of source users, the Mirror settings page and the
+  saving of the **Users** table took several minutes and exhausted the database
+  connections of the web server. The checklist now reads the local accounts once per page
+  and stops at five near misses, a correspondence is checked with one query instead of
+  loading every account, and the source references are parsed once per stored version.
 - **Subprojects**: the **Connection** tab lists the source subprojects running Mirror
   source that the API key can see. Each one checked is created under its local parent
   with the name and identifier chosen, or linked to an existing subproject, with Mirror

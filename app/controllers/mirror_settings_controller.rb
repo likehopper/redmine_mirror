@@ -237,6 +237,8 @@ class MirrorSettingsController < ApplicationController
             scope.destroy_all
           else
             row = scope.first_or_initialize
+            # Its validation then reads this setting's catalog, parsed once, not once per row.
+            row.project = @project
             literal = %w[anonymous ignore].include?(selection) || table.extra_choices.include?(selection)
             row.mode = literal ? selection : "existing"
             row.destination_id = literal ? nil : Integer(selection)

@@ -148,4 +148,29 @@ class MirrorSetupFixesTest < Redmine::IntegrationTest
       assert_select "#mirror-checklist li", text: /is not an active member/, count: 0
     end
   end
+
+  # A users table can leave thousands of names unmapped: the checklist reads the local
+  # accounts once, not once per name, and still points out an account outside the project.
+  def test_checklist_reads_local_accounts_once
+    Role.find(1).add_permission!(:manage_mirror)
+    Role.find(1).remove_permission!(:manage_members)
+    outsider = User.active.where(type: "User").where.not(id: @project.members.select(:user_id)).where.not(id: 1).first
+    member = @project.users.active.first
+    sql_count = lambda do |extra|
+      users = { "2001" => outsider.name, "2002" => member.name }
+      extra.times { |index| users[(3000 + index).to_s] = "Remote person #{index}" }
+      @setting.update!(source_catalog: @setting.source_catalog.merge("user" => users, "user_used" => users.keys))
+      # Cached reads count too: the old code read the same accounts again for each name.
+      count = 0
+      counter = ->(*, payload) { count += 1 if payload[:name] == "User Load" }
+      ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { get "/projects/ecookbook/settings/mirror" }
+      assert_response :success
+      count
+    end
+    log_user("jsmith", "jsmith")
+    few = sql_count.call(2)
+    assert_select "#mirror-checklist li", text: /#{outsider.name} has an account here but is not a member/
+    assert_select "#mirror-checklist li", text: /#{member.name} has an account here/, count: 0
+    assert_operator sql_count.call(60) - few, :<, 5
+  end
 end

@@ -343,6 +343,7 @@ module MirrorHelper
     manager = mirror_manager?(project)
     catalog = setting.source_catalog
     mapped = project.mirror_reference_mappings.to_a
+    mapped_keys = mapped.map { |row| [row.reference_type, row.source_id.to_s] }.to_set
     ai_config = MirrorAiConfig.current
     source_modules = catalog["source_modules"]
     checked_modules = []
@@ -366,8 +367,8 @@ module MirrorHelper
       end
       adapter.mapping_tables.each do |table|
         next if table.respond_to?(:unmapped_allowed?) && table.unmapped_allowed?(setting)
-        used = catalog["#{table.key}_used"]
-        missing = catalog.fetch(table.key, {}).select { |id, _| (used.nil? || used.include?(id)) && mapped.none? { |row| row.reference_type == table.key && row.source_id.to_s == id } }
+        used = catalog["#{table.key}_used"]&.to_set
+        missing = catalog.fetch(table.key, {}).select { |id, _| (used.nil? || used.include?(id)) && !mapped_keys.include?([table.key, id]) }
         next if missing.empty?
         tab = manager && mirror_configuration_path(project, MAPPING_TABS.fetch(table.key, adapter.key))
         actions = [[l(:label_mirror_fix_mapping), tab]]
@@ -375,7 +376,8 @@ module MirrorHelper
           actions << [l(:button_mirror_ai_propose), tab]
         end
         items << { text: l(:text_mirror_check_unmapped, table: l(table.label), count: missing.size, names: missing.values.first(5).join(", ")), actions: actions }
-        missing.each_value.filter_map { |name| mirror_near_miss(table.key, name) }.first(5).each do |near|
+        # Lazily: a users table can leave thousands of names unmapped, five are shown.
+        missing.each_value.lazy.map { |name| mirror_near_miss(table.key, name) }.select(&:itself).first(5).each do |near|
           # A tracker or field to enable has a button, which comes back here.
           items << if near[:fix]
                      { text: near[:text], actions: [], buttons: [[l(:button_mirror_enable_project_module_now), near[:fix], near[:path]]] }
@@ -438,41 +440,54 @@ module MirrorHelper
   # this project's form, and how to make it available: {text:, label:, path:}.
   def mirror_near_miss(kind, name)
     return nil if name.blank?
-    same = ->(records) { records.find { |record| RedmineMirror::NameMatch.key(record.name) == RedmineMirror::NameMatch.key(name) } }
     case kind
     when "tracker"
-      tracker = same.call(Tracker.all.to_a)
+      tracker = mirror_namesake(kind, name) { Tracker.all.to_a }
       tracker && !@project.trackers.include?(tracker) &&
         { text: l(:text_mirror_guide_tracker_disabled, name: tracker.name), label: :label_mirror_guide_enable_in_project,
           path: User.current.allowed_to?(:edit_project, @project) && settings_project_path(@project, tab: "issues"),
           fix: { fix: "enable_tracker", target: tracker.id } }
     when "status"
-      status = same.call(IssueStatus.all.to_a)
-      status && !RedmineMirror::MappingTable.new("status").local_records(@project).include?(status) &&
+      status = mirror_namesake(kind, name) { IssueStatus.all.to_a }
+      status && !mirror_local_ids("status").include?(status.id) &&
         { text: l(:text_mirror_guide_status_no_workflow, name: status.name), label: :label_mirror_guide_edit_workflow,
           path: User.current.admin? && url_for(controller: "workflows", action: "edit") }
     when "custom_field"
-      field = same.call(IssueCustomField.all.to_a)
+      field = mirror_namesake(kind, name) { IssueCustomField.all.to_a }
       field && !@project.all_issue_custom_fields.include?(field) &&
         { text: l(:text_mirror_guide_field_disabled, name: field.name), label: :label_mirror_guide_enable_in_project,
           path: User.current.allowed_to?(:edit_project, @project) && settings_project_path(@project, tab: "issues"),
           fix: { fix: "enable_custom_field", target: field.id } }
     when "activity"
-      activity = same.call(TimeEntryActivity.shared.to_a)
+      activity = mirror_namesake(kind, name) { TimeEntryActivity.shared.to_a }
       activity && !@project.activities.include?(activity) &&
         { text: l(:text_mirror_guide_activity_inactive, name: activity.name), label: :label_mirror_guide_enable_in_project,
           path: User.current.allowed_to?(:manage_project_activities, @project) && settings_project_path(@project, tab: "activities") }
     when "priority"
-      priority = same.call(IssuePriority.all.to_a)
+      priority = mirror_namesake(kind, name) { IssuePriority.all.to_a }
       priority && !priority.active? &&
         { text: l(:text_mirror_guide_priority_inactive, name: priority.name), label: :label_mirror_guide_edit_enumeration,
           path: User.current.admin? && edit_enumeration_path(priority) }
     when "user"
-      user = same.call(User.where(status: [User::STATUS_ACTIVE, User::STATUS_LOCKED, User::STATUS_REGISTERED]).to_a)
-      user && !RedmineMirror::MappingTable.new("user").local_records(@project).include?(user) &&
+      user = mirror_namesake(kind, name) { User.where(status: [User::STATUS_ACTIVE, User::STATUS_LOCKED, User::STATUS_REGISTERED]).to_a }
+      user && !mirror_local_ids("user").include?(user.id) &&
         { text: l(:text_mirror_guide_user_not_member, name: user.name), label: :label_mirror_guide_add_member,
           path: User.current.allowed_to?(:manage_members, @project) && settings_project_path(@project, tab: "members") }
     end || nil
+  end
+
+  # The local record named like name, from an index built once per page and kind (the
+  # block loads the candidates): a users table asks for thousands of names.
+  def mirror_namesake(kind, name)
+    @mirror_namesakes ||= {}
+    index = @mirror_namesakes[kind] ||= yield.each_with_object({}) { |record, found| found[RedmineMirror::NameMatch.key(record.name)] ||= record }
+    index[RedmineMirror::NameMatch.key(name)]
+  end
+
+  # Ids of the records this project's form offers for a mapping table, once per page.
+  def mirror_local_ids(kind)
+    @mirror_local_ids ||= {}
+    @mirror_local_ids[kind] ||= RedmineMirror::MappingTable.new(kind).local_records(@project).pluck(:id).to_set
   end
 
   # A category or version the issue uses but Mirror has not imported. A version shared
@@ -516,7 +531,11 @@ module MirrorHelper
   def mirror_object_link(module_key, id, source_url: nil, local_issue_id: nil)
     return "—" if id.blank?
     id = Integer(id)
-    local_id = source_url && @project ? MirrorMapping.find_by(project_id: @project.id, module_key: module_key, source_id: id)&.destination_id : id
+    # Only notes and relations link through their local issue: a users table calls this
+    # once per row.
+    local_id = if %w[issue_journals issue_relation_notes issue_relations].include?(module_key)
+                 source_url && @project ? MirrorMapping.find_by(project_id: @project.id, module_key: module_key, source_id: id)&.destination_id : id
+               end
     if %w[issue_journals issue_relation_notes].include?(module_key)
       local_issue_id ||= Journal.find_by(id: local_id)&.journalized_id if local_id
     elsif module_key == "issue_relations"
