@@ -544,6 +544,22 @@ class MirrorCoreTest < Minitest::Test
     assert_equal 1, catalog.dig("module_statistics", "issue_hierarchy", "records")
   end
 
+  def test_module_catalog_does_not_call_data_from_a_disabled_source_module
+    client = Object.new
+    client.define_singleton_method(:get) do |path, _params = {}|
+      path == "projects/1.json" ? { "project" => { "id" => 1, "enabled_modules" => [{ "name" => "issue_tracking" }] } } : raise("Unexpected path #{path}")
+    end
+    disabled = RedmineMirror::Adapters::Files.new
+    def disabled.catalog_references(*); raise "Files references must not be read"; end
+    def disabled.records(*); raise "Files must not be read"; end
+
+    catalog = RedmineMirror::SourceCatalog.new(client: client, project_id: 1, adapters: [disabled]).fetch
+
+    assert_equal ["issue_tracking"], catalog["source_modules"]
+    assert_nil catalog["module_errors"]
+    assert_nil catalog.dig("module_statistics", "project_files")
+  end
+
   def test_invalid_url_is_reported_as_a_mirror_error
     assert_raises(RedmineMirror::Error) { RedmineMirror::Client.new(url: "https://invalid host", api_key: "key") }
   end

@@ -29,7 +29,8 @@ module RedmineMirror
       tables = {}
       # The source project's modules, so that the form and the checklist can tell which
       # Mirror modules have data there; and what unselected modules would bring.
-      tables["source_modules"] = project["enabled_modules"].map { |entry| entry["name"].to_s } if project["enabled_modules"].is_a?(Array)
+      source_modules = project["enabled_modules"].map { |entry| entry["name"].to_s } if project["enabled_modules"].is_a?(Array)
+      tables["source_modules"] = source_modules if source_modules
       tables["source_inventory"] = inventory
       # The subprojects running Mirror source, for the Connection tab's subproject table.
       tables["subprojects"], tables["subprojects_refusal"] = subprojects
@@ -37,11 +38,15 @@ module RedmineMirror
       formats = Hash.new(0)
       statistics = {}
       @adapters.each_with_index do |adapter, index|
+        progress&.call(index + 1, @adapters.size, adapter.key, 0)
+        # The project response already establishes that this data does not exist there.
+        # Do not turn the expected API refusal into a catalog warning: the connection
+        # form greys the module and the checklist tells a selected module how to fix it.
+        next if source_modules && adapter.source_project_module && !source_modules.include?(adapter.source_project_module.to_s)
         # One refused module (a missing permission, a plugin absent on the source) does not
         # hide the references of the others: the configuration says which and why.
         begin
           counts = statistics[adapter.key] = { "records" => 0 }
-          progress&.call(index + 1, @adapters.size, adapter.key, 0)
           adapter.mapping_tables.each { |table| tables[table.key] ||= {} }
           adapter.catalog_references(@client, @project_id).each do |kind, references|
             raise Error, "Undeclared module mapping table" unless tables.key?(kind)

@@ -22,6 +22,13 @@ module RedmineMirror
         true
       end
 
+      # Key of the selectable adapter whose configuration page also owns this adapter,
+      # or nil when this adapter has its own page. Execution and object mappings keep
+      # their adapter keys; this only avoids exposing implementation parts as modules.
+      def configuration_parent
+        nil
+      end
+
       def api_version
         ADAPTER_API_VERSION
       end

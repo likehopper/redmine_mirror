@@ -16,6 +16,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.42 — 2026-11-12
+
+- **Missing source modules stay grey, without false API warnings**: the reference
+  refresh no longer calls an adapter when the source project's module list already
+  establishes that its data is unavailable. An owning plugin may also keep separate
+  execution adapters under one user-facing configuration module.
+
 ## 1.0.0-beta.41 — 2026-11-11
 
 - **Clearer project workflow**: **Settings → Mirror** now has three stable sections and
