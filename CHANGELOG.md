@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.41 — 2026-11-11
 
 - **Clearer project workflow**: **Settings → Mirror** now has three stable sections and
   a single **Modules and mappings** summary instead of one navigation entry per module.
