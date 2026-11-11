@@ -49,8 +49,24 @@ bundle install
 bundle exec rails runner 'abort "Wrong Redmine version" unless Redmine::VERSION.to_a.first(3).join(".") == "6.1.4"; puts "Redmine #{Redmine::VERSION} / Ruby #{RUBY_VERSION} / Rails #{Rails.version}"'
 # Production eager-loads plugin lib/ directories: every file must match its constant.
 bundle exec rails zeitwerk:check
-# Loading everything must not load Mirror a second time through the resolved path.
-if bundle exec rails runner 'Rails.application.eager_load!' 2>&1 | grep "redmine_mirror" | grep "already initialized"; then
+# Loading everything, then explicitly requiring both names of the linked plugin, must
+# not load Mirror a second time through either the installation or canonical path.
+load_output=$(bundle exec rails runner '
+  linked_lib = Rails.root.join("plugins/redmine_mirror/lib").to_s
+  canonical_lib = File.realpath(linked_lib)
+  Rails.application.eager_load!
+  Dir.glob(File.join(linked_lib, "**/*.rb")).each do |linked_feature|
+    canonical_feature = File.realpath(linked_feature)
+    next unless $LOADED_FEATURES.include?(linked_feature) || $LOADED_FEATURES.include?(canonical_feature)
+    abort "Missing linked feature alias: #{linked_feature}" unless $LOADED_FEATURES.include?(linked_feature)
+    abort "Missing canonical feature alias: #{canonical_feature}" unless $LOADED_FEATURES.include?(canonical_feature)
+  end
+  [linked_lib, canonical_lib].uniq.each do |root|
+    require File.join(root, "redmine_mirror")
+    require File.join(root, "redmine_mirror/hooks")
+  end
+' 2>&1) || { echo "$load_output" >&2; exit 1; }
+if echo "$load_output" | grep "redmine_mirror" | grep "already initialized"; then
   echo "Redmine Mirror files were loaded twice" >&2
   exit 1
 fi

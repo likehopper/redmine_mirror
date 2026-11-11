@@ -16,10 +16,13 @@
 # Register project permissions, navigation and native Redmine integration.
 
 require "redmine"
-# Require through the plugin path Redmine uses, not the symlink-resolved path of
-# require_relative: a plugin directory linked from elsewhere would be loaded twice.
+# Redmine's eager loader can reach this linked installation before the initializer.
+# The library entry point records both path names before defining its constants.
 require File.join(File.dirname(__FILE__), "lib/redmine_mirror")
-require File.join(File.dirname(__FILE__), "lib/redmine_mirror/hooks")
+hooks_feature = File.join(File.dirname(__FILE__), "lib/redmine_mirror/hooks.rb")
+require hooks_feature
+canonical_hooks_feature = File.realpath(hooks_feature)
+$LOADED_FEATURES << canonical_hooks_feature unless $LOADED_FEATURES.include?(canonical_hooks_feature)
 Redmine::Plugin.register :redmine_mirror do
   name "Redmine Mirror"
   author "LikeHopper"

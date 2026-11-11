@@ -18,6 +18,10 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 ## Unreleased
 
+- **Linked installations load once**: when `plugins/redmine_mirror` points to a shared
+  plugin directory, Ruby records both the installation and canonical file names as
+  loaded. Zeitwerk can use either name without redefining Mirror constants.
+
 ## 1.0.0-beta.43 — 2026-11-12
 
 - **Mappings use every Localizable name**: when Localizable is installed, Mirror source

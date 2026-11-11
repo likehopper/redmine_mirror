@@ -15,6 +15,27 @@
 #
 # Load adapter implementations and register the built-in synchronization modules.
 
+# Redmine adds plugin lib directories to Zeitwerk before running init.rb. For a linked
+# installation, different loaders can consequently require the installation path and
+# its canonical target. Register every known name before defining the first constant.
+mirror_library_roots = [File.expand_path(__dir__)]
+if defined?(Redmine::Plugin) && Redmine::Plugin.respond_to?(:directory)
+  installation_library = File.join(Redmine::Plugin.directory.to_s, "redmine_mirror/lib")
+  mirror_library_roots << installation_library if File.directory?(installation_library)
+end
+mirror_library_roots.dup.each do |root|
+  begin
+    mirror_library_roots << File.realpath(root)
+  rescue SystemCallError
+    # A plugin directory may disappear only during a deployment swap; keep its known name.
+  end
+end
+mirror_library_roots.uniq!
+mirror_library_roots.each do |root|
+  feature = File.join(root, "redmine_mirror.rb")
+  $LOADED_FEATURES << feature if File.file?(feature) && !$LOADED_FEATURES.include?(feature)
+end
+
 # Release tooling (scripts/package.sh) and plugin registration read this version. It
 # lives here, not in lib/redmine_mirror/version.rb: Zeitwerk would require that file to
 # define RedmineMirror::Version, which would hide Redmine's Version model in this namespace.
@@ -51,6 +72,27 @@ require File.join(File.dirname(__FILE__), "redmine_mirror/runner")
 require File.join(File.dirname(__FILE__), "redmine_mirror/database_store")
 require File.join(File.dirname(__FILE__), "redmine_mirror/synchronization")
 require File.join(File.dirname(__FILE__), "redmine_mirror/source")
+
+# The entry point requires its internal files before Zeitwerk walks them. Record the
+# equivalent names below every linked/canonical library root to keep that walk idempotent.
+canonical_library = File.realpath(__dir__)
+canonical_prefix = "#{canonical_library}/"
+library_prefixes = mirror_library_roots.map { |root| "#{root}/" }
+$LOADED_FEATURES.dup.each do |loaded_feature|
+  expanded_feature = File.expand_path(loaded_feature)
+  next unless library_prefixes.any? { |prefix| expanded_feature.start_with?(prefix) }
+  begin
+    canonical_feature = File.realpath(expanded_feature)
+  rescue SystemCallError
+    next
+  end
+  next unless canonical_feature.start_with?(canonical_prefix)
+  relative_feature = canonical_feature.delete_prefix(canonical_prefix)
+  mirror_library_roots.each do |root|
+    feature = File.join(root, relative_feature)
+    $LOADED_FEATURES << feature if File.file?(feature) && !$LOADED_FEATURES.include?(feature)
+  end
+end
 module RedmineMirror
   REGISTRY = Registry.new
 
