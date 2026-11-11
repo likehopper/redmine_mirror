@@ -22,7 +22,7 @@ require File.join(File.dirname(__FILE__), "lib/redmine_mirror")
 require File.join(File.dirname(__FILE__), "lib/redmine_mirror/hooks")
 Redmine::Plugin.register :redmine_mirror do
   name "Redmine Mirror"
-  author "LikeHopper and Redmine Mirror contributors"
+  author "LikeHopper"
   author_url "https://github.com/likehopper"
   url "https://github.com/likehopper/redmine_mirror"
   description "Modular project synchronization through Redmine REST APIs"
