@@ -51,6 +51,7 @@ Overview: getting started, source and schedule, actions, current execution, item
 </div>
 <div class="splitcontentright">
   <%= render "mirror/queued_run", run: active if active&.status == "queued" %>
+  <%= render "mirror/running_run", run: active if active&.status == "running" %>
   <div class="box tabular" id="mirror-sync-summary"<%= ' data-mirror-reload="10"'.html_safe if active %>>
     <p><label><%= l(:field_status) %></label><%= active ? l("label_mirror_run_#{active.status}".to_sym) : l(:label_mirror_idle) %>
       <% if current %> — <%= link_to l(:label_mirror_log), project_mirror_run_path(@project, current) %><% end %></p>

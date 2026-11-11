@@ -19,6 +19,17 @@ require "fileutils"
 
 module RedmineMirror
   class Synchronization
+    # Raised between two objects when the execution was asked to stop. Not an Error:
+    # the runner records an Error as the object's failure and goes on.
+    class Stopped < StandardError; end
+
+    # Seconds between two reads of a stop request while objects are processed.
+    STOP_CHECK_INTERVAL = 2
+    # A running execution's worker refreshes updated_at every HEARTBEAT_INTERVAL
+    # seconds, whatever it is doing; silent for WORKER_SILENCE seconds, it is gone
+    # (killed process, server restart), on any host.
+    HEARTBEAT_INTERVAL = 30
+    WORKER_SILENCE = 120
     # Lock the project configuration so concurrent manual requests cannot queue
     # two imports before either worker has acquired the execution lease.
     def self.enqueue(setting, apply:, trigger:, user: nil, confirm_deletions: false)
@@ -32,14 +43,63 @@ module RedmineMirror
       end
     end
 
-    # Only a queued run can be withdrawn; the lock matches the worker's claim, so a run
-    # is either cancelled here or started by a worker, never both.
-    def self.cancel(run)
+    # A queued run is withdrawn at once; the lock matches the worker's claim, so a run
+    # is either cancelled here or started by a worker, never both. A running one is
+    # asked to stop: its worker ends it after the object in progress, or the next tick
+    # does when that worker is gone. Returns :cancelled or :stopping.
+    def self.cancel(run, user: nil)
       run.project.mirror_project_setting.with_lock do
         run.reload
-        raise Error, "Only a queued execution can be cancelled" unless run.status == "queued"
-        run.update!(status: "cancelled", finished_at: Time.current)
+        case run.status
+        when "queued"
+          run.update!(status: "cancelled", finished_at: Time.current)
+          :cancelled
+        when "running"
+          # update_columns: updated_at stays the worker's heartbeat.
+          run.update_columns(stop_requested_at: Time.current, stop_requested_by_id: user&.id) unless run.stop_requested_at
+          :stopping
+        else
+          raise Error, "Only a queued or running execution can be cancelled"
+        end
       end
+    end
+
+    # Ends the executions asked to stop whose worker is gone (no heartbeat for
+    # WORKER_SILENCE seconds), so that their project is not blocked forever.
+    def self.end_abandoned_stops(now = Time.current)
+      MirrorSyncRun.where(status: "running").where.not(stop_requested_at: nil).where("updated_at < ?", now - WORKER_SILENCE).find_each do |run|
+        setting = run.project.mirror_project_setting
+        next unless setting
+        setting.with_lock do
+          next unless run.reload.status == "running" && run.updated_at < now - WORKER_SILENCE
+          run.finish!(status: "cancelled", error_message: "Stopped on request; its worker had already stopped")
+          next unless setting.running_run_id == run.id
+          # As when a worker ends its run: an automatic one is not queued again at once.
+          values = { running_run_id: nil }
+          values[:next_sync_at] = now + setting.sync_interval_minutes.minutes if setting.auto_sync_enabled?
+          setting.update_columns(values)
+        end
+      end
+    end
+
+    # Refreshes the run's updated_at from its own thread and database connection while
+    # the worker runs, including long reads that report no object (module listings,
+    # deletion checks). Returns the thread, killed by execute when it ends.
+    def self.start_heartbeat(run_id)
+      Thread.new do
+        loop do
+          sleep heartbeat_interval
+          ActiveRecord::Base.connection_pool.with_connection do
+            MirrorSyncRun.where(id: run_id, status: "running").update_all(updated_at: Time.current)
+          end
+        end
+      rescue StandardError
+        nil
+      end
+    end
+
+    def self.heartbeat_interval
+      HEARTBEAT_INTERVAL
     end
 
     # Source references requested from the web UI, refreshed before any run so that a
@@ -84,6 +144,7 @@ module RedmineMirror
     # Schedule only one due run per project; missed intervals do not accumulate
     # catch-up jobs. Each completed run calculates its next deadline.
     def self.tick
+      end_abandoned_stops
       refresh_catalogs
       # AI proposals asked for in the mapping forms (doc/AI.md).
       Ai.process_requests
@@ -118,6 +179,7 @@ module RedmineMirror
         run.update!(status: "running", started_at: Time.current)
         acquired = true
       end
+      heartbeat = start_heartbeat(run.id)
       begin
         raise Error, "Mirror module is disabled" unless setting.project.module_enabled?(:mirror)
         # A removed or unavailable adapter must not silently shrink a scheduled run.
@@ -132,6 +194,7 @@ module RedmineMirror
         destination_key = ENV.fetch("MIRROR_DESTINATION_API_KEY") { raise Error, "MIRROR_DESTINATION_API_KEY is not configured for the worker" }
         destination = Client.new(url: destination_url, api_key: destination_key, allow_http: config.fetch("allow_http"))
         runner = Runner.new(source: setting.source_client(purpose: run.apply? ? "synchronization" : "preview"), destination: destination, store: DatabaseStore.new(key, project_id: setting.project_id))
+        stop_check = stop_checker(run)
         # Also share the legacy operator task's local lock on this host.
         FileUtils.mkdir_p(Rails.root.join("tmp"))
         File.open(Rails.root.join("tmp", "mirror-#{key}.lock"), "a", 0600) do |lock|
@@ -141,9 +204,11 @@ module RedmineMirror
           # The preview reports every object error at once instead of the first one.
           checked = 0
           preview = runner.run(config.merge("on_error" => "collect"), track_relation_blocks: run.apply?) do
+            stop_check.call
             # Without a total yet, processed_records counts the objects checked so far.
             checked += 1
-            run.update_columns(processed_records: checked) if (checked % 25).zero?
+            # updated_at doubles as the heartbeat read by end_abandoned_stops.
+            run.update_columns(processed_records: checked, updated_at: Time.current) if (checked % 25).zero?
           end
           totals = setting.selected_modules.to_h { |key| [key, 0] }
           preview.each { |event| totals[event.fetch(:module)] += 1 }
@@ -151,9 +216,15 @@ module RedmineMirror
           preview_errors = preview.count { |event| event[:action] == "error" }
           # "skip" writes everything else; "stop" writes nothing while an object fails.
           if run.apply? && (preview_errors.zero? || setting.on_error == "skip")
-            runner.run(config.merge("on_error" => setting.on_error), apply: true) { |event| run.append_event(event) }
+            runner.run(config.merge("on_error" => setting.on_error), apply: true) do |event|
+              run.append_event(event)
+              stop_check.call
+            end
           else
-            preview.each { |event| run.append_event(event) }
+            preview.each do |event|
+              run.append_event(event)
+              stop_check.call
+            end
           end
         end
         errors = run.log_events.select { |event| event["action"] == "error" }
@@ -174,6 +245,9 @@ module RedmineMirror
           run.finish!(status: partial ? "partial" : "failed",
             error_message: "#{errors.size} object(s) not synchronized; first: #{errors.first['reason']}")
         end
+      rescue Stopped
+        # Objects written before the stop stay written, and are listed in the log.
+        run.finish!(status: "cancelled", error_message: "Stopped on request")
       rescue StandardError => error
         # Unexpected exception text can contain URLs, credentials or private records.
         message = error.is_a?(Error) ? error.message : "Internal synchronization error (#{error.class.name})"
@@ -181,6 +255,7 @@ module RedmineMirror
       # Release only our own lease. A process crash cannot run this cleanup, so
       # recovery requires checking whether a write succeeded before another run.
       ensure
+        heartbeat.kill
         setting.with_lock do
           if acquired && setting.running_run_id == run.id
             values = { running_run_id: nil }
@@ -192,11 +267,29 @@ module RedmineMirror
       queue_subprojects(setting, run)
     end
 
+    # Raises Stopped once the execution is asked to stop, reading the request at most
+    # every STOP_CHECK_INTERVAL seconds rather than once per object.
+    def self.stop_checker(run)
+      checked_at = nil
+      lambda do
+        now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        next if checked_at && now - checked_at < stop_check_interval
+        checked_at = now
+        raise Stopped if MirrorSyncRun.where(id: run.id).where.not(stop_requested_at: nil).exists?
+      end
+    end
+
+    def self.stop_check_interval
+      STOP_CHECK_INTERVAL
+    end
+
     # After its parent, each subproject configured from it runs the same way (preview or
     # apply), so that their issues find the parent's versions, categories and issues. A
     # subproject already queued or running, or without modules, is left as it is.
     def self.queue_subprojects(setting, run)
       return unless %w[succeeded partial].include?(run.reload.status)
+      # Asked to stop too late to interrupt it: the run keeps its result, nothing follows.
+      return if run.stop_requested_at
       setting.child_settings.preload(:project).each do |child|
         enqueue(child, apply: run.apply?, trigger: "parent", user: run.requested_by)
       rescue Error

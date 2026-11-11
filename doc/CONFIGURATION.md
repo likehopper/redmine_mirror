@@ -545,6 +545,16 @@ log time for the mapped users and perform the workflow transitions. Without the 
 runs stay **Queued** and block new ones: after 5 minutes the **Overview** warns about it,
 and **Cancel this execution** withdraws a queued run.
 
+**Stop this execution** (Overview and execution page, *Run Mirror* permission) stops a
+running one: its worker reads the request when an object is finished (at most every two
+seconds) and ends the execution with the status **Cancelled**. Objects already written
+stay written and are listed in the log; the next execution goes through every object
+again. A stop that arrives once the objects are all processed leaves the execution its
+result, but its subprojects are not started. While it runs, the worker gives a sign of
+life every 30 seconds; when it has already stopped (killed process, server restart),
+the next `tick` after two minutes of silence ends the execution, so that the project is
+not left blocked.
+
 ## Troubleshooting
 
 | Symptom | Check |

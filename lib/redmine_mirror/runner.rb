@@ -180,8 +180,9 @@ module RedmineMirror
           planned_correspondences[[adapter.key, id]] = "planned:#{id}" unless mapping || apply
           event = flag({ module: adapter.key, source_id: id, destination_id: (apply && action != "unchanged" ? destination_record_id : mapping && mapping["destination_id"]), action: action })
           results << event
-          yield event if block_given?
+          # Before the callback, which may stop the execution once the object is written.
           @mapping_store.resolve_conflict(adapter.key, record.fetch("id")) if apply && @mapping_store.respond_to?(:resolve_conflict)
+          yield event if block_given?
         # Keep the first actionable divergence and stop; remaining records are
         # deliberately left unprocessed rather than reported as successful.
         rescue Error => error

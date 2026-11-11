@@ -52,7 +52,7 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     assert flash[:error].present?
   end
 
-  def test_queued_run_can_be_cancelled_but_not_a_running_one
+  def test_queued_run_is_cancelled_and_a_running_one_asked_to_stop
     run = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual")
     patch :cancel, params: { project_id: @project.identifier, id: run.id }
     assert_redirected_to project_mirror_path(@project)
@@ -64,8 +64,114 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     running = RedmineMirror::Synchronization.enqueue(@setting, apply: false, trigger: "manual")
     running.update!(status: "running")
     patch :cancel, params: { project_id: @project.identifier, id: running.id }
-    assert flash[:error].present?
+    assert_equal "Stop requested: the execution stops after the object in progress.", flash[:notice]
+    assert_redirected_to project_mirror_run_path(@project, running)
+    # The worker ends it; the request only records who asked and when.
     assert_equal "running", running.reload.status
+    assert running.stop_requested?
+    assert_equal 1, running.stop_requested_by_id
+    # updated_at stays the worker's heartbeat.
+    heartbeat = running.updated_at
+    assert_equal heartbeat, running.reload.updated_at
+    running.update!(status: "succeeded")
+    patch :cancel, params: { project_id: @project.identifier, id: running.id }
+    assert flash[:error].present?
+  end
+
+  # Runner double: three objects; a stop is requested while the second is written.
+  class StoppedRunner
+    def run(config, apply: false, track_relation_blocks: false)
+      events = (1..3).map { |id| { module: "issue_tracking", source_id: id, action: "create" } }
+      events.each_with_index do |event, index|
+        MirrorSyncRun.last.update_columns(stop_requested_at: Time.current) if apply && index == 1
+        yield event if block_given?
+      end
+      events
+    end
+  end
+
+  def test_execution_page_offers_to_stop_then_names_who_stopped
+    run = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual")
+    run.update!(status: "running", started_at: Time.current)
+    get :show, params: { project_id: @project.identifier, id: run.id }
+    assert_select "#mirror-running-run form[action=?]", "/projects/#{@project.identifier}/mirror/synchronizations/#{run.id}/cancel"
+    run.update!(status: "cancelled", finished_at: Time.current, error_message: "Stopped on request",
+      stop_requested_at: Time.current, stop_requested_by: User.find(1))
+    get :show, params: { project_id: @project.identifier, id: run.id }
+    assert_select "#mirror-stopped-by", text: /Stopped on request on .* by Redmine Admin/
+    assert_select ".flash.error", count: 0
+  end
+
+  def test_worker_stops_after_the_object_in_progress
+    child = MirrorProjectSetting.new(project: Project.find(5), source_url: @setting.source_url, source_project_id: 13, parent_setting: @setting)
+    child.selected_modules = ["issue_tracking"]
+    child.api_key = "private-source-key"
+    child.save!
+    run = RedmineMirror::Synchronization.stub(:stop_check_interval, 0) { execute_with(StoppedRunner.new, on_error: "skip") }
+    assert_equal "cancelled", run.status
+    assert_equal "Stopped on request", run.error_message
+    assert run.finished_at
+    # Objects written before the stop are logged; none after it.
+    assert_equal [1, 2], run.log_events.map { |event| event["source_id"] }
+    assert_nil @setting.reload.running_run_id
+    # A stopped parent does not queue its subprojects.
+    assert_empty child.project.mirror_sync_runs
+  end
+
+  # Runner double: a stop is requested once the last object is written, after the last
+  # throttled check: too late to interrupt, but nothing follows the run.
+  class StopAtEndRunner
+    def run(config, apply: false, track_relation_blocks: false)
+      events = (1..3).map { |id| { module: "issue_tracking", source_id: id, action: "create" } }
+      events.each { |event| yield event if block_given? }
+      MirrorSyncRun.last.update_columns(stop_requested_at: Time.current) if apply
+      events
+    end
+  end
+
+  def test_stop_asked_after_the_last_check_keeps_the_result_but_queues_nothing
+    child = MirrorProjectSetting.new(project: Project.find(5), source_url: @setting.source_url, source_project_id: 13, parent_setting: @setting)
+    child.selected_modules = ["issue_tracking"]
+    child.api_key = "private-source-key"
+    child.save!
+    run = execute_with(StopAtEndRunner.new, on_error: "skip")
+    assert_equal "succeeded", run.status
+    assert_equal 3, run.log_events.size
+    assert_empty child.project.mirror_sync_runs
+  end
+
+  # Fake heartbeat thread: records that the execution stops it.
+  class HeartbeatDouble
+    attr_reader :killed
+    def kill; @killed = true; end
+  end
+
+  def test_execution_beats_while_running_and_stops_beating
+    heartbeat = HeartbeatDouble.new
+    started = nil
+    run = RedmineMirror::Synchronization.stub(:start_heartbeat, ->(id) { started = id; heartbeat }) do
+      execute_with(PartialRunner.new, on_error: "skip")
+    end
+    assert_equal run.id, started
+    assert heartbeat.killed
+  end
+
+  # A stop asked for after its worker died: the next tick frees the project once the
+  # heartbeat has been silent long enough, without queuing the automatic run again.
+  def test_tick_ends_a_stop_whose_worker_is_silent
+    run = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "automatic")
+    run.update!(status: "running", started_at: 1.hour.ago)
+    @setting.update_columns(running_run_id: run.id, auto_sync_enabled: true, next_sync_at: 1.hour.ago)
+    run.update_columns(stop_requested_at: Time.current, updated_at: 30.seconds.ago)
+    RedmineMirror::Synchronization.tick
+    assert_equal "running", run.reload.status
+    run.update_columns(updated_at: 5.minutes.ago)
+    RedmineMirror::Synchronization.tick
+    assert_equal "cancelled", run.reload.status
+    assert_match(/worker had already stopped/, run.error_message)
+    assert_nil @setting.reload.running_run_id
+    assert @setting.next_sync_at > Time.current
+    assert_equal [run], @project.mirror_sync_runs.to_a
   end
 
   def test_run_log_summarizes_actions_and_filters_special_cases
@@ -361,6 +467,33 @@ class MirrorQueuedRunDisplayTest < ActionController::TestCase
     queued.update_columns(created_at: 10.minutes.ago)
     get :index, params: { project_id: @project.identifier }
     assert_select "#mirror-queued-run .warning", text: /redmine_mirror:tick/
+  end
+
+  # A running execution offers to stop it, then shows the pending request.
+  def test_running_run_offers_to_stop_then_shows_the_request
+    running = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual")
+    running.update!(status: "running", started_at: Time.current)
+    get :index, params: { project_id: @project.identifier }
+    assert_select "#mirror-running-run form[action=?]", "/projects/#{@project.identifier}/mirror/synchronizations/#{running.id}/cancel"
+    # button_to renders an input on Rails 6.1 and a button on Rails 7.
+    labels = css_select("#mirror-running-run input[type=submit], #mirror-running-run button").map { |node| node["value"] || node.text.strip }
+    assert_equal ["Stop this execution"], labels
+    running.update!(stop_requested_at: Time.current, stop_requested_by: User.find(1))
+    get :index, params: { project_id: @project.identifier }
+    assert_select "#mirror-running-run form", count: 0
+    assert_select "#mirror-stop-requested", text: /Stop requested on .* by Redmine Admin/
+  end
+
+  # Someone who may only view Mirror sees the running execution, without the button.
+  def test_view_only_member_gets_no_stop_button
+    running = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual")
+    running.update!(status: "running", started_at: Time.current)
+    Role.all.each { |role| %i[run_mirror manage_mirror select_project_modules].each { |permission| role.remove_permission!(permission) } }
+    Role.find(1).add_permission!(:view_mirror)
+    @request.session[:user_id] = 2
+    get :index, params: { project_id: @project.identifier }
+    assert_response :success
+    assert_select "#mirror-running-run form", count: 0
   end
   # Before any run, the overview lists what to settle, with what only needs enabling.
   def test_overview_checklist_before_the_preview

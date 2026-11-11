@@ -18,6 +18,11 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 ## Unreleased
 
+- **Stop a running execution**: **Stop this execution**, on the Mirror overview and on
+  the execution page, stops a synchronization in progress after the object being
+  written (status *Cancelled*; objects already written stay written). An execution
+  whose worker has already stopped is ended by the next tick instead of blocking the
+  project. Migration 20.
 - **Linked installations load once**: when `plugins/redmine_mirror` points to a shared
   plugin directory, Ruby records both the installation and canonical file names as
   loaded. Zeitwerk can use either name without redefining Mirror constants.

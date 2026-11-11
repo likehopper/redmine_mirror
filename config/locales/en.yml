@@ -166,6 +166,11 @@ en:
   text_mirror_queue_stalled: "No worker has picked up this execution for more than %{minutes} minutes. Check that the rake redmine_mirror:tick task runs regularly on the server (see the README), or cancel the execution."
   button_mirror_cancel_run: "Cancel this execution"
   text_mirror_run_cancelled: "Execution cancelled."
+  button_mirror_stop_run: "Stop this execution"
+  text_mirror_stop_confirm: "Stop this execution after the object in progress? What was already written stays written; the next execution goes through every object again."
+  text_mirror_run_stop_requested: "Stop requested: the execution stops after the object in progress."
+  text_mirror_stop_requested: "Stop requested on %{time} by %{user}. The execution stops after the object in progress. If its worker has already stopped, Mirror ends it about two minutes after its last sign of life."
+  text_mirror_stopped_by: "Stopped on request on %{time} by %{user}."
   label_mirror_run_cancelled: Cancelled
   label_mirror_idle: "Idle"
   label_mirror_log: "Execution log"

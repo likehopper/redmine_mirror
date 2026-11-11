@@ -18,6 +18,7 @@
 class MirrorSyncRun < ActiveRecord::Base
   belongs_to :project
   belongs_to :requested_by, class_name: "User", optional: true
+  belongs_to :stop_requested_by, class_name: "User", optional: true
   validates :status, inclusion: { in: %w[queued running succeeded partial failed cancelled] }
   validates :trigger, inclusion: { in: %w[manual automatic operator parent] }
 
@@ -37,6 +38,25 @@ class MirrorSyncRun < ActiveRecord::Base
     now = Time.current
     update!(attributes.merge(finished_at: now, duration_seconds: started_at && [(now - started_at).round, 0].max))
   end
+
+  # Asked from the Mirror page while running: the worker stops after the object in progress.
+  def stop_requested?
+    status == "running" && stop_requested_at_value.present?
+  end
+
+  # Cancelled from the Mirror page while running, rather than withdrawn or failed.
+  def stopped_on_request?
+    status == "cancelled" && stop_requested_at_value.present?
+  end
+
+  private
+
+  # Before migration 20 the column is missing: pages still render.
+  def stop_requested_at_value
+    has_attribute?(:stop_requested_at) ? stop_requested_at : nil
+  end
+
+  public
 
   def stalled_in_queue?(now = Time.current)
     status == "queued" && created_at && created_at < now - QUEUE_WARNING_DELAY

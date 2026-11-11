@@ -1,0 +1,25 @@
+<%#
+File: redmine_mirror/app/views/mirror/_running_run.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+A running execution: a button to stop it, then the pending request until the worker,
+or the next tick when that worker is gone, ends it (Synchronization.cancel).
+%><div id="mirror-running-run">
+  <% if run.stop_requested? %>
+    <p class="warning" id="mirror-stop-requested"><%= l(:text_mirror_stop_requested, time: format_time(run.stop_requested_at), user: run.stop_requested_by&.name || "—") %></p>
+  <% elsif mirror_can_run?(@project) %>
+    <%= button_to l(:button_mirror_stop_run), project_mirror_run_cancel_path(@project, run), method: :patch,
+          data: { confirm: l(:text_mirror_stop_confirm) } %>
+  <% end %>
+</div>

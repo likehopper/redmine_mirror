@@ -53,9 +53,10 @@ class MirrorSynchronizationsController < ApplicationController
   def cancel
     run = @project.mirror_sync_runs.find_by(id: params[:id])
     return render_404 unless run
-    RedmineMirror::Synchronization.cancel(run)
-    flash[:notice] = l(:text_mirror_run_cancelled)
-    redirect_to project_mirror_path(@project)
+    outcome = RedmineMirror::Synchronization.cancel(run, user: User.current)
+    flash[:notice] = l(outcome == :stopping ? :text_mirror_run_stop_requested : :text_mirror_run_cancelled)
+    # A stopping execution is followed on its own page until it ends.
+    redirect_to outcome == :stopping ? project_mirror_run_path(@project, run) : project_mirror_path(@project)
   rescue RedmineMirror::Error => error
     flash[:error] = error.message
     redirect_to project_mirror_path(@project)
