@@ -19,6 +19,7 @@ Summarize every selected module before opening its focused configuration form.
   <thead><tr><th><%= l(:label_mirror_modules) %></th><th><%= l(:field_status) %></th><th><%= l(:label_mirror_action) %></th></tr></thead>
   <tbody>
     <% @adapters.each do |adapter| %>
+      <% next if adapter.configuration_parent %>
       <% count = unmapped[adapter.key].to_i %>
       <tr><td><%= l(adapter.label) %></td><td>
         <% if adapter.mapping_tables.empty? %>

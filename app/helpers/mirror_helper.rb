@@ -60,6 +60,7 @@ module MirrorHelper
       catalog = setting.source_catalog
       mapped = project.mirror_reference_mappings.pluck(:reference_type, :source_id).map { |kind, id| [kind, id.to_s] }.to_set
       setting.adapters.each_with_object({}) do |adapter, counts|
+        next if adapter.configuration_parent
         count = adapter.mapping_tables.sum do |table|
           next 0 if table.respond_to?(:unmapped_allowed?) && table.unmapped_allowed?(setting)
           ids = catalog.fetch(table.key, {}).keys
@@ -205,7 +206,9 @@ module MirrorHelper
     linked = setting.object_mappings.where(module_key: [adapter.key] + MODULE_PARTS.fetch(adapter.key, [])).group(:module_key).count
     run = project.mirror_sync_runs.where(apply: true, status: %w[succeeded partial failed]).for_module(adapter.key).order(id: :desc).first
     unmapped = mirror_unmapped_counts(project, setting)
-    dependencies = setting.adapters.select { |entry| adapter.dependencies.include?(entry.key) && entry.mapping_tables.any? }
+    dependencies = setting.adapters.select do |entry|
+      adapter.dependencies.include?(entry.key) && entry.mapping_tables.any? && entry.configuration_parent != adapter.key
+    end
     { source: catalog.dig("module_statistics", adapter.key),
       read_at: catalog["read_at"] && Time.iso8601(catalog["read_at"]),
       linked: linked.fetch(adapter.key, 0),

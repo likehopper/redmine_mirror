@@ -214,6 +214,7 @@ Mirror exposes this contract:
 | `key` | Lowercase letters, digits and underscores, 64 characters at most. Prefix it with your plugin name, such as `sla_project_trackers` |
 | `phase` | `:references` (before issues), `:default` or `:history` (after current issue fields) |
 | `available?` | Return false when a prerequisite is missing on this destination; the module is then hidden and cannot run |
+| `configuration_parent` | Key of the selectable adapter whose configuration page owns this internal adapter, or `nil`; execution and object mappings retain their own keys |
 | `local_path(id, project)` / `remote_path(id, setting)` | Native destination path and source path relative to the source URL, or nil to show the bare ID. `MappingTable` subclasses provide the same two methods for their references |
 | `settings_partial` | Optional partial, from your plugin's views, rendered in the module tab with the local `adapter` |
 | `project_module` | Redmine project module the destination project needs (e.g. `:wiki`), or nil; the module tab warns when it is disabled |
