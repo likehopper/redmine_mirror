@@ -49,6 +49,14 @@ module RedmineMirror
         refused(error)
       end
 
+      # The repository's login and password, when the source shares them; nil otherwise.
+      def credentials(source, record)
+        rows = source.get("projects/#{Integer(record.fetch('project').fetch('id'))}/mirror/source/repositories.json", "credentials" => "1").fetch("repositories")
+        rows.find { |row| row["id"] == record.fetch("id") && row.key?("login") }
+      rescue Error => error
+        refused(error)
+      end
+
       def refused(error)
         reason = error.message[/\(Mirror source: ([a-z_]+)\)/, 1]
         raise Error, REFUSALS.fetch(reason) if REFUSALS.key?(reason)
@@ -103,9 +111,11 @@ module RedmineMirror
         repository.project = project
         current = repository.attributes.slice(*wanted.keys).merge("is_default" => !!repository.is_default)
         repository.assign_attributes(wanted)
-        if options["credentials"] == "1" && record.key?("login")
-          repository.login = record["login"].presence
-          repository.password = record["password"].presence
+        # Asked for only now, and only when this project keeps them: reading the references
+        # or a project that does not keep them never receives them.
+        if options["credentials"] == "1" && (shared = credentials(source, record))
+          repository.login = shared["login"].presence
+          repository.password = shared["password"].presence
         end
         if record["scm"] == "Git" && !record["report_last_commit"].nil?
           repository.merge_extra_info("extra_report_last_commit" => record["report_last_commit"] ? "1" : "0")

@@ -17,6 +17,8 @@
 # REST API does not cover. Three locks, all closed by default: the administrator's
 # global switch, the project's Mirror source module and the data the project shares.
 
+require "ipaddr"
+
 module RedmineMirror
   module Source
     module_function
@@ -54,6 +56,50 @@ module RedmineMirror
 
     def enabled?
       settings["source_enabled"].to_s == "1"
+    end
+
+    # The addresses an administrator allows to call Mirror source: IPs or networks (CIDR),
+    # one per line. None listed: any address. Listed but none valid: no address, so that a
+    # typo never opens the source.
+    def address_allowed?(ip)
+      entries = settings["source_allowed_addresses"].to_s.split(/[\s,;]+/).reject(&:empty?)
+      return true if entries.empty?
+      address = IPAddr.new(ip.to_s)
+      entries.any? do |entry|
+        begin
+          IPAddr.new(entry).include?(address)
+        rescue IPAddr::Error
+          false
+        end
+      end
+    rescue IPAddr::Error
+      false
+    end
+
+    LOOPBACK = [IPAddr.new("127.0.0.0/8"), IPAddr.new("::1")].freeze
+
+    # The caller's address. Behind a reverse proxy on this host (the request comes from the
+    # loopback), the address that proxy appended last to X-Forwarded-For: Rails' remote_ip
+    # skips private addresses, so a destination on the same network would read as the
+    # proxy itself. With another proxy in front, that is the address of the first one.
+    def caller_address(request)
+      remote = request.remote_addr.to_s
+      forwarded = request.headers["X-Forwarded-For"].to_s.split(",").map(&:strip).reject(&:empty?)
+      loopback = begin
+        address = IPAddr.new(remote)
+        LOOPBACK.any? { |range| range.include?(address) }
+      rescue IPAddr::Error
+        false
+      end
+      loopback && !forwarded.empty? ? forwarded.last : remote
+    end
+
+    # Mirror source answers only requests authenticated by the API key header that Mirror
+    # clients send: never a browser session, a login and password, nor a key in the URL
+    # (it would end up in logs).
+    def api_key_request?(request, user)
+      key = request.headers["X-Redmine-API-Key"].to_s
+      !key.empty? && user.logged? && User.find_by_api_key(key) == user
     end
 
     # Access log retention, in days (plugin settings).
@@ -162,7 +208,7 @@ module RedmineMirror
     def session_key(request, user)
       value = request.headers["X-Mirror-Session"].to_s
       return value if value.match?(SESSION)
-      Digest::SHA256.hexdigest("#{user.id}|#{request.remote_ip}|#{Date.current}")[0, 32]
+      Digest::SHA256.hexdigest("#{user.id}|#{caller_address(request)}|#{Date.current}")[0, 32]
     end
 
     def purpose(request)
@@ -177,7 +223,7 @@ module RedmineMirror
         MirrorSourceAccess.where("created_at < ?", retention_days.days.ago).delete_all
       end
       MirrorSourceAccess.create!(project: project, user_id: user.logged? ? user.id : nil, session_key: key,
-        purpose: purpose(request), remote_ip: request.remote_ip.to_s[0, 45], action: action, reason: reason,
+        purpose: purpose(request), remote_ip: caller_address(request).to_s[0, 45], action: action, reason: reason,
         object_count: object_count, bytes: bytes, details: JSON.generate(details), created_at: Time.current)
     end
   end

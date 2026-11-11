@@ -120,7 +120,7 @@ module RedmineMirror
         attachment_bytes = +"".b
         http_client.start do |connection|
           connection.request(request) do |response|
-            raise Error, "Redmine API returned HTTP #{response.code} for GET #{path}#{refusal(response)}" unless response.is_a?(Net::HTTPSuccess)
+            raise Error, caller_refusal(response) || "Redmine API returned HTTP #{response.code} for GET #{path}#{refusal(response)}" unless response.is_a?(Net::HTTPSuccess)
             response.read_body do |chunk|
               raise Error, "Attachment exceeds the import limit of #{max_bytes / 1024} KB" if attachment_bytes.bytesize + chunk.bytesize > max_bytes
               attachment_bytes << chunk
@@ -134,7 +134,7 @@ module RedmineMirror
       # except the validation messages of a refused write. The path names the refused
       # resource, typically a missing source permission.
       unless response.is_a?(Net::HTTPSuccess)
-        raise Error, "Redmine API returned HTTP #{response.code} for #{method.to_s.upcase} #{path}#{refusal(response)}#{validation_errors(response)}"
+        raise Error, caller_refusal(response) || "Redmine API returned HTTP #{response.code} for #{method.to_s.upcase} #{path}#{refusal(response)}#{validation_errors(response)}"
       end
       response.body.to_s.empty? ? {} : JSON.parse(response.body)
     rescue JSON::ParserError, KeyError, ArgumentError
@@ -153,6 +153,17 @@ module RedmineMirror
       messages.empty? ? "" : ": #{messages.join('; ')}"
     rescue JSON::ParserError, TypeError
       ""
+    end
+
+    # A Mirror source that refuses the caller itself, whatever the data: said as such, so that
+    # modules do not read it as a missing permission on their data.
+    CALLER_REFUSALS = {
+      "address" => "The source Redmine refuses this Redmine's address: its administrator must add it to Mirror source's allowed addresses",
+      "api_key" => "The source Redmine accepts only the API key header for Mirror source"
+    }.freeze
+
+    def caller_refusal(response)
+      CALLER_REFUSALS[response["X-Mirror-Source-Refusal"].to_s]
     end
 
     # The lock a Mirror source names when it refuses (Source.refusal): a known word only.

@@ -55,7 +55,7 @@ module RedmineMirror
       end
       [subprojects, nil]
     rescue Error, KeyError, TypeError, ArgumentError => error
-      [nil, error.message[/\(Mirror source: ([a-z_]+)\)/, 1] || "unavailable"]
+      [nil, error.message[/\(Mirror source: ([a-z_]+)\)/, 1] || Client::CALLER_REFUSALS.key(error.message) || "unavailable"]
     end
 
     private

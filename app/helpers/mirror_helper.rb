@@ -352,14 +352,16 @@ module MirrorHelper
         checked_modules << name
         label = l_or_humanize(name, prefix: "project_module_")
         source_name = adapter.source_project_module
+        # Names the Mirror modules the button would unselect.
+        unselect = l(:button_mirror_unselect_named, modules: setting.adapters.select { |entry| entry.project_module == name }.map { |entry| l(entry.label) }.join(", "))
         if source_modules && source_name && !source_modules.include?(source_name.to_s)
           items << { text: l(:text_mirror_source_module_disabled, module: label), actions: [],
-            buttons: [[l(:button_mirror_unselect_modules), { fix: "unselect_module", target: name }, manager]] }
+            buttons: [[unselect, { fix: "unselect_module", target: name }, manager]] }
         elsif !project.module_enabled?(name)
-          items << { text: l(:text_mirror_project_module_disabled, module: label),
-            actions: [[l(:label_mirror_enable_project_module), User.current.allowed_to?(:select_project_modules, project) && settings_project_path(project, tab: "modules")]],
+          # A button rather than a link to Redmine's modules tab, which does not come back here.
+          items << { text: l(:text_mirror_project_module_disabled, module: label), actions: [],
             buttons: [[l(:button_mirror_enable_project_module_now), { fix: "enable_module", target: name }, User.current.allowed_to?(:select_project_modules, project)],
-                      [l(:button_mirror_unselect_modules), { fix: "unselect_module", target: name }, manager]] }
+                      [unselect, { fix: "unselect_module", target: name }, manager]] }
         end
       end
       adapter.mapping_tables.each do |table|
@@ -374,7 +376,12 @@ module MirrorHelper
         end
         items << { text: l(:text_mirror_check_unmapped, table: l(table.label), count: missing.size, names: missing.values.first(5).join(", ")), actions: actions }
         missing.each_value.filter_map { |name| mirror_near_miss(table.key, name) }.first(5).each do |near|
-          items << { text: near[:text], actions: [[l(near[:label]), near[:path]]] }
+          # A tracker or field to enable has a button, which comes back here.
+          items << if near[:fix]
+                     { text: near[:text], actions: [], buttons: [[l(:button_mirror_enable_project_module_now), near[:fix], near[:path]]] }
+                   else
+                     { text: near[:text], actions: [[l(near[:label]), near[:path]]] }
+                   end
         end
       end
     end
@@ -393,8 +400,7 @@ module MirrorHelper
       mapped.select { |row| row.reference_type == "custom_field" && row.mode == "existing" && !enabled.include?(row.destination_id) }.each do |row|
         field = IssueCustomField.find_by(id: row.destination_id)
         next unless field
-        items << { text: l(:text_mirror_guide_field_disabled, name: field.name),
-          actions: [[l(:label_mirror_guide_enable_in_project), editor && settings_project_path(project, tab: "issues")]],
+        items << { text: l(:text_mirror_guide_field_disabled, name: field.name), actions: [],
           buttons: [[l(:button_mirror_enable_field), { fix: "enable_custom_field", target: field.id }, editor]] }
       end
     end
@@ -438,7 +444,8 @@ module MirrorHelper
       tracker = same.call(Tracker.all.to_a)
       tracker && !@project.trackers.include?(tracker) &&
         { text: l(:text_mirror_guide_tracker_disabled, name: tracker.name), label: :label_mirror_guide_enable_in_project,
-          path: User.current.allowed_to?(:edit_project, @project) && settings_project_path(@project, tab: "issues") }
+          path: User.current.allowed_to?(:edit_project, @project) && settings_project_path(@project, tab: "issues"),
+          fix: { fix: "enable_tracker", target: tracker.id } }
     when "status"
       status = same.call(IssueStatus.all.to_a)
       status && !RedmineMirror::MappingTable.new("status").local_records(@project).include?(status) &&
@@ -448,7 +455,8 @@ module MirrorHelper
       field = same.call(IssueCustomField.all.to_a)
       field && !@project.all_issue_custom_fields.include?(field) &&
         { text: l(:text_mirror_guide_field_disabled, name: field.name), label: :label_mirror_guide_enable_in_project,
-          path: User.current.allowed_to?(:edit_project, @project) && settings_project_path(@project, tab: "issues") }
+          path: User.current.allowed_to?(:edit_project, @project) && settings_project_path(@project, tab: "issues"),
+          fix: { fix: "enable_custom_field", target: field.id } }
     when "activity"
       activity = same.call(TimeEntryActivity.shared.to_a)
       activity && !@project.activities.include?(activity) &&

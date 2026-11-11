@@ -181,10 +181,16 @@ class MirrorSettingsController < ApplicationController
       used = @setting.source_catalog["tracker_used"]
       ids = @project.mirror_reference_mappings.where(reference_type: "tracker", mode: "existing").select { |row| used.nil? || used.include?(row.source_id.to_s) }.map(&:destination_id)
       @project.trackers << (Tracker.where(id: ids).to_a - @project.trackers.to_a)
+    when "enable_tracker"
+      return deny_access unless User.current.allowed_to?(:edit_project, @project)
+      tracker = Tracker.find_by(id: params[:target])
+      raise RedmineMirror::Error, "Unknown tracker" unless tracker && source_namesake?("tracker", tracker.name)
+      @project.trackers << tracker unless @project.trackers.include?(tracker)
     when "enable_custom_field"
       return deny_access unless User.current.allowed_to?(:edit_project, @project)
       field = IssueCustomField.find_by(id: params[:target])
-      raise RedmineMirror::Error, "Unknown custom field" unless field && @project.mirror_reference_mappings.where(reference_type: "custom_field", destination_id: field.id).exists?
+      mapped = field && @project.mirror_reference_mappings.where(reference_type: "custom_field", destination_id: field.id).exists?
+      raise RedmineMirror::Error, "Unknown custom field" unless mapped || (field && source_namesake?("custom_field", field.name))
       @project.issue_custom_fields << field unless field.is_for_all? || @project.issue_custom_fields.include?(field)
     when "select_module"
       key = params[:target].to_s
@@ -339,6 +345,12 @@ class MirrorSettingsController < ApplicationController
   end
 
   SOURCE_PROJECT = /\A(?:[1-9]\d*|[a-z][a-z0-9_-]{0,99})\z/
+
+  # A local tracker or field named like a source reference (the checklist's near misses).
+  def source_namesake?(kind, name)
+    key = RedmineMirror::NameMatch.key(name)
+    @setting.source_catalog.fetch(kind, {}).values.any? { |source| RedmineMirror::NameMatch.key(source) == key }
+  end
 
   # The source project is entered by identifier or numeric ID.
   def source_project_reference(input)

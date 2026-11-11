@@ -40,6 +40,32 @@ class MirrorSetupFixesTest < Redmine::IntegrationTest
     post "/projects/ecookbook/mirror/settings/fix", params: params.merge(back_url: "/projects/ecookbook/settings/mirror")
   end
 
+  # Fixes are buttons that come back here, not links to Redmine's own settings tabs; the
+  # unselect button names the Mirror modules it would unselect.
+  def test_fixes_come_back_and_name_what_they_unselect
+    @setting.update!(source_catalog: @setting.source_catalog.merge("tracker" => { "1" => "Bug", "2" => "Remote tracker", "4" => "Support request" },
+      "tracker_used" => %w[1 2 4]))
+    @project.mirror_reference_mappings.where(reference_type: "tracker").delete_all
+    log_user("admin", "admin")
+    get "/projects/ecookbook/settings/mirror"
+    assert_select "#mirror-checklist li", text: /The tracker Support request exists in Redmine/ do
+      assert_select "input[name=target][value='3']"
+      assert_select "a", count: 0
+    end
+    assert_select "#mirror-checklist li", text: /Documents module is disabled on this project/ do
+      assert_select "a", count: 0
+    end
+    assert_select "#mirror-checklist form.mirror-fix-form input[name=target][value=wiki] ~ button, #mirror-checklist form.mirror-fix-form input[type=submit][value='Do not import: Wiki']"
+    fix(fix: "enable_tracker", target: 3)
+    assert_redirected_to "/projects/ecookbook/settings/mirror"
+    assert_includes @project.reload.tracker_ids, 3
+    # Only a tracker named like a source tracker.
+    tracker = Tracker.create!(name: "Unrelated", default_status_id: 1)
+    fix(fix: "enable_tracker", target: tracker.id)
+    assert flash[:error]
+    refute_includes @project.reload.tracker_ids, tracker.id
+  end
+
   def test_the_connection_tab_proposes_one_click_fixes
     log_user("admin", "admin")
     get "/projects/ecookbook/settings/mirror"

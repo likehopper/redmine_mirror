@@ -28,7 +28,7 @@ Result of the connection check (RedmineMirror::ConnectionCheck), shown in the fo
       <li><%= check["source_modules"].include?("mirror_source") ? l(:text_mirror_connection_check_mirror_source_on) : l(:text_mirror_connection_check_mirror_source_off) %></li>
       <li><%= check["members"] ? l(:text_mirror_connection_check_members, count: check["members"]) : l(:text_mirror_connection_check_members_unreadable) %></li>
       <li id="mirror-connection-check-subprojects"><% if check["subprojects"].nil? %>
-        <%= l(:text_mirror_connection_check_subprojects_refused, reason: l(%w[disabled module].include?(check["subprojects_refusal"]) ? "text_mirror_connection_check_subprojects_#{check['subprojects_refusal']}" : :text_mirror_connection_check_subprojects_unavailable)) %>
+        <%= l(:text_mirror_connection_check_subprojects_refused, reason: l(%w[disabled module address].include?(check["subprojects_refusal"]) ? "text_mirror_connection_check_subprojects_#{check['subprojects_refusal']}" : :text_mirror_connection_check_subprojects_unavailable)) %>
         <% elsif check["subprojects"].empty? %><%= l(:text_mirror_connection_check_no_subprojects) %>
         <% else %><%= l(:text_mirror_connection_check_subprojects, count: check["subprojects"].size, names: check["subprojects"].map { |child| "#{child['name']} (#{child['identifier']})" }.join(", ")) %><% end %></li>
     </ul>

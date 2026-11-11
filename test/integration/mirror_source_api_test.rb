@@ -31,8 +31,52 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     MirrorSourceSetting.create!(project: @project, shared_modules: %w[documents])
   end
 
-  def mirror_headers(user = "jsmith", password = nil)
-    credentials(user, password).merge("X-Mirror-Session" => SESSION, "X-Mirror-Purpose" => "synchronization")
+  # As Mirror clients send them: the API key in its header (Source.api_key_request?).
+  def mirror_headers(user = "jsmith", _password = nil)
+    { "X-Redmine-API-Key" => User.find_by_login(user).api_key, "X-Mirror-Session" => SESSION, "X-Mirror-Purpose" => "synchronization" }
+  end
+
+  # Only the API key header authenticates; a password, a key in the URL or a session is
+  # refused, as is any address outside the administrator's list.
+  def test_only_the_api_key_header_from_an_allowed_address_is_served
+    enabled do
+      get "/projects/ecookbook/mirror/source/documents.json", headers: credentials("jsmith")
+      assert_response :forbidden
+      assert_equal "api_key", response.headers["X-Mirror-Source-Refusal"]
+      get "/projects/ecookbook/mirror/source/documents.json", params: { key: User.find_by_login("jsmith").api_key }
+      assert_equal "api_key", response.headers["X-Mirror-Source-Refusal"]
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
+      assert_response :success
+    end
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_allowed_addresses" => "10.0.0.0/8\n192.168.1.12" }) do
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
+      assert_response :forbidden
+      assert_equal "address", response.headers["X-Mirror-Source-Refusal"]
+    end
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_allowed_addresses" => "10.0.0.0/8\n127.0.0.0/8" }) do
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
+      assert_response :success
+    end
+    # Behind a reverse proxy on this host, the address it forwards is the caller's.
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_allowed_addresses" => "10.1.2.0/24" }) do
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers.merge("X-Forwarded-For" => "192.168.9.9, 10.1.2.3")
+      assert_response :success
+      assert_equal "10.1.2.3", MirrorSourceAccess.order(:id).last.remote_ip
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers.merge("X-Forwarded-For" => "10.1.2.3, 192.168.9.9")
+      assert_equal "address", response.headers["X-Mirror-Source-Refusal"]
+    end
+    # A typo never opens the source: no valid entry, no address.
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_allowed_addresses" => "127.0.0.x" }) do
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
+      assert_equal "address", response.headers["X-Mirror-Source-Refusal"]
+    end
+  end
+
+  def test_a_browser_session_is_refused
+    log_user("jsmith", "jsmith")
+    enabled { get "/projects/ecookbook/mirror/source/documents.json" }
+    assert_response :forbidden
+    assert_equal "api_key", response.headers["X-Mirror-Source-Refusal"]
   end
 
   def enabled(&block)
@@ -249,11 +293,14 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
       refute row.key?("password")
     end
     with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_kinds" => %w[repositories repository_credentials] }) do
+      # Allowed and shared, they are still sent only when asked for.
       get "/projects/ecookbook/mirror/source/repositories.json", headers: mirror_headers
+      refute JSON.parse(response.body).fetch("repositories").find { |entry| entry["id"] == 10 }.key?("password")
+      get "/projects/ecookbook/mirror/source/repositories.json", params: { credentials: "1" }, headers: mirror_headers
       row = JSON.parse(response.body).fetch("repositories").find { |entry| entry["id"] == 10 }
       assert_equal %w[svc secret], row.values_at("login", "password")
       setting.update!(shared_modules: %w[repositories])
-      get "/projects/ecookbook/mirror/source/repositories.json", headers: mirror_headers
+      get "/projects/ecookbook/mirror/source/repositories.json", params: { credentials: "1" }, headers: mirror_headers
       refute JSON.parse(response.body).fetch("repositories").first.key?("password")
       get "/mirror/source/repositories/10/links.json", params: { offset: 0 }, headers: mirror_headers
       assert_response :success
@@ -335,15 +382,17 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
       # Attachment 1 belongs to an issue: only document files are served.
       get "/mirror/source/attachments/1/download", headers: mirror_headers
       assert_response :not_found
+      # Anonymous: refused before the project is even looked up.
       get "/projects/ecookbook/mirror/source/documents.json"
-      assert_response :unauthorized
+      assert_response :forbidden
+      assert_equal "api_key", response.headers["X-Mirror-Source-Refusal"]
     end
     assert_equal 0, MirrorSourceAccess.where(project_id: 2).count
   end
 
   def test_sessions_without_header_are_grouped_per_account_address_and_day
     enabled do
-      2.times { get "/projects/ecookbook/mirror/source/documents.json", headers: credentials("jsmith") }
+      2.times { get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers.except("X-Mirror-Session", "X-Mirror-Purpose") }
     end
     assert_equal 1, MirrorSourceAccess.distinct.count(:session_key)
     assert_nil MirrorSourceAccess.first.purpose

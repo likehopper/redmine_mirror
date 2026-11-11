@@ -29,6 +29,17 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   (the creator's role must be allowed to choose them). A key typed on the parent reaches
   the subprojects still sharing its previous key only. The **Refresh the subproject list**
   button reads the list alone.
+- **Mirror source answers only its destinations**: only requests authenticated by the API
+  key in the `X-Redmine-API-Key` header are served (a browser session, a login and
+  password or a key in the URL are refused), and **Allowed addresses** in the plugin
+  settings restricts them to the destinations' addresses or networks. Behind a reverse
+  proxy on the same host, the address it forwards is used, in the access log too.
+- **Repository credentials only when asked**: Mirror source sends them only to a
+  destination that asks for them, which it does only to write a repository of a project
+  that keeps them; reading the references never receives them.
+- **One-click fixes come back to Mirror**: enabling a project module, a tracker or a
+  field named like a source one is a button, not a link to Redmine's settings tabs; the
+  button that unselects modules names them (*Do not import: Files*).
 - **Safer messages and checks**: Mirror messages are escaped before Redmine displays them
   (they can carry source names and source API error texts). A saved connection's check
   reads only its configured project with the stored key; another project needs a key

@@ -23,7 +23,7 @@ Connection tab: the source subprojects and their local subprojects (RedmineMirro
   <% if !catalog.key?("subprojects") %>
     <p><em class="info"><%= l(:text_mirror_subprojects_not_read) %></em></p>
   <% elsif catalog["subprojects"].nil? %>
-    <p><em class="info"><%= l(:text_mirror_connection_check_subprojects_refused, reason: l(%w[disabled module].include?(catalog["subprojects_refusal"]) ? "text_mirror_connection_check_subprojects_#{catalog['subprojects_refusal']}" : :text_mirror_connection_check_subprojects_unavailable)) %></em></p>
+    <p><em class="info"><%= l(:text_mirror_connection_check_subprojects_refused, reason: l(%w[disabled module address].include?(catalog["subprojects_refusal"]) ? "text_mirror_connection_check_subprojects_#{catalog['subprojects_refusal']}" : :text_mirror_connection_check_subprojects_unavailable)) %></em></p>
   <% elsif catalog["subprojects"].empty? %>
     <p><em class="info"><%= l(:text_mirror_connection_check_no_subprojects) %></em></p>
   <% else %>

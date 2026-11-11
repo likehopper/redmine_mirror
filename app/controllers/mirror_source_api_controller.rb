@@ -19,6 +19,9 @@
 class MirrorSourceApiController < ApplicationController
   accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :scrum, :queries, :users, :issue_categories,
     :project_enumerations, :project_enumeration, :repositories, :repository_links, :download, :subprojects
+  # Once Redmine knows the user, before anything else, the project lookup included: the
+  # caller's address and API key.
+  before_action :check_caller
   before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users issue_categories project_enumerations repositories subprojects]
   before_action :find_document, only: :document
   before_action :find_news, only: :news_item
@@ -155,7 +158,8 @@ class MirrorSourceApiController < ApplicationController
   # log names the repositories, never their credentials.
   def repositories
     @repositories = @project.repositories.order(:id).to_a
-    @credentials = RedmineMirror::Source.refusal(@project, "repository_credentials", User.current).nil?
+    # Only when asked: a destination asks only to write a repository with them.
+    @credentials = params[:credentials] == "1" && RedmineMirror::Source.refusal(@project, "repository_credentials", User.current).nil?
     RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @repositories.size,
       details: { "repositories" => @repositories.map { |repository| { "id" => repository.id, "title" => repository.identifier.presence || repository.scm_name } },
                  "credentials" => @credentials })
@@ -254,6 +258,23 @@ class MirrorSourceApiController < ApplicationController
     when "download" then RedmineMirror::Source::CONTAINERS.fetch(@attachment.container_type)
     else "documents"
     end
+  end
+
+  # An address outside the administrator's list, or a request not authenticated by its API
+  # key header, is refused without naming any project. Logged by Rails only: the access log
+  # belongs to a project.
+  def check_caller
+    address = RedmineMirror::Source.caller_address(request)
+    if !RedmineMirror::Source.address_allowed?(address)
+      reason = "address"
+    elsif !RedmineMirror::Source.api_key_request?(request, User.current)
+      reason = "api_key"
+    else
+      return
+    end
+    logger&.warn("Mirror source refused #{request.path} from #{address}: #{reason}")
+    response.headers[RedmineMirror::Source::REFUSAL_HEADER] = reason
+    render_403
   end
 
   # An account is required, even on public projects. Projects it cannot see are

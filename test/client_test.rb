@@ -67,13 +67,16 @@ class MirrorClientTest < Minitest::Test
   # A Mirror source logs one session per client and names the lock it refuses on; any
   # other header value is ignored.
   def test_mirror_source_session_and_refusal
-    responses = [["200 OK", "{}"], ["403 Forbidden\r\nX-Mirror-Source-Refusal: not_shared", ""], ["403 Forbidden\r\nX-Mirror-Source-Refusal: <script>", ""]]
+    responses = [["200 OK", "{}"], ["403 Forbidden\r\nX-Mirror-Source-Refusal: not_shared", ""], ["403 Forbidden\r\nX-Mirror-Source-Refusal: <script>", ""],
+      ["403 Forbidden\r\nX-Mirror-Source-Refusal: address", ""]]
     serve(responses) do |client, requests|
       client.get("projects/1.json")
       assert_match(/x-mirror-session: #{client.session}\r\n/i, requests.first)
       assert_match(/\A[0-9a-f]{32}\z/, client.session)
       assert_equal "Redmine API returned HTTP 403 for GET issues.json (Mirror source: not_shared)", assert_raises(RedmineMirror::Error) { client.get("issues.json") }.message
       assert_equal "Redmine API returned HTTP 403 for GET issues.json", assert_raises(RedmineMirror::Error) { client.get("issues.json") }.message
+      # A refused caller is said as such, not as a missing permission.
+      assert_match(/refuses this Redmine's address/, assert_raises(RedmineMirror::Error) { client.get("issues.json") }.message)
     end
   end
 

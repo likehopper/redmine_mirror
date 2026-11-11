@@ -457,6 +457,15 @@ only, and categories to their managers only, without sharing. On the source Redm
    shared, whatever the projects check. Only the data this Redmine can provide is listed
    (Tags need the Redmine Tags plugin, Scrum sprints the Scrum plugin); projects do not
    see the rest, which is refused to destinations.
+   **Allowed addresses** restricts Mirror source to the addresses or networks (CIDR) of
+   the destination Redmines, one per line; empty, any address may call it. A list with no
+   valid entry refuses every address. Whatever the list, Mirror source answers only
+   requests authenticated by the API key in the `X-Redmine-API-Key` header, as Mirror
+   destinations send it: a browser session, a login and password or a key in the URL are
+   refused. These refusals (*address*, *api_key*) are written to Redmine's log, not to the
+   project access log. Behind a reverse proxy on the same host, the address is the one
+   that proxy adds last to `X-Forwarded-For` (Apache and nginx proxies add it); with
+   another proxy in front, list that proxy's address, or filter at the firewall.
 
    ![Mirror source allowed](screenshots/configuration/27-source-allowed.png)
 3. In the project: `Settings → Modules`, enable **Mirror source** (the **Mirror** module
@@ -464,7 +473,9 @@ only, and categories to their managers only, without sharing. On the source Redm
    **Scrum sprints**, **Saved queries**, **Users**, **Issue categories**, **Project
    enumerations**, **Repositories** and/or **Repository credentials** and save.
    Repository credentials are offered only when the administrator checked them under
-   **Data projects may share**: they are never allowed by default.
+   **Data projects may share**: they are never allowed by default. Even then, they are
+   sent only to a destination that asks for them, to write a repository of a project
+   that keeps them (**Keep the credentials** in its Repositories tab).
    Sharing Issue categories gives every category of the project with its default
    assignee and, when the source has it, its sharing with subprojects. Sharing Saved queries shows the
    destination every query of the project, private ones included. Sharing Users gives

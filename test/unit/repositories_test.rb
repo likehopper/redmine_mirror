@@ -31,10 +31,13 @@ class MirrorRepositoriesTest < ActiveSupport::TestCase
   # A source sharing one Git repository whose revision is linked to source issue 501.
   class Source
     attr_reader :requests
-    def initialize(rows, links); @rows = rows; @links = links; @requests = []; end
+    def initialize(rows, links, credentials: nil); @rows = rows; @links = links; @credentials = credentials; @requests = []; end
     def get(path, params = {})
       @requests << [path, params]
-      return { "repositories" => @rows } if path.end_with?("repositories.json")
+      # Like Mirror source: the credentials only when asked for (and shared).
+      if path.end_with?("repositories.json")
+        return { "repositories" => @rows.map { |entry| params["credentials"] == "1" && @credentials ? entry.merge(@credentials) : entry } }
+      end
       { "repository_links" => { "total_count" => @links.size, "offset" => params["offset"].to_i, "links" => @links.drop(params["offset"].to_i).first(1) } }
     end
   end
@@ -92,11 +95,13 @@ class MirrorRepositoriesTest < ActiveSupport::TestCase
   end
 
   def test_credentials_are_kept_only_when_the_project_asks
-    source = Source.new([row], [])
-    record = row(url: @path, login: "svc", password: "secret")
+    source = Source.new([row(url: @path)], [], credentials: { "login" => "svc", "password" => "secret" })
+    record = row(url: @path)
     with_settings(enabled_scm: %w[Git]) do
       repository = Repository.find(run_record(record, source)[:destination_id])
       assert_predicate repository.password.to_s, :empty?
+      # Never asked for while the project does not keep them.
+      assert source.requests.none? { |_, params| params["credentials"] }
       repository.destroy
       @setting.update!(module_options: { "repositories" => @adapter.configuration_options({ "credentials" => "1" }, @project) })
       repository = Repository.find(run_record(record, source)[:destination_id])
