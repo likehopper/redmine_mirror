@@ -13,8 +13,8 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 #
-# The project's Mirror page: overview and setup steps, execution history, conflicts,
-# pending links and imported objects. The configuration is in the project settings.
+# The project's Mirror page: overview, execution history, items requiring attention
+# and synchronized objects. The configuration is in the project settings.
 
 class MirrorController < ApplicationController
   include RedmineMirror::PlainFlash
@@ -24,9 +24,12 @@ class MirrorController < ApplicationController
   before_action -> { authorize_mirror(:view) }
   before_action :require_migrated_schema
 
-  TABS = %w[overview history conflicts pending objects].freeze
+  TABS = %w[overview history attention objects].freeze
+  LEGACY_TABS = { "conflicts" => ["attention", "mirror-conflicts-section"],
+                  "pending" => ["attention", "mirror-pending-section"] }.freeze
 
   def index
+    return redirect_legacy_tab if LEGACY_TABS.key?(params[:tab])
     @setting = @project.mirror_project_setting
     @tab = @setting && TABS.include?(params[:tab]) ? params[:tab] : "overview"
     @open_conflict_count = @project.mirror_conflicts.where(status: "open").count
@@ -36,6 +39,18 @@ class MirrorController < ApplicationController
   end
 
   private
+
+  # Links saved before the operational sections were grouped keep their filters.
+  def redirect_legacy_tab
+    tab, anchor = LEGACY_TABS.fetch(params[:tab])
+    query = request.query_parameters.except("tab")
+    if params[:tab] == "conflicts" && query["page"]
+      query["conflict_page"] = query.delete("page")
+    elsif params[:tab] == "pending" && query["page"]
+      query["relation_page"] = query.delete("page")
+    end
+    redirect_to project_mirror_path(@project, query.symbolize_keys.merge(tab: tab, anchor: anchor))
+  end
 
   def require_migrated_schema
     render_error message: l(:text_mirror_pending_migrations), status: 503 unless MirrorProjectSetting.schema_current?
@@ -47,8 +62,13 @@ class MirrorController < ApplicationController
     @conflicts = @project.mirror_conflicts.order(updated_at: :desc)
     @conflicts = @conflicts.where(status: @conflict_status) unless @conflict_status == "all"
     @conflict_count = @conflicts.count
-    @conflict_pages = Paginator.new(@conflict_count, 25, params[:page])
+    @conflict_pages = Paginator.new(@conflict_count, 25, params[:conflict_page], :conflict_page)
     @conflicts = @conflicts.limit(25).offset(@conflict_pages.offset)
+  end
+
+  def prepare_attention
+    prepare_conflicts
+    prepare_pending
   end
 
   # Date filters use the viewer’s time zone and include the whole final day.
@@ -95,7 +115,10 @@ class MirrorController < ApplicationController
     @pending = MirrorPendingRelation.where(project_id: @project.id)
     @pending = @pending.where(status: params[:pending_status]) if %w[pending blocked].include?(params[:pending_status])
     @pending_total = @pending.count
-    @pending_pages = Paginator.new(@pending_total, 50, params[:page])
+    @pending_pages = Paginator.new(@pending_total, 50, params[:relation_page], :relation_page)
     @pending = @pending.order(:source_id).limit(50).offset(@pending_pages.offset)
+    mappings = MirrorMapping.where(project_id: @project.id, module_key: "issue_tracking", destination_id: @pending.map(&:local_issue_id))
+      .order(:id).pluck(:destination_id, :source_id)
+    @pending_source_issue_ids = mappings.each_with_object({}) { |(destination_id, source_id), ids| ids[destination_id] ||= source_id }
   end
 end

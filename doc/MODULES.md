@@ -125,7 +125,7 @@ ignored.
 ## Categories and versions
 
 Run before issues and create or update the local references; their correspondences
-appear in **Object mappings**. Categories keep their name and assignee; versions keep
+appear in the read-only **Synchronized objects** list. Categories keep their name and assignee; versions keep
 name, description, status, due date and sharing.
 
 - A missing reference blocks the import; a local change is reported as a conflict.
@@ -496,8 +496,9 @@ the module, remote and local IDs with links, the action (`create`, `update`, `un
 
 Logs never contain API keys or request bodies. They are kept without automatic purge.
 
-**Object mappings** lists the project's persisted correspondences, filtered by module,
-remote ID and local ID. Only imports create them; previews do not. On an imported issue,
+**Synchronized objects** lists the project's persisted source/local object links,
+filtered by module, source ID and local ID. Only imports create them; previews do not;
+there is nothing to configure on this page. On an imported issue,
 users who can configure Mirror see a **Mirror source issue** link.
 
 ## Conflicts

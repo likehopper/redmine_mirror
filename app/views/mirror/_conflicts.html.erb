@@ -16,7 +16,9 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 Render project-scoped Mirror controls and diagnostics using native Redmine helpers.
 %><p><%= l(:text_mirror_conflicts) %></p>
 <%= form_tag project_mirror_path(@project), method: :get do %>
-<%= hidden_field_tag :tab, "conflicts" %>
+<%= hidden_field_tag :tab, "attention" %>
+<%= hidden_field_tag :pending_status, params[:pending_status] if params[:pending_status].present? %>
+<%= label_tag :conflict_status, l(:field_status), class: "hidden-for-sighted" %>
 <%= select_tag :conflict_status, options_for_select(%w[open ignored resolved].map { |status| [l("label_mirror_conflict_#{status}"), status] } + [[l(:label_all), "all"]], @conflict_status) %>
 <%= submit_tag l(:button_apply) %>
 <% end %>

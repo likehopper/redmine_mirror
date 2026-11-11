@@ -16,7 +16,7 @@
 # Build native and remote object links without exposing configured API credentials.
 
 module MirrorHelper
-  # The Mirror page of the project menu: overview, history, conflicts, pending links, objects.
+  # The Mirror page of the project menu: overview, history, attention and synchronized objects.
   def mirror_page_path(project, tab = nil, **options)
     project_mirror_path(project, { tab: tab }.compact.merge(options))
   end
@@ -34,27 +34,6 @@ module MirrorHelper
     RedmineMirror.manager?(project)
   end
 
-  # Data of the Mirror tab, rendered inside Redmine's project settings page.
-  # Module tabs by group in the vertical menu; modules of other plugins go to "other".
-  MIRROR_TAB_GROUPS = {
-    "references" => %w[users issue_categories project_versions project_enumerations project_members],
-    "issues" => %w[issue_tracking time_tracking issue_attachments issue_relations issue_hierarchy issue_watchers
-      issue_custom_fields issue_journals issue_tags agile_issues],
-    "contents" => %w[wiki documents project_files news project_queries repositories]
-  }.freeze
-
-  # [[group, [[tab key, label], ...]], ...] for the selected modules, empty groups left out.
-  def mirror_tab_groups(adapters)
-    general = [["connection", l(:label_mirror_connection)]]
-    general << ["schedule", l(:label_mirror_schedule)] if @setting&.persisted?
-    groups = { "general" => general }
-    adapters.each do |adapter|
-      group = MIRROR_TAB_GROUPS.find { |_, keys| keys.include?(adapter.key) }&.first || "other"
-      (groups[group] ||= []) << [adapter.key, l(adapter.label)]
-    end
-    %w[general references issues contents other].filter_map { |group| [group, groups[group]] if groups[group] }
-  end
-
   def prepare_mirror_configuration(project)
     @setting = project.mirror_project_setting || project.build_mirror_project_setting
     # A refused first connection comes back with what was typed, except the API key.
@@ -65,7 +44,7 @@ module MirrorHelper
       @setting.source_text_format = typed["source_text_format"] if RedmineMirror::TextFormat::SOURCE_FORMATS.include?(typed["source_text_format"])
     end
     @adapters = @setting.persisted? ? @setting.adapters : []
-    tabs = ["connection"] + (@setting.persisted? ? ["schedule"] + @adapters.map(&:key) : [])
+    tabs = ["connection"] + (@setting.persisted? ? ["modules", "schedule"] + @adapters.map(&:key) : [])
     @mirror_tab = tabs.include?(params[:mirror_tab]) ? params[:mirror_tab] : "connection"
     @mapping_values = project.mirror_reference_mappings.to_h do |row|
       [[row.reference_type, row.source_id.to_s], row.mode == "existing" ? row.destination_id.to_s : row.mode]
@@ -111,7 +90,7 @@ module MirrorHelper
       [:connection, connected ? :done : :todo, nil, mirror_configuration_path(project)],
       [:references, catalog, (setting.catalog_error if catalog == :failed), mirror_configuration_path(project)],
       [:mappings, mappings, unmapped.map { |key, count| "#{mirror_module_label(key)} #{count}" }.join(", ").presence,
-        mirror_configuration_path(project, unmapped.keys.first)],
+        mirror_configuration_path(project, "modules")],
       [:preview, previewed ? :done : :todo, nil, mirror_page_path(project)],
       [:sync, synchronized ? :done : :todo, nil, mirror_page_path(project)],
       [:schedule, connected && setting.auto_sync_enabled? ? :done : :todo, nil, mirror_configuration_path(project, "schedule")]
@@ -244,7 +223,7 @@ module MirrorHelper
     text = l(check.fetch(:key), **check.fetch(:args, {}).merge(count: check.fetch(:count)))
     link = case check[:link]
            when :admin_files then User.current.admin? && link_to(l(:label_mirror_fix_attachment_size), settings_path(tab: "attachments"))
-           when :pending then link_to(l(:label_mirror_pending_links), mirror_page_path(@project, "pending"))
+           when :pending then link_to(l(:label_mirror_pending_links), mirror_page_path(@project, "attention", anchor: "mirror-pending-section"))
            end
     link ? safe_join([text, " ", link]) : text
   end
@@ -317,7 +296,7 @@ module MirrorHelper
       add.call(:label_mirror_fix_mapping, manager && mirror_configuration_path(@project, "issue_custom_fields"))
     when "conflict"
       guide[:text] = l(:text_mirror_guide_conflict)
-      add.call(:label_mirror_fix_conflict, mirror_page_path(@project, "conflicts"))
+      add.call(:label_mirror_fix_conflict, mirror_page_path(@project, "attention", anchor: "mirror-conflicts-section"))
     when "attachment_size"
       guide[:text] = l(:text_mirror_guide_attachment_size)
       add.call(:label_mirror_fix_attachment_size, User.current.admin? && settings_path(tab: "attachments"))

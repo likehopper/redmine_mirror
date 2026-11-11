@@ -120,8 +120,9 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     RedmineMirror::Synchronization.refresh_catalogs
     visit current_url
     screenshot "08-connection", "#tab-content-mirror"
+    visit "/projects/#{PROJECT}/settings/mirror?mirror_tab=modules"
     assert_selector "#mirror-settings-subtabs .mirror-badge"
-    screenshot "09-modules-to-map", "#mirror-settings-subtabs"
+    screenshot "09-modules-to-map", "#tab-content-mirror"
   end
 
   def test_07_user_mappings
@@ -233,7 +234,7 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     visit "/issues/#{issue.id}"
     assert_selector "#mirror-issue-origin"
     screenshot "19-imported-issue", "#content", max_height: 900
-    visit "/projects/#{PROJECT}/mirror?tab=pending"
+    visit "/projects/#{PROJECT}/mirror?tab=attention#mirror-pending-section"
     assert_selector "#mirror-pending-relations tbody tr"
     screenshot "20-pending-links", "#content"
   end
@@ -266,12 +267,12 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     assert_equal "partial", run.status
     visit current_path
     screenshot "23-conflict-log", "#content", max_height: 460
-    visit "/projects/#{PROJECT}/mirror?tab=conflicts"
+    visit "/projects/#{PROJECT}/mirror?tab=attention#mirror-conflicts-section"
     assert_selector "#mirror-conflicts tbody tr", count: 1
     screenshot "24-conflicts", "#content"
     accept_confirm { click_button "Keep local object" }
     assert_selector "#flash_notice"
-    visit "/projects/#{PROJECT}/mirror?tab=conflicts&conflict_status=all"
+    visit "/projects/#{PROJECT}/mirror?tab=attention&conflict_status=all#mirror-conflicts-section"
     assert_selector "#mirror-conflicts td", text: "Kept locally"
     screenshot "25-conflict-kept", "#content"
 
@@ -538,7 +539,8 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
 
   def open_module_tab(key)
     visit "/projects/#{PROJECT}/settings/mirror?mirror_tab=#{key}"
-    assert_selector "#mirror-settings-subtabs a.selected[href*='mirror_tab=#{key}']"
+    assert_selector "#mirror-settings-subtabs a.selected[href*='mirror_tab=modules']"
+    assert_selector ".mirror-module-back"
   end
 
   # Does what `rake redmine_mirror:tick` does in the worker process, then returns

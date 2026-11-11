@@ -32,14 +32,14 @@ class MirrorConflictsControllerTest < ActionController::TestCase
   end
   def test_keep_and_recheck_preserve_mapping_and_fingerprints
     patch :update, params: { project_id: @project.id, id: @conflict.id, resolution: "ignore" }
-    assert_redirected_to project_mirror_path(@project, tab: "conflicts")
+    assert_redirected_to project_mirror_path(@project, tab: "attention", anchor: "mirror-conflicts-section")
     assert_equal "ignored", @conflict.reload.status
     assert_equal 1, @conflict.resolved_by_id
     assert RedmineMirror::DatabaseStore.new("test", project_id: @project.id).excluded?("issue_tracking", 99)
     assert_not RedmineMirror::DatabaseStore.new("test", project_id: 2).excluded?("issue_tracking", 99)
     assert_equal "b", MirrorMapping.find_by!(connection_key: "test", source_id: 99).destination_fingerprint
     patch :update, params: { project_id: @project.id, id: @conflict.id, resolution: "recheck", conflict_status: "ignored" }
-    assert_redirected_to project_mirror_path(@project, tab: "conflicts", conflict_status: "ignored")
+    assert_redirected_to project_mirror_path(@project, tab: "attention", conflict_status: "ignored", anchor: "mirror-conflicts-section")
     assert_equal "open", @conflict.reload.status
   end
   def test_cross_project_id_is_not_accessible

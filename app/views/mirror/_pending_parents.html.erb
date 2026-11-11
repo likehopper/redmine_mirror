@@ -15,11 +15,6 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Render project-scoped Mirror controls and diagnostics using native Redmine helpers.
 %><h3><%= l(:label_mirror_pending_parents) %></h3>
-<%= form_tag project_mirror_path(@project), method: :get do %>
-<%= hidden_field_tag :tab, "pending" %>
-<%= select_tag :pending_status, options_for_select([[l(:label_all), ""], [l(:label_mirror_relation_pending), "pending"], [l(:label_mirror_relation_blocked), "blocked"]], params[:pending_status]) %>
-<%= submit_tag l(:button_apply) %>
-<% end %>
 <table class="list" id="mirror-pending-parents"><thead><tr>
 <th><%= l(:label_mirror_pending_source_issue) %></th><th><%= l(:label_mirror_local_issue_id) %></th><th><%= l(:label_mirror_remote_parent) %></th><th><%= l(:field_status) %></th><th><%= l(:label_mirror_reason) %></th><th><%= l(:label_mirror_relation_checked) %></th>
 </tr></thead><tbody>

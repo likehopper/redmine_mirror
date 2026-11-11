@@ -43,7 +43,7 @@ class MirrorModuleOverviewTest < Redmine::IntegrationTest
 
   def test_tab_without_references_says_there_is_nothing_to_map
     wiki_tab
-    assert_select "#mirror-mapping-state", text: /Nothing to map in this tab/
+    assert_select "#mirror-mapping-state", text: /No mapping is required for this module/
     # The authors' correspondences are in Users, still to map.
     assert_select "#mirror-module-dependencies a[href*='mirror_tab=users']", text: "Users"
     assert_select "#mirror-module-dependencies .mirror-badge", text: "1 to map"
@@ -115,7 +115,7 @@ class MirrorModuleOverviewTest < Redmine::IntegrationTest
     get "/projects/ecookbook/settings/mirror", params: { mirror_tab: "issue_hierarchy" }
     assert_response :success
     assert_select "#mirror-module-checks li", text: /1 subtasks are waiting for their parent issue/
-    assert_select "#mirror-module-checks a[href=?]", "/projects/ecookbook/mirror?tab=pending"
+    assert_select "#mirror-module-checks a[href*='tab=attention']"
   end
 
   def test_catalog_without_figures_asks_for_a_refresh

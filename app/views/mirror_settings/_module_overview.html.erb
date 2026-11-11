@@ -74,6 +74,6 @@ here, and the last run that wrote the module.
     <% end %>
   </p>
   <% if overview[:conflicts].positive? %>
-    <p class="warning" id="mirror-module-conflicts"><%= link_to l(:label_mirror_open_conflicts, count: overview[:conflicts]), mirror_page_path(@project, "conflicts") %></p>
+    <p class="warning" id="mirror-module-conflicts"><%= link_to l(:label_mirror_open_conflicts, count: overview[:conflicts]), mirror_page_path(@project, "attention", anchor: "mirror-conflicts-section") %></p>
   <% end %>
 </div>

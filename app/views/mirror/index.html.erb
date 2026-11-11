@@ -13,7 +13,7 @@ This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
-The project's Mirror page: overview and getting started, history, conflicts, pending links, objects.
+The project's Mirror page: overview, history, items requiring attention and synchronized objects.
 %><% content_for :header_tags do %>
   <%= stylesheet_link_tag "mirror", plugin: "redmine_mirror" %>
   <%= javascript_include_tag "mirror", plugin: "redmine_mirror" %>
@@ -30,22 +30,15 @@ The project's Mirror page: overview and getting started, history, conflicts, pen
     <p><%= l(:text_mirror_not_configured_ask) %></p>
   <% end %>
 <% else %>
+  <% attention_count = @open_conflict_count + @pending_count + @pending_parent_count %>
   <% tabs = [["overview", l(:label_mirror_overview)], ["history", l(:label_mirror_sync_history)],
-             ["conflicts", @open_conflict_count.positive? ? l(:label_mirror_conflicts_count, count: @open_conflict_count) : l(:label_mirror_conflicts)]] %>
-  <% if (@pending_count + @pending_parent_count).positive? || (@setting.selected_modules & %w[issue_relations issue_hierarchy]).any? %>
-    <% tabs << ["pending", l(:label_mirror_pending_links)] %>
-  <% end %>
+             ["attention", attention_count.positive? ? l(:label_mirror_attention_count, count: attention_count) : l(:label_mirror_attention)]] %>
   <% tabs << ["objects", l(:label_mirror_objects)] %>
   <div class="mirror-tabs"><div class="tabs" id="mirror-page-tabs"><ul>
     <% tabs.each do |key, label| %>
       <li><%= link_to label, mirror_page_path(@project, key == "overview" ? nil : key), class: (@tab == key ? "selected" : nil) %></li>
     <% end %>
   </ul></div></div>
-  <% if @tab == "pending" %>
-    <%= render "mirror/pending_relations" %>
-    <%= render "mirror/pending_parents" %>
-  <% else %>
-    <%= render "mirror/#{@tab}" %>
-  <% end %>
+  <%= render "mirror/#{@tab}" %>
 <% end %>
 <% html_title(l(:label_mirror)) %>

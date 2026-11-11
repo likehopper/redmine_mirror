@@ -18,12 +18,13 @@ reference. Unmapped references with a single local namesake, or an AI proposal, 
 preselected; nothing is saved until the form is. AI proposals are asked for per table.
 Source users whose email the source shares (Mirror source) are preselected by email first;
 the Users tab then offers to create the missing accounts (mirror_settings/_user_creation).
-%><%= render "mirror_settings/module_overview", adapter: adapter %>
+%><h3><%= l(adapter.label) %></h3>
+<%= render "mirror_settings/module_overview", adapter: adapter %>
 <% if adapter.is_a?(RedmineMirror::Adapters::ProjectReferences) %>
   <p><%= l(:text_mirror_reference_objects) %> <%= link_to l(:label_mirror_objects), mirror_page_path(@project, "objects", module_key: adapter.key) %></p>
 <% end %>
 <% if %w[issue_hierarchy issue_relations].include?(adapter.key) %>
-  <p><%= link_to l(:label_mirror_pending_links), mirror_page_path(@project, "pending") %></p>
+  <p><%= link_to l(:label_mirror_pending_links), mirror_page_path(@project, "attention", anchor: "mirror-pending-section") %></p>
 <% end %>
 <% if adapter.project_module && !@project.module_enabled?(adapter.project_module) %>
   <p class="warning" id="mirror-project-module-disabled"><%= l(:text_mirror_project_module_disabled, module: l_or_humanize(adapter.project_module, prefix: "project_module_")) %>
@@ -94,7 +95,7 @@ end %>
     <%# Long lists are sent once per table and searched as the user types (mirror.js): each
         row's select only holds the empty choice and its current or proposed value. %>
     <% shared = local_choices.size >= 12 %>
-    <h3><%= l(table.label) %></h3>
+    <% unless adapter.mapping_tables.one? && l(table.label) == l(adapter.label) %><h3><%= l(table.label) %></h3><% end %>
     <table class="list mirror-mapping-table" id="mirror-table-<%= table.key %>">
       <thead><tr><th><%= l(:label_mirror_source) %></th><th><%= l(:label_mirror_destination) %></th></tr></thead>
       <tbody>

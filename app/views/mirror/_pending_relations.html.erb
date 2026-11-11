@@ -15,16 +15,11 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Render project-scoped Mirror controls and diagnostics using native Redmine helpers.
 %><h3><%= l(:label_mirror_pending_relations) %></h3>
-<%= form_tag project_mirror_path(@project), method: :get do %>
-<%= hidden_field_tag :tab, "pending" %>
-<%= select_tag :pending_status, options_for_select([[l(:label_all), ""], [l(:label_mirror_relation_pending), "pending"], [l(:label_mirror_relation_blocked), "blocked"]], params[:pending_status]) %>
-<%= submit_tag l(:button_apply) %>
-<% end %>
 <table class="list" id="mirror-pending-relations"><thead><tr>
 <th><%= l(:label_mirror_pending_source_issue) %></th><th><%= l(:label_mirror_remote_relation_id) %></th><th><%= l(:label_mirror_local_issue_id) %></th><th><%= l(:label_mirror_missing_remote_issue) %></th><th><%= l(:field_type) %></th><th><%= l(:label_mirror_relation_delay) %></th><th><%= l(:field_status) %></th><th><%= l(:label_mirror_reason) %></th><th><%= l(:label_mirror_relation_checked) %></th><th><%= l(:label_mirror_existing_note) %></th>
 </tr></thead><tbody>
 <% @pending.each do |row| %><tr>
-<% source_issue_id = MirrorMapping.find_by(project_id: @project.id, module_key: "issue_tracking", destination_id: row.local_issue_id)&.source_id %>
+<% source_issue_id = @pending_source_issue_ids[row.local_issue_id] %>
 <td><%= mirror_object_link("issue_tracking", source_issue_id, source_url: @setting.source_url) %></td>
 <td><%= mirror_object_link("issue_relations", row.source_id, source_url: @setting.source_url, local_issue_id: row.local_issue_id) %></td><td><%= mirror_object_link("issue_tracking", row.local_issue_id) %></td>
 <td><%= mirror_object_link("issue_tracking", row.remote_issue_id, source_url: @setting.source_url) %></td>

@@ -86,7 +86,7 @@ begin
     driver.find_element(name: "connection[api_key]").send_keys(ENV.fetch("MIRROR_SOURCE_API_KEY"))
     in_tab.call('input[value="time_tracking"]').click
     in_tab.call("[name=commit]").click
-    wait.until { driver.find_elements(css: "#mirror-settings-subtabs a[href*='mirror_tab=users']").any? }
+    wait.until { driver.find_elements(css: "#mirror-settings-subtabs a[href*='mirror_tab=modules']").any? }
     wait_catalog.call
     %w[users issue_tracking time_tracking].each do |key|
       driver.navigate.to("#{settings}?mirror_tab=#{key}")
@@ -122,9 +122,9 @@ begin
   end
   driver.navigate.to(settings)
   modules = Project.find_by!(identifier: "mirror-demo").mirror_project_setting.selected_modules
-  abort "Expected connection, schedule and module tabs" unless driver.find_elements(css: "#mirror-settings-subtabs li").size == modules.size + 2
-  driver.find_element(css: "#mirror-settings-subtabs a[href*='mirror_tab=users']").click
-  wait.until { driver.find_elements(id: "mirror-table-user").any? }
+  abort "Expected connection, modules and schedule tabs" unless driver.find_elements(css: "#mirror-settings-subtabs li").size == 3
+  driver.navigate.to("#{settings}?mirror_tab=modules")
+  abort "Expected one summary row per resolved module" unless driver.find_elements(css: "#mirror-module-list tbody tr").size >= modules.size
   driver.navigate.to("#{base}/projects/mirror-demo/mirror")
   abort "Missing Mirror page tabs" unless driver.find_elements(css: "#mirror-page-tabs a[href*='tab=objects']").any?
   driver.navigate.to("#{settings}?mirror_tab=issue_tracking")

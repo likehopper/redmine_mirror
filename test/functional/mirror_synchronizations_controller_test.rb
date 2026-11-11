@@ -89,7 +89,7 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
       { "module" => "issue_watchers", "source_id" => 4, "action" => "error", "reason" => "Local modification detected for issue_watchers" }]))
     get :show, params: { project_id: @project.identifier, id: run.id }
     assert_select "#mirror-warning-causes a.mirror-fix[href=?]", "/custom_fields/#{field.id}/edit", text: "enable the field for this tracker"
-    assert_select "#mirror-error-causes a.mirror-fix[href*='tab=conflicts']", text: "resolve the conflict"
+    assert_select "#mirror-error-causes a.mirror-fix[href*='tab=attention']", text: "resolve the conflict"
   end
 
   def test_unauthorized_member_cannot_cancel

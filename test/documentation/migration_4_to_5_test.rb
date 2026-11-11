@@ -320,7 +320,8 @@ class MirrorMigrationDocumentationTest < ApplicationSystemTestCase
 
   def open_module_tab(key)
     visit "/projects/#{PROJECT}/settings/mirror?mirror_tab=#{key}"
-    assert_selector "#mirror-settings-subtabs a.selected[href*='mirror_tab=#{key}']"
+    assert_selector "#mirror-settings-subtabs a.selected[href*='mirror_tab=modules']"
+    assert_selector ".mirror-module-back"
   end
 
   def run_worker

@@ -16,6 +16,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+- **Clearer project workflow**: **Settings → Mirror** now has three stable sections and
+  a single **Modules and mappings** summary instead of one navigation entry per module.
+  The operational Mirror page groups conflicts and pending links under **To review**;
+  **Synchronized objects** explicitly identifies the read-only links recorded by runs.
+  Former conflict and pending-link URLs redirect to their new sections.
+
 ## 1.0.0-beta.40 — 2026-11-11
 
 - **Large user lists**: with thousands of source users, the Mirror settings page and the

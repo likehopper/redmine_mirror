@@ -1,0 +1,34 @@
+<%#
+File: redmine_mirror/app/views/mirror_settings/_modules.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Summarize every selected module before opening its focused configuration form.
+%><p><%= l(:text_mirror_modules_and_mappings) %></p>
+<table class="list" id="mirror-module-list">
+  <thead><tr><th><%= l(:label_mirror_modules) %></th><th><%= l(:field_status) %></th><th><%= l(:label_mirror_action) %></th></tr></thead>
+  <tbody>
+    <% @adapters.each do |adapter| %>
+      <% count = unmapped[adapter.key].to_i %>
+      <tr><td><%= l(adapter.label) %></td><td>
+        <% if adapter.mapping_tables.empty? %>
+          <span class="icon icon-ok"><%= l(:text_mirror_no_mapping_required) %></span>
+        <% elsif count.positive? %>
+          <span class="icon icon-warning"><%= l(:label_mirror_to_map, count: count) %></span>
+        <% else %>
+          <span class="icon icon-ok"><%= l(:text_mirror_all_mapped) %></span>
+        <% end %>
+      </td><td><%= link_to l(:label_mirror_configure), mirror_configuration_path(@project, adapter.key), class: "icon icon-edit" %></td></tr>
+    <% end %>
+  </tbody>
+</table>

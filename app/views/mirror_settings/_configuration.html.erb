@@ -13,7 +13,7 @@ This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
-The Mirror tab of the project settings: connection, schedule and one mapping tab per module.
+The Mirror tab of the project settings: connection, a module summary and schedule.
 Redmine renders every settings tab on load: only the selected Mirror sub-tab is built.
 %><% content_for :header_tags do %>
   <%= stylesheet_link_tag "mirror", plugin: "redmine_mirror" %>
@@ -35,25 +35,21 @@ Redmine renders every settings tab on load: only the selected Mirror sub-tab is 
   <div class="flash warning" id="mirror-catalog-module-errors"><%= l(:text_mirror_catalog_module_errors) %>
     <ul><% module_errors.each do |key, message| %><li><%= l(:text_mirror_catalog_module_error, module: mirror_module_label(key), error: message) %></li><% end %></ul></div>
 <% end %>
-<%# A vertical menu, grouped: some thirty module tabs do not fit in a row of tabs. %>
-<div class="mirror-settings-layout">
-<nav class="mirror-side-tabs" id="mirror-settings-subtabs" aria-label="<%= l(:label_mirror) %>">
-  <% mirror_tab_groups(@setting.persisted? ? @adapters : []).each do |group, entries| %>
-    <h4><%= l("label_mirror_tab_group_#{group}") %></h4>
-    <ul>
-      <% entries.each do |key, label| %>
-        <li><%= link_to mirror_configuration_path(@project, key == "connection" ? nil : key), class: (@mirror_tab == key ? "selected" : nil), aria: { current: (@mirror_tab == key ? "page" : nil) } do %><%= label %><% if unmapped[key] %> <span class="mirror-badge" title="<%= l(:label_mirror_to_map, count: unmapped[key]) %>"><%= unmapped[key] %></span><% end %><% end %></li>
-      <% end %>
-    </ul>
+<div class="mirror-tabs"><div class="tabs" id="mirror-settings-subtabs"><ul>
+  <li><%= link_to l(:label_mirror_connection), mirror_configuration_path(@project), class: (@mirror_tab == "connection" ? "selected" : nil) %></li>
+  <% if @setting.persisted? %>
+    <% module_section = @mirror_tab == "modules" || @adapters.any? { |adapter| adapter.key == @mirror_tab } %>
+    <li><%= link_to mirror_configuration_path(@project, "modules"), class: (module_section ? "selected" : nil) do %><%= l(:label_mirror_modules_and_mappings) %><% if unmapped.values.sum.positive? %> <span class="mirror-badge" title="<%= l(:label_mirror_to_map, count: unmapped.values.sum) %>"><%= unmapped.values.sum %></span><% end %><% end %></li>
+    <li><%= link_to l(:label_mirror_schedule), mirror_configuration_path(@project, "schedule"), class: (@mirror_tab == "schedule" ? "selected" : nil) %></li>
   <% end %>
-</nav>
-<div class="mirror-settings-panel">
+</ul></div></div>
 <% if @mirror_tab == "connection" %>
   <%= render "mirror_settings/connection" %>
 <% elsif @mirror_tab == "schedule" %>
   <%= render "mirror_settings/schedule" %>
+<% elsif @mirror_tab == "modules" %>
+  <%= render "mirror_settings/modules", unmapped: unmapped %>
 <% else %>
+  <p class="mirror-module-back"><%= link_to l(:label_mirror_back_to_modules), mirror_configuration_path(@project, "modules"), class: "icon icon-arrow-left" %></p>
   <%= render "mirror_settings/mappings", adapter: @adapters.find { |entry| entry.key == @mirror_tab } %>
 <% end %>
-</div>
-</div>

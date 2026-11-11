@@ -38,19 +38,22 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     assert_response :success
   end
 
-  def test_configuration_has_module_tabs_with_counters_and_never_displays_key
+  def test_configuration_has_three_sections_and_a_module_summary_without_the_key
     log_user("admin", "admin")
     settings
     assert_select "#tab-mirror.selected"
-    assert_select "#mirror-settings-subtabs a", count: 5
-    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=issue_tracking'] .mirror-badge", text: "4"
-    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=users'] .mirror-badge", text: "1"
+    assert_select "#mirror-settings-subtabs a", count: 3
+    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=modules'] .mirror-badge", text: "6"
     assert_select "input[name='connection[source_url]'][readonly]"
     assert_select 'input[name="connection[api_key]"]' do |inputs|
       assert inputs.first["value"].blank?
     end
     assert_no_match "private-api-key", response.body
     assert_select "a[href='/projects/ecookbook/mirror']", text: "Mirror page"
+    settings("modules")
+    assert_select "#mirror-module-list tbody tr", count: 3
+    assert_select "#mirror-module-list tr", text: /Users.*1 to map/
+    assert_select "#mirror-module-list a[href$='mirror_tab=users']", text: "Configure"
   end
 
   # The references to map are shown first; the mapped ones and all of them on request.
@@ -111,11 +114,11 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     settings("wiki")
     assert_select "#mirror-project-module-disabled a[href='/projects/ecookbook/settings/modules']"
     assert_select "#mirror-mappings-form input[type=submit]", count: 0
-    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=project_members'] .mirror-badge", text: "1"
+    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=modules'] .mirror-badge", text: "1"
     patch "/projects/ecookbook/mirror/settings/modules/project_members", params: { module_options: { unmapped: "skip" } }
     assert_equal "skip", @setting.reload.module_options.dig("project_members", "unmapped")
     settings("project_members")
-    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=project_members'] .mirror-badge", count: 0
+    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=modules'] .mirror-badge", count: 0
     assert_select "#members-unmapped option[selected]", text: "Do not give them"
   end
 
@@ -124,14 +127,14 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     @setting.update!(selected_modules: %w[documents], source_catalog: { "user" => {}, "document_category" => { "71" => "Technical documentation", "72" => "Remote specs" } })
     log_user("admin", "admin")
     settings("documents")
-    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=documents'] .mirror-badge", text: "2"
+    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=modules'] .mirror-badge", text: "2"
     assert_select "#mirror-table-document_category tr.mirror-suggested select option[selected]", text: "Technical documentation (#3)"
     assert_select "#mirror-table-document_category option", text: /Inactive Document Category/, count: 0
     assert_select "p", text: /must run Redmine Mirror.*share Documents/
     patch "/projects/ecookbook/mirror/settings/modules/documents", params: { mappings: { "document_category" => { "71" => "3", "72" => "2" } } }
     assert_equal({ "71" => 3, "72" => 2 }, @project.mirror_reference_mappings.where(reference_type: "document_category").to_h { |row| [row.source_id.to_s, row.destination_id] })
     settings("documents")
-    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=documents'] .mirror-badge", count: 0
+    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=modules'] .mirror-badge", count: 0
   end
 
   # A source reference with a single local namesake is preselected, not saved.
@@ -331,17 +334,17 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     assert_select "#tab-content-mirror .mirror-mapping-table", count: 0
   end
 
-  # The tabs are a vertical menu grouped by kind; a module the source refused is named,
-  # the references of the others stay usable.
-  def test_grouped_menu_and_refused_module_warning
+  # The three configuration sections stay stable; a module the source refused is named,
+  # while the other module forms remain reachable through their summary.
+  def test_configuration_sections_and_refused_module_warning
     @setting.update!(selected_modules: %w[issue_tracking time_tracking wiki],
       source_catalog: @setting.source_catalog.merge("module_errors" => { "wiki" => "The source API key needs View wiki in the source project" }))
     log_user("admin", "admin")
     settings
-    assert_select "#mirror-settings-subtabs h4", text: "Configuration"
-    assert_select "#mirror-settings-subtabs h4", text: "Issues"
-    assert_select "#mirror-settings-subtabs h4", text: "Contents"
-    assert_select "#mirror-settings-subtabs a.selected[aria-current=page]", text: "Connection"
+    assert_select "#mirror-settings-subtabs a", count: 3
+    assert_select "#mirror-settings-subtabs a.selected", text: "Connection"
+    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=modules']", text: /Modules and mappings/
+    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=schedule']", text: "Automatic synchronization"
     assert_select "#mirror-catalog-module-errors li", text: "Wiki: The source API key needs View wiki in the source project"
   end
 

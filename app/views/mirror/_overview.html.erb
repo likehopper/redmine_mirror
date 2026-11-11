@@ -63,9 +63,9 @@ Overview: getting started, source and schedule, actions, current execution, item
     <p><label><%= l(:label_mirror_sync_finished) %></label><%= current&.finished_at ? format_time(current.finished_at) : "—" %></p>
   </div>
   <% attention = [] %>
-  <% attention << link_to(l(:label_mirror_open_conflicts, count: @open_conflict_count), mirror_page_path(@project, "conflicts")) if @open_conflict_count.positive? %>
-  <% attention << link_to(l(:label_mirror_pending_count, count: @pending_count), mirror_page_path(@project, "pending")) if @pending_count.positive? %>
-  <% attention << link_to(l(:label_mirror_pending_parent_count, count: @pending_parent_count), mirror_page_path(@project, "pending")) if @pending_parent_count.positive? %>
+  <% attention << link_to(l(:label_mirror_open_conflicts, count: @open_conflict_count), mirror_page_path(@project, "attention", anchor: "mirror-conflicts-section")) if @open_conflict_count.positive? %>
+  <% attention << link_to(l(:label_mirror_pending_count, count: @pending_count), mirror_page_path(@project, "attention", anchor: "mirror-pending-section")) if @pending_count.positive? %>
+  <% attention << link_to(l(:label_mirror_pending_parent_count, count: @pending_parent_count), mirror_page_path(@project, "attention", anchor: "mirror-pending-section")) if @pending_parent_count.positive? %>
   <% if @setting.unavailable_modules.any? %>
     <% attention << l(:text_mirror_unavailable_modules, modules: @setting.unavailable_modules.map { |key| mirror_module_label(key) }.join(", ")) %>
   <% end %>

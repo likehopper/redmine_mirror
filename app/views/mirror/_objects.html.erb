@@ -13,8 +13,9 @@ This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
-Render project-scoped Mirror controls and diagnostics using native Redmine helpers.
-%><%= form_tag project_mirror_path(@project), method: :get do %>
+Render the read-only source-to-local links recorded automatically by synchronization.
+%><p class="info"><%= l(:text_mirror_synchronized_objects) %></p>
+<%= form_tag project_mirror_path(@project), method: :get do %>
 <%= hidden_field_tag :tab, "objects" %>
 <fieldset><legend><%= l(:label_filter_plural) %></legend>
 <%= label_tag :module_key, l(:label_mirror_modules) %><%= select_tag :module_key, options_for_select([[l(:label_all), ""]] + RedmineMirror::REGISTRY.keys.map { |key| [mirror_module_label(key), key] }, params[:module_key]) %>
@@ -23,7 +24,7 @@ Render project-scoped Mirror controls and diagnostics using native Redmine helpe
 <%= submit_tag l(:button_apply) %>
 </fieldset>
 <% end %>
-<table class="list" id="mirror-object-mappings"><thead><tr><th><%= l(:label_mirror_modules) %></th><th><%= l(:label_mirror_remote_id) %></th><th><%= l(:label_mirror_local_id) %></th></tr></thead><tbody>
+<table class="list" id="mirror-object-mappings"><thead><tr><th><%= l(:label_mirror_object_type) %></th><th><%= l(:label_mirror_source_object) %></th><th><%= l(:label_mirror_local_object) %></th></tr></thead><tbody>
 <% @objects.each do |row| %><tr><td><%= mirror_module_label(row.module_key) %></td><td><%= mirror_object_link(row.module_key, row.source_id, source_url: @setting.source_url) %></td><td><%= mirror_object_link(row.module_key, row.destination_id) %></td></tr><% end %>
 </tbody></table>
 <span class="pagination"><%= pagination_links_full @object_pages, @object_count %></span>

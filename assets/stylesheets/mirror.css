@@ -50,22 +50,6 @@
   display: none;
 }
 
-/* Project settings > Mirror: a grouped vertical menu beside the selected tab; above it
-   on narrow screens. */
-.mirror-settings-layout { display: flex; align-items: flex-start; gap: 1.5em; }
-.mirror-side-tabs { flex: 0 0 14em; position: sticky; top: 0; border-right: 1px solid #ddd; padding-right: .8em; }
-.mirror-side-tabs h4 { margin: .9em 0 .3em; font-size: .85em; text-transform: uppercase; color: #777; }
-.mirror-side-tabs h4:first-child { margin-top: 0; }
-.mirror-side-tabs ul { list-style: none; margin: 0; padding: 0; }
-.mirror-side-tabs li a { display: block; padding: 3px 6px; border-radius: 3px; overflow-wrap: anywhere; }
-.mirror-side-tabs li a.selected { background: #eef3f8; font-weight: bold; }
-.mirror-settings-panel { flex: 1 1 auto; min-width: 0; }
-@media screen and (max-width: 899px) {
-  .mirror-settings-layout { display: block; }
-  .mirror-side-tabs { position: static; border-right: 0; border-bottom: 1px solid #ddd; padding: 0 0 .6em; margin-bottom: 1em; }
-  .mirror-side-tabs ul { display: flex; flex-wrap: wrap; gap: 2px 8px; }
-}
-
 /* Filterable mapping choices (assets/javascripts/mirror.js). */
 .mirror-autocomplete-input { min-width: 18em; }
 /* A checked special choice (anonymize, ignore) greys the row's field, which it overrides. */
@@ -122,6 +106,7 @@ table.mirror-subprojects td { text-align: left; vertical-align: top; }
 table.mirror-subprojects details summary { cursor: pointer; }
 /* Connection form: a module the source project has not enabled is greyed. */
 label.mirror-module-source-off { color: #999; }
+label.mirror-module-source-off .info { color: #999; }
 
 /* Administration > Mirror sidebar and source page. */
 .mirror-admin-sidebar a.selected { font-weight: bold; }

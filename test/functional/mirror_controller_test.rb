@@ -75,7 +75,7 @@ class MirrorControllerTest < ActionController::TestCase
     assert_response :success
     assert_select "#mirror-step-connection.mirror-step-done"
     assert_select "#mirror-step-references.mirror-step-done"
-    assert_select "#mirror-step-mappings.mirror-step-current a[href='/projects/ecookbook/settings/mirror?mirror_tab=users']"
+    assert_select "#mirror-step-mappings.mirror-step-current a[href='/projects/ecookbook/settings/mirror?mirror_tab=modules']"
     assert_select "#mirror-step-mappings .mirror-step-detail", text: "Users 1, Issues 3, Time tracking 1"
     assert_select "#mirror-source-summary a[href='https://source.example/redmine/projects/legacy']"
     assert_select "#mirror-actions form", count: 2
@@ -163,8 +163,10 @@ class MirrorControllerTest < ActionController::TestCase
     MirrorPendingRelation.create!(values.merge(project_id: @project.id, source_id: 11, status: "blocked"))
     MirrorPendingRelation.create!(values.merge(project_id: 2, source_id: 999, status: "pending"))
     @request.session[:user_id] = 1
-    get :index, params: { project_id: @project.id, tab: "pending", pending_status: "pending" }
+    get :index, params: { project_id: @project.id, tab: "attention", pending_status: "pending" }
     assert_response :success
+    assert_select "select#pending_status", count: 1
+    assert_select "#mirror-conflicts-section form input[type=hidden][name=pending_status][value=pending]"
     assert_select "#mirror-pending-relations tbody tr", count: 1
     assert_select '#mirror-pending-relations a[href="/issues/34"]'
     assert_select '#mirror-pending-relations a[href="https://source.example/redmine/issues/1#relations"]', text: "10"
@@ -174,7 +176,7 @@ class MirrorControllerTest < ActionController::TestCase
     assert_select "#mirror-pending-relations", text: /Target not imported/
     assert_select "#mirror-pending-relations", text: /999/, count: 0
     get :index, params: { project_id: @project.id }
-    assert_select '#mirror-attention a[href*="tab=pending"]', text: /2 pending or blocked relations/
+    assert_select '#mirror-attention a[href*="tab=attention"]', text: /2 pending or blocked relations/
   end
 
   def test_pending_parents_are_filtered_and_project_scoped
@@ -184,7 +186,7 @@ class MirrorControllerTest < ActionController::TestCase
     @project.mirror_pending_parents.create!(values.merge(source_id: 11, status: "blocked"))
     MirrorPendingParent.create!(values.merge(project_id: 2, source_id: 999, status: "pending"))
     @request.session[:user_id] = 1
-    get :index, params: { project_id: @project.id, tab: "pending", pending_status: "pending" }
+    get :index, params: { project_id: @project.id, tab: "attention", pending_status: "pending" }
     assert_response :success
     assert_select "#mirror-pending-parents tbody tr", count: 1
     assert_select '#mirror-pending-parents a[href="https://source.example/redmine/issues/10"]'
@@ -192,7 +194,7 @@ class MirrorControllerTest < ActionController::TestCase
     assert_select '#mirror-pending-parents a[href="https://source.example/redmine/issues/56"]'
     assert_select "#mirror-pending-parents", text: /999/, count: 0
     get :index, params: { project_id: @project.id }
-    assert_select '#mirror-attention a[href*="tab=pending"]', text: "2 pending or blocked parents"
+    assert_select '#mirror-attention a[href*="tab=attention"]', text: "2 pending or blocked parents"
   end
 
   def test_history_filters_and_overview_are_separate
@@ -233,6 +235,8 @@ class MirrorControllerTest < ActionController::TestCase
     get :index, params: { project_id: @project.identifier, tab: "objects" }
     assert_response :success
     assert_select "#mirror-object-mappings tbody tr", count: 1
+    assert_select "p.info", text: /Read-only list/
+    assert_select "#mirror-object-mappings th", text: "Source object"
     assert_select 'a[href="https://source.example/redmine/issues/12"]', text: "12"
     assert_select 'a[href="/issues/34"]', text: "34"
   end
@@ -242,25 +246,35 @@ class MirrorControllerTest < ActionController::TestCase
     @project.mirror_conflicts.create!(connection_key: "test", module_key: "issue_tracking", source_id: 99, destination_id: 1, message: "Local modification detected")
     @request.session[:user_id] = 1
     get :index, params: { project_id: @project.identifier }
-    assert_select "#mirror-page-tabs a[href*='tab=conflicts']", text: "Conflicts (1)"
+    assert_select "#mirror-page-tabs a[href*='tab=attention']", text: "To review (1)"
     assert_select "#mirror-attention a", text: "1 open conflicts"
   end
 
-  def test_conflicts_tab_lists_open_conflicts_by_default
+  def test_attention_tab_lists_open_conflicts_by_default
     configure
     values = { connection_key: "test", module_key: "issue_tracking", destination_id: 1, message: "Local modification detected" }
     @project.mirror_conflicts.create!(values.merge(source_id: 98))
     @project.mirror_conflicts.create!(values.merge(source_id: 99, status: "ignored"))
     @request.session[:user_id] = 1
-    get :index, params: { project_id: @project.identifier, tab: "conflicts" }
+    get :index, params: { project_id: @project.identifier, tab: "attention" }
     assert_select "#mirror-conflicts tbody tr", count: 1
     assert_select "select#conflict_status option[selected]", text: "Open"
     assert_select "#mirror-conflicts input[name=conflict_status][value=open]"
-    get :index, params: { project_id: @project.identifier, tab: "conflicts", conflict_status: "all" }
+    get :index, params: { project_id: @project.identifier, tab: "attention", conflict_status: "all" }
     assert_select "#mirror-conflicts tbody tr", count: 2
-    get :index, params: { project_id: @project.identifier, tab: "conflicts", conflict_status: "resolved" }
+    assert_select "#mirror-pending-section input[type=hidden][name=conflict_status][value=all]"
+    get :index, params: { project_id: @project.identifier, tab: "attention", conflict_status: "resolved" }
     assert_select "#mirror-conflicts tbody tr", count: 0
     assert_select "p.nodata"
+  end
+
+  def test_legacy_operational_tabs_redirect_with_their_filters
+    configure
+    @request.session[:user_id] = 1
+    get :index, params: { project_id: @project.identifier, tab: "conflicts", conflict_status: "ignored", page: 2 }
+    assert_redirected_to project_mirror_path(@project, tab: "attention", conflict_status: "ignored", conflict_page: 2, anchor: "mirror-conflicts-section")
+    get :index, params: { project_id: @project.identifier, tab: "pending", pending_status: "blocked", page: 3 }
+    assert_redirected_to project_mirror_path(@project, tab: "attention", pending_status: "blocked", relation_page: 3, anchor: "mirror-pending-section")
   end
 
   def test_pending_migrations_are_explained_instead_of_failing

@@ -24,10 +24,11 @@ key. Module details are in the [module reference](MODULES.md).
 
 Mirror has two places in a project:
 
-- **Settings → Mirror**: the configuration (connection, automatic synchronization, one
-  mapping tab per module), for members allowed to configure Mirror;
+- **Settings → Mirror**: the configuration (connection, a summary of the selected
+  modules and their mappings, automatic synchronization), for members allowed to
+  configure Mirror;
 - the **Mirror** menu: the operations (getting started, launching, execution history,
-  conflicts, pending links, imported objects).
+  items to review and synchronized objects).
 
 The screenshots come from the browser test
 [`configuration_test.rb`](../test/documentation/configuration_test.rb). It mirrors the
@@ -95,7 +96,7 @@ see [AI usage](AI.md).
 
 | Permission | Allows |
 | --- | --- |
-| **View Mirror** | Mirror menu: status, execution history and logs, conflicts, pending links, objects |
+| **View Mirror** | Mirror menu: status, execution history and logs, items to review, synchronized objects |
 | **Run Mirror synchronizations and resolve conflicts** | The above, plus preview, synchronize now, cancel a queued run, keep or recheck a conflict |
 | **Configure Mirror** | The above, plus the **Settings → Mirror** tab: connection, schedule and mappings |
 
@@ -156,8 +157,10 @@ one-click fix when your Redmine permissions allow it:
 - a project module a selected Mirror module needs (*Issue tracking*, *Wiki*,
   *Documents*…): **Enable it in this project** (*Select project modules*), or **Unselect
   the Mirror modules that need it**. A module not enabled in the source project has
-  nothing to import: only the second choice is offered, and the module list marks it
-  *(not enabled in the source project)*;
+  nothing to import: only the second choice is offered, and its checkbox is disabled
+  and greyed out with *(not enabled in the source project)*. It becomes
+  selectable again after the module is enabled on the source and the references are
+  refreshed;
 - mapped trackers the project does not use: **Enable these trackers** (*Edit project*);
 - a mapped custom field the project does not use: **Enable it in this project**;
 - members, categories or versions on the source while their module is not selected:
@@ -228,9 +231,11 @@ offered are those the user may give.
 
 ![Accounts to create](screenshots/configuration/38-user-creation.png)
 
-## 8. Map the references
+## 8. Configure modules and mappings
 
-Each module tab lists the source references it needs. **Issues** maps trackers,
+**Settings → Mirror → Modules and mappings** is the only place where manual
+correspondences are configured. Its summary shows every selected module, its state and
+the action that opens its focused form. **Issues** maps trackers,
 statuses and priorities. Only the references used by the source project's issues and
 their history are listed, plus those already mapped; a link shows the others. Local
 statuses are limited to those of the project's tracker workflows. Long lists, such as
@@ -334,9 +339,10 @@ Once a synchronization has succeeded, **Overview** no longer shows Getting start
 
 ![After the import](screenshots/configuration/17-overview-done.png)
 
-**Object mappings** lists every remote/local correspondence.
+**Synchronized objects** is a read-only list of every source/local object link recorded
+automatically by a synchronization. It is an operational trace, not another mapping form.
 
-![Object mappings](screenshots/configuration/18-object-mappings.png)
+![Synchronized objects](screenshots/configuration/18-object-mappings.png)
 
 Each module tab starts with an overview: what is left to map, in the tab or in the
 modules it relies on, the source objects against those linked in the project, and the
@@ -353,8 +359,8 @@ Mirror see a **Mirror source issue** link.
 
 ![Imported issue](screenshots/configuration/19-imported-issue.png)
 
-Relations and parents in projects not mirrored yet wait in **Pending links**. Import
-those projects, then synchronize this one again.
+Relations and parents in projects not mirrored yet wait under **To review**, together
+with conflicts. Import those projects, then synchronize this one again.
 
 ![Pending links](screenshots/configuration/20-pending-links.png)
 
@@ -383,7 +389,8 @@ issue's subject: the next run leaves it unchanged and reports it.
 
 ![Run with a conflict](screenshots/configuration/23-conflict-log.png)
 
-**Conflicts** lists the object and the reason; its tab shows the number of open ones.
+**To review** groups conflicts and pending links; its counter shows their combined
+number. The conflicts section lists the object and the reason.
 
 ![Conflicts](screenshots/configuration/24-conflicts.png)
 

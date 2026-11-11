@@ -30,8 +30,9 @@ class MirrorSettingsController < ApplicationController
   def show
     tab = params[:tab].to_s
     query = request.query_parameters.except("tab").symbolize_keys
-    if MirrorController::TABS.include?(tab) || tab == "synchronization"
-      redirect_to project_mirror_path(@project, query.merge(tab: (tab == "synchronization" ? nil : tab)).compact)
+    if MirrorController::TABS.include?(tab) || MirrorController::LEGACY_TABS.key?(tab) || tab == "synchronization"
+      operational_tab, anchor = MirrorController::LEGACY_TABS.fetch(tab, [tab])
+      redirect_to project_mirror_path(@project, query.merge(tab: (tab == "synchronization" ? nil : operational_tab), anchor: anchor).compact)
     else
       redirect_to settings_project_path(@project, query.merge(tab: "mirror", mirror_tab: tab.presence).compact)
     end

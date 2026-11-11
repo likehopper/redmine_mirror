@@ -20,7 +20,7 @@ Render project-scoped Mirror controls and diagnostics using native Redmine helpe
 <%= render "mirror/queued_run", run: @run if @run.status == "queued" %>
 <p><%= l(:label_mirror_sync_started) %>: <%= @run.started_at ? format_time(@run.started_at) : "—" %></p>
 <p><%= l(:label_mirror_sync_finished) %>: <%= @run.finished_at ? format_time(@run.finished_at) : "—" %></p>
-<% if @run.error_message.present? %><p><%= link_to l(:label_mirror_conflicts), mirror_page_path(@project, "conflicts") %></p><div class="flash error"><%= @run.error_message %></div><% end %>
+<% if @run.error_message.present? %><p><%= link_to l(:label_mirror_conflicts), mirror_page_path(@project, "attention", anchor: "mirror-conflicts-section") %></p><div class="flash error"><%= @run.error_message %></div><% end %>
 <p<%= ' data-mirror-reload="10"'.html_safe if %w[queued running].include?(@run.status) %>><%= l(:label_mirror_progress) %>: <%= if !@run.progress_percentage.nil? then "#{@run.progress_percentage}%" elsif @run.status == "running" then l(:text_mirror_objects_checked, count: @run.processed_records) else "—" end %></p>
 <ul><% @run.module_counts.each do |key, count| %><li><%= mirror_module_label(key) %>: <%= count %></li><% end %></ul>
 <%= form_tag project_mirror_run_path(@project, @run), method: :get do %>

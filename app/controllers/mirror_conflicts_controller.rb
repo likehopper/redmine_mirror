@@ -46,9 +46,9 @@ class MirrorConflictsController < ApplicationController
 
   private
 
-  # Back to the conflicts tab with the status filter the user was looking at.
+  # Back to the conflicts section with the status filter the user was looking at.
   def conflicts_path
     status = params[:conflict_status] if %w[open ignored resolved all].include?(params[:conflict_status])
-    project_mirror_path(@project, { tab: "conflicts", conflict_status: status }.compact)
+    project_mirror_path(@project, { tab: "attention", conflict_status: status, anchor: "mirror-conflicts-section" }.compact)
   end
 end

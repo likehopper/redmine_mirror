@@ -91,7 +91,8 @@ class MirrorMappingSystemTest < ApplicationSystemTestCase
     log_user("admin", "admin")
     visit "/projects/ecookbook/settings/mirror"
     assert_no_text "hidden-system-test-key"
-    find("#mirror-settings-subtabs a[href*='mirror_tab=users']").click
+    find("#mirror-settings-subtabs a[href*='mirror_tab=modules']").click
+    within("#mirror-module-list tr", text: "Users") { click_link "Configure" }
     # Anonymizing is a checkbox beside the field, which it greys.
     check "Anonymize"
     assert_selector "td.mirror-special-on #mirror-user-7"
@@ -179,10 +180,12 @@ class MirrorIssueStateSystemTest < ApplicationSystemTestCase
     visit "/projects/ecookbook/settings/mirror"
     assert_selector 'input[value="issue_hierarchy"]:checked'
     assert_selector 'input[value="issue_watchers"]:checked'
-    within("#mirror-settings-subtabs") { click_link "Issue hierarchy" }
+    within("#mirror-settings-subtabs") { click_link "Modules and mappings" }
+    within("#mirror-module-list tr", text: "Issue hierarchy") { click_link "Configure" }
     assert_text "Native Redmine cross-project subtask rules apply"
-    assert_selector 'a[href="/projects/ecookbook/mirror?tab=pending"]', text: "Pending links"
-    within("#mirror-settings-subtabs") { click_link "Issue watchers" }
+    assert_selector 'a[href*="tab=attention"]', text: "Pending links"
+    click_link "Back to modules"
+    within("#mirror-module-list tr", text: "Issue watchers") { click_link "Configure" }
     assert_text "Local subscriptions are preserved"
     assert_selector 'a[href*="mirror_tab=users"]'
     assert_no_text "hidden-system-key"
@@ -236,7 +239,7 @@ class MirrorConflictSystemTest < ApplicationSystemTestCase
     MirrorMapping.create!(project_id: project.id, connection_key: "test", module_key: "issue_tracking", source_id: 99, destination_id: 1, source_fingerprint: "a", destination_fingerprint: "b")
     conflict = project.mirror_conflicts.create!(connection_key: "test", module_key: "issue_tracking", source_id: 99, destination_id: 1, message: "Local modification detected")
     log_user("admin", "admin")
-    visit "/projects/ecookbook/mirror?tab=conflicts"
+    visit "/projects/ecookbook/mirror?tab=attention"
     assert_text "Local modification detected"
     accept_confirm { click_button "Keep local object" }
     assert_selector "#flash_notice"
@@ -244,23 +247,23 @@ class MirrorConflictSystemTest < ApplicationSystemTestCase
     assert_no_text "Local modification detected"
     assert_equal "ignored", conflict.reload.status
     select "Kept locally", from: "conflict_status"
-    click_button "Apply"
+    within("#mirror-conflicts-section") { click_button "Apply" }
     assert_selector "#mirror-conflicts td", text: "Kept locally"
     click_button "Recheck after correction"
     assert_current_path(/conflict_status=ignored/)
     assert_no_text "Local modification detected"
     select "Open", from: "conflict_status"
-    click_button "Apply"
+    within("#mirror-conflicts-section") { click_button "Apply" }
     assert_text "Open"
     assert_equal "open", conflict.reload.status
     assert_no_text "hidden-conflict-key"
   end
 end
 
-class MirrorWrappingTabsSystemTest < ApplicationSystemTestCase
+class MirrorModuleSummarySystemTest < ApplicationSystemTestCase
   fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules, :trackers, :projects_trackers,
     :issue_statuses, :enumerations, :versions, :issue_categories, :boards, :repositories, :custom_fields, :workflows
-  def test_all_module_tabs_remain_visible_on_narrow_screens
+  def test_all_modules_are_listed_behind_three_navigation_tabs
     User.find(1).update_column(:language, "fr")
     project = Project.find(1)
     project.enable_module!(:mirror)
@@ -271,10 +274,11 @@ class MirrorWrappingTabsSystemTest < ApplicationSystemTestCase
     setting.api_key = "hidden-tabs-key"
     setting.save!
     log_user("admin", "admin")
-    visit "/projects/ecookbook/settings/mirror?mirror_tab=users"
+    visit "/projects/ecookbook/settings/mirror?mirror_tab=modules"
     [800, 1280, 1920].each do |width|
       page.driver.browser.manage.window.resize_to(width, 900)
-      assert_selector "#mirror-settings-subtabs a", count: keys.size + 2
+      assert_selector "#mirror-settings-subtabs a", count: 3
+      assert_selector "#mirror-module-list tbody tr", count: keys.size
       assert page.evaluate_script(<<~JS), "Tabs overflow at width #{width}"
         (() => {
           const group = document.querySelector('#mirror-settings-subtabs').getBoundingClientRect();

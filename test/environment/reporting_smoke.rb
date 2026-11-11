@@ -144,7 +144,7 @@ when "update"
   check %w[failed partial].include?(conflicted.status) && conflicted.error_message.include?("Local modification"), "local change #{conflicted.error_message}"
   conflict = project.mirror_conflicts.find_by!(module_key: "reporting_credit_policies", status: "open")
   browser do |driver|
-    driver.navigate.to("http://gateway:3102/projects/#{project.identifier}/mirror?tab=conflicts")
+    driver.navigate.to("http://gateway:3102/projects/#{project.identifier}/mirror?tab=attention#mirror-conflicts-section")
     driver.find_element(css: %(form[action$="/conflicts/#{conflict.id}"] input[name="resolution"][value="ignore"])).find_element(xpath: "..").find_element(css: '[type="submit"]').click
     driver.switch_to.alert.accept
     Selenium::WebDriver::Wait.new(timeout: 20).until { conflict.reload.status == "ignored" }
