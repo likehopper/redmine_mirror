@@ -172,13 +172,18 @@ class MirrorMigrationDocumentationTest < ApplicationSystemTestCase
     fill_in "connection_api_key", with: self.class.instance_variable_get(:@reader_key)
     # Redmine 4.2 formats texts in Textile: say so rather than relying on detection.
     select "Textile", from: "connection_source_text_format"
-    MODULES.each { |key| find("input[name='connection[modules][]'][value='#{key}']").check }
-    screenshot "10-connect", "#tab-content-mirror"
-    click_button "Save"
+    within("#mirror-connection-form") { click_button "Save" }
     assert_selector "#flash_notice"
-    # What the worker does next (rake redmine_mirror:tick).
+    # What the worker does next (rake redmine_mirror:tick): the source modules are then known.
     RedmineMirror::Synchronization.refresh_catalogs
     visit current_url
+    # The modules are chosen once the connection is saved.
+    MODULES.each { |key| find("input[name='connection[modules][]'][value='#{key}']").check }
+    within("#mirror-connection-form") { click_button "Save" }
+    assert_selector "#flash_notice"
+    RedmineMirror::Synchronization.refresh_catalogs
+    visit current_url
+    screenshot "10-connect", "#tab-content-mirror"
     assert_selector "#mirror-settings-subtabs .mirror-badge"
   end
 
@@ -251,6 +256,8 @@ class MirrorMigrationDocumentationTest < ApplicationSystemTestCase
     log_user(ADMIN_LOGIN, ADMIN_PASSWORD)
     visit "/projects/#{PROJECT}/mirror"
     click_button "Synchronize now"
+    # The worker runs once the run is queued, not while the request is on its way.
+    assert_text "Execution queued"
     run = run_worker
     assert_equal "succeeded", run.status, run.error_message
     assert_equal 1, run.log_events.count { |event| event["module"] == "issue_journals" && event["action"] == "create" }
@@ -279,6 +286,8 @@ class MirrorMigrationDocumentationTest < ApplicationSystemTestCase
     log_user(ADMIN_LOGIN, ADMIN_PASSWORD)
     visit "/projects/#{PROJECT}/mirror"
     click_button "Synchronize now"
+    # The worker runs once the run is queued, not while the request is on its way.
+    assert_text "Execution queued"
     run = run_worker
     assert_equal "succeeded", run.status, run.error_message
     visit "/projects/#{PROJECT}/settings/mirror?mirror_tab=schedule"

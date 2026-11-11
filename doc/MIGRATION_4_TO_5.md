@@ -124,11 +124,11 @@ Done once by a Redmine 5 administrator.
 - **Source project**: its identifier, as in `<source>/projects/<identifier>`;
 - **Source API key**: the *mirror-reader* key;
 - **Source text format**: *Textile*, Redmine 4.2's format; texts are converted to the
-  Redmine 5 format;
-- **Modules**: what to migrate.
+  Redmine 5 format.
 
-Save: the worker reads the source references. Module tabs with a red counter still have
-references to map.
+**Check** tries the connection without saving it. Save: the worker reads the source
+references. Then tick the **Modules** to migrate, listed once the connection is saved,
+and save again. Module tabs with a red counter still have references to map.
 
 ![Connect](screenshots/migration/10-connect.png)
 

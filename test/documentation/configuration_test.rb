@@ -105,16 +105,21 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     end
     fill_in "connection_source_project_id", with: PROJECT
     fill_in "connection_api_key", with: SOURCE_API_KEY
-    MODULES.each { |key| find("input[name='connection[modules][]'][value='#{key}']").check }
-    screenshot "08-connection", "#tab-content-mirror"
-    click_button "Save"
+    within("#mirror-connection-form") { click_button "Save" }
     assert_selector "#flash_notice"
     assert_selector "#mirror-catalog-status"
-    assert_empty MODULES - project.mirror_project_setting.selected_modules
     assert_no_text SOURCE_API_KEY
-    # What the worker does next (rake redmine_mirror:tick).
+    # What the worker does next (rake redmine_mirror:tick): the source modules are then known.
     RedmineMirror::Synchronization.refresh_catalogs
     visit current_url
+    # The modules are chosen once the connection is saved.
+    MODULES.each { |key| find("input[name='connection[modules][]'][value='#{key}']").check }
+    within("#mirror-connection-form") { click_button "Save" }
+    assert_selector "#flash_notice"
+    assert_empty MODULES - project.mirror_project_setting.selected_modules
+    RedmineMirror::Synchronization.refresh_catalogs
+    visit current_url
+    screenshot "08-connection", "#tab-content-mirror"
     assert_selector "#mirror-settings-subtabs .mirror-badge"
     screenshot "09-modules-to-map", "#mirror-settings-subtabs"
   end

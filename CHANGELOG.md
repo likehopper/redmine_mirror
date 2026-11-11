@@ -16,13 +16,17 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.40 — 2026-11-11
 
 - **Large user lists**: with thousands of source users, the Mirror settings page and the
   saving of the **Users** table took several minutes and exhausted the database
   connections of the web server. The checklist now reads the local accounts once per page
   and stops at five near misses, a correspondence is checked with one query instead of
   loading every account, and the source references are parsed once per stored version.
+- **Guides**: the configuration, exact copy and Redmine 4 to 5 migration screenshots are
+  regenerated for the new connection steps (save the connection, then choose the
+  modules) and the vertical menu. The migration guide's resynchronization steps now wait
+  for the queued run before the worker runs.
 - **Subprojects**: the **Connection** tab lists the source subprojects running Mirror
   source that the API key can see. Each one checked is created under its local parent
   with the name and identifier chosen, or linked to an existing subproject, with Mirror
