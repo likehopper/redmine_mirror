@@ -48,6 +48,47 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
     assert_empty @project.reload.mirror_source_setting.shared_modules
   end
 
+  # Data whose Redmine module the project has not enabled is greyed; a checked one can
+  # still be unchecked.
+  def test_data_without_its_project_module_is_greyed
+    @project.enable_module!(:mirror_source)
+    @project.disable_module!(:news)
+    MirrorSourceSetting.create!(project: @project, shared_modules: %w[documents])
+    log_user("jsmith", "jsmith")
+    get "/projects/ecookbook/settings", params: { tab: "mirror_source" }
+    assert_select "#mirror-source-share-news[disabled]"
+    assert_select "label.mirror-module-source-off", text: /News module is not enabled/
+    assert_select "#mirror-source-share-documents[checked]:not([disabled])"
+  end
+
+  # The sharing reaches the subprojects where the person may enable modules and configure
+  # Mirror source, limited to the data their own modules hold.
+  def test_sharing_applies_to_the_subprojects_the_person_manages
+    @project.enable_module!(:mirror_source)
+    MirrorSourceSetting.create!(project: @project, shared_modules: %w[documents news])
+    Project.find(3).enable_module!(:documents)
+    Project.find(3).disable_module!(:news)
+    %i[documents news].each { |name| Project.find(5).enable_module!(name) }
+    log_user("admin", "admin")
+    post "/projects/ecookbook/mirror_source/subprojects"
+    assert_redirected_to "/projects/ecookbook/settings/mirror_source"
+    [3, 4, 5, 6].each { |id| assert Project.find(id).module_enabled?(:mirror_source), "project #{id}" }
+    assert_equal %w[documents], Project.find(3).mirror_source_setting.shared_modules
+    assert_equal %w[documents news], Project.find(5).mirror_source_setting.shared_modules.sort
+  end
+
+  def test_subprojects_without_the_permissions_are_left_as_they_are
+    @project.enable_module!(:mirror_source)
+    MirrorSourceSetting.create!(project: @project, shared_modules: %w[documents])
+    log_user("jsmith", "jsmith")
+    post "/projects/ecookbook/mirror_source/subprojects"
+    # jsmith manages the private child (5), not the public subprojects he only sees.
+    assert Project.find(5).module_enabled?(:mirror_source)
+    refute Project.find(3).module_enabled?(:mirror_source)
+    assert_nil Project.find(3).mirror_source_setting
+    assert_match(/left as they were/, flash[:notice])
+  end
+
   def test_members_without_the_permission_cannot_change_the_sharing
     @project.enable_module!(:mirror_source)
     log_user("dlopper", "foo")

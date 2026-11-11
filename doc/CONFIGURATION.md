@@ -472,6 +472,14 @@ only, and categories to their managers only, without sharing. On the source Redm
    is not needed), then in `Settings → Mirror source` check **Documents**, **News**, **Tags**,
    **Scrum sprints**, **Saved queries**, **Users**, **Issue categories**, **Project
    enumerations**, **Repositories** and/or **Repository credentials** and save.
+   Data whose Redmine module the project has not enabled (Documents, News, Repository,
+   Scrum, Issue tracking for tags and categories) is greyed.
+   In a project with subprojects, **Apply this sharing to the subprojects** enables Mirror
+   source in each subproject where you may enable modules and configure Mirror source,
+   and shares the same data there, among the data its own modules hold. Subprojects are
+   not configured otherwise: a later change in the parent reaches them only when applied
+   again, and the API account needs a role in each one (or the subproject inherits the
+   members).
    Repository credentials are offered only when the administrator checked them under
    **Data projects may share**: they are never allowed by default. Even then, they are
    sent only to a destination that asks for them, to write a repository of a project

@@ -30,4 +30,29 @@ class MirrorSourceSettingsController < ApplicationController
     flash[:notice] = l(:notice_successful_update)
     redirect_to settings_project_path(@project, tab: "mirror_source")
   end
+
+  # Give each subproject this project's sharing: Mirror source enabled, and the same data
+  # among those its own modules hold. Only where the person may enable the modules
+  # (Select project modules) and configure Mirror source; the others are counted. A later
+  # change here reaches the subprojects only when applied again.
+  def apply_to_subprojects
+    shared = @project.mirror_source_setting&.shared_modules.to_a
+    done = []
+    skipped = 0
+    @project.descendants.where.not(status: Project::STATUS_ARCHIVED).visible.order(:lft).each do |child|
+      Project.transaction do
+        raise ActiveRecord::Rollback unless User.current.allowed_to?(:select_project_modules, child)
+        child.enable_module!(:mirror_source)
+        child.reload
+        raise ActiveRecord::Rollback unless User.current.allowed_to?(:manage_mirror_source, child)
+        setting = child.mirror_source_setting || child.build_mirror_source_setting
+        setting.shared_modules = shared - RedmineMirror::Source.kinds_without_module(child)
+        setting.save!
+        done << child
+      end
+      skipped += 1 unless done.include?(child)
+    end
+    flash[:notice] = l(:text_mirror_source_applied_to_subprojects, count: done.size, skipped: skipped)
+    redirect_to settings_project_path(@project, tab: "mirror_source")
+  end
 end

@@ -32,6 +32,15 @@ module RedmineMirror
     KINDS = %w[documents news issue_tags scrum queries users issue_categories project_enumerations repositories repository_credentials].freeze
     # Kinds an administrator must check explicitly, even before saving a choice.
     EXPLICIT_KINDS = %w[repository_credentials].freeze
+    # Redmine project module a kind's data lives in: without it, there is nothing to share.
+    KIND_MODULES = { "documents" => "documents", "news" => "news", "issue_tags" => "issue_tracking", "scrum" => "scrum",
+      "issue_categories" => "issue_tracking", "repositories" => "repository", "repository_credentials" => "repository" }.freeze
+
+    # Kinds whose project module the project has not enabled.
+    def kinds_without_module(project)
+      KIND_MODULES.select { |_, name| !project.module_enabled?(name) }.keys
+    end
+
     # Native permission the API account needs for each kind.
     PERMISSIONS = { "documents" => :view_documents, "news" => :view_news, "issue_tags" => :view_issues,
       "scrum" => :view_sprint_board, "queries" => :view_issues, "users" => :view_issues,

@@ -34,6 +34,10 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   password or a key in the URL are refused), and **Allowed addresses** in the plugin
   settings restricts them to the destinations' addresses or networks. Behind a reverse
   proxy on the same host, the address it forwards is used, in the access log too.
+- **Mirror source in subprojects**: **Apply this sharing to the subprojects** enables Mirror
+  source in the subprojects the person may configure and shares the same data there,
+  among the data their own modules hold. Data whose Redmine module the project has not
+  enabled is greyed in the Mirror source tab.
 - **Repository credentials only when asked**: Mirror source sends them only to a
   destination that asks for them, which it does only to write a repository of a project
   that keeps them; reading the references never receives them.

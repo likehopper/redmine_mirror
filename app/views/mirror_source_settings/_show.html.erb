@@ -28,16 +28,27 @@ then the access log, by session, or one session's requests.
   <%= hidden_field_tag "shared_modules[]", "" %>
   <%# Only the data the administrator allows; the rest stays as saved (MirrorSourceSettingsController). %>
   <% kinds = RedmineMirror::Source.allowed_kinds %>
+  <% missing = RedmineMirror::Source.kinds_without_module(@project) %>
   <div class="box tabular">
     <p><label><%= l(:label_mirror_source_shared) %></label>
       <% kinds.each do |kind| %>
-        <label class="block"><%= check_box_tag "shared_modules[]", kind, shared.include?(kind), id: "mirror-source-share-#{kind}" %> <%= l("label_mirror_module_#{kind}".to_sym) %>
+        <%# Greyed without the Redmine module holding the data; a checked one can still be unchecked. %>
+        <% off = missing.include?(kind) %>
+        <label class="block<%= ' mirror-module-source-off' if off %>"><%= check_box_tag "shared_modules[]", kind, shared.include?(kind), id: "mirror-source-share-#{kind}", disabled: off && !shared.include?(kind) %> <%= l("label_mirror_module_#{kind}".to_sym) %>
+          <% if off %><em class="info mirror-module-hint"><%= l(:text_mirror_source_kind_module_off, module: l_or_humanize(RedmineMirror::Source::KIND_MODULES[kind], prefix: "project_module_")) %></em><% end %>
           <em class="info"><%= l("text_mirror_source_share_#{kind}".to_sym) %></em></label>
       <% end %>
       <% if kinds.empty? %><em class="info" id="mirror-source-no-kind"><%= l(:text_mirror_source_no_kind) %></em><% end %>
     </p>
   </div>
   <%= submit_tag l(:button_save) %>
+<% end %>
+<% if @project.descendants.where.not(status: Project::STATUS_ARCHIVED).exists? %>
+  <h3 id="mirror-source-subprojects"><%= l(:label_mirror_subprojects) %></h3>
+  <% children = @project.descendants.where.not(status: Project::STATUS_ARCHIVED).visible.to_a %>
+  <p><%= l(:text_mirror_source_subprojects_state, count: children.size, enabled: children.count { |child| child.module_enabled?(:mirror_source) }) %></p>
+  <%= button_to l(:button_mirror_source_apply_to_subprojects), project_mirror_source_subprojects_path(@project), method: :post, id: "mirror-source-apply-subprojects" %>
+  <p><em class="info"><%= l(:text_mirror_source_apply_to_subprojects) %></em></p>
 <% end %>
 
 <h3 id="mirror-source-log"><%= l(:label_mirror_source_log) %></h3>

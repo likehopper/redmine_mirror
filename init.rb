@@ -46,7 +46,7 @@ Redmine::Plugin.register :redmine_mirror do
   # and reading its access log are one permission; the API account needs only the
   # native permission of the data (View documents, View news).
   project_module :mirror_source do
-    permission :manage_mirror_source, { projects: [:settings], mirror_source_settings: [:update] }, require: :member
+    permission :manage_mirror_source, { projects: [:settings], mirror_source_settings: [:update, :apply_to_subprojects] }, require: :member
   end
   # Administrators list the source Redmine URLs that project managers may connect to,
   # and allow Mirror source globally (off by default).

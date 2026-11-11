@@ -52,6 +52,7 @@ patch "projects/:project_id/mirror/conflicts/:id", to: "mirror_conflicts#update"
 
 # Mirror source: what this Redmine shares with Mirror destinations, and its access log.
 patch "projects/:project_id/mirror_source", to: "mirror_source_settings#update", as: "project_mirror_source"
+post "projects/:project_id/mirror_source/subprojects", to: "mirror_source_settings#apply_to_subprojects", as: "project_mirror_source_subprojects"
 get "projects/:project_id/mirror/source/documents", to: "mirror_source_api#documents", as: "mirror_source_documents"
 get "mirror/source/documents/:id", to: "mirror_source_api#document", as: "mirror_source_document"
 get "projects/:project_id/mirror/source/news", to: "mirror_source_api#news", as: "mirror_source_news"
