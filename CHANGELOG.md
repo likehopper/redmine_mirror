@@ -18,6 +18,10 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 ## Unreleased
 
+- **Default tracker mappings are actionable**: when a used source tracker maps by
+  default to a local tracker that the destination project has not enabled, the setup
+  checklist proposes to enable it. The one-click fix then records the default mapping;
+  trackers referenced only by unused source trackers stay disabled.
 - **Stop a running execution**: **Stop this execution**, on the Mirror overview and on
   the execution page, stops a synchronization in progress after the object being
   written (status *Cancelled*; objects already written stay written). An execution

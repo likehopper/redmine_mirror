@@ -383,7 +383,8 @@ module MirrorHelper
     editor = User.current.allowed_to?(:edit_project, project)
     # Trackers the source issues use, mapped to a local tracker this project does not use.
     trackers = mapped.select { |row| row.reference_type == "tracker" && row.mode == "existing" && !project.tracker_ids.include?(row.destination_id) &&
-      (catalog["tracker_used"].nil? || catalog["tracker_used"].include?(row.source_id.to_s)) }.map(&:destination_id).uniq
+      (catalog["tracker_used"].nil? || catalog["tracker_used"].include?(row.source_id.to_s)) }.map(&:destination_id)
+    trackers = (trackers + RedmineMirror::DefaultMappings.disabled_default_trackers(setting)).uniq
     if trackers.any? && setting.selected_modules.include?("issue_tracking")
       items << { text: l(:text_mirror_trackers_disabled, names: Tracker.where(id: trackers).sorted.map(&:name).join(", ")),
         actions: [[l(:label_mirror_guide_enable_in_project), editor && settings_project_path(project, tab: "issues")]],

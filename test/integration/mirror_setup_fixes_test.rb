@@ -105,6 +105,30 @@ class MirrorSetupFixesTest < Redmine::IntegrationTest
     assert flash[:error]
   end
 
+  def test_default_mappings_propose_and_enable_only_used_destination_trackers
+    @project.mirror_reference_mappings.where(reference_type: "tracker").delete_all
+    @setting.update!(source_catalog: @setting.source_catalog.merge(
+      "tracker" => { "1" => "Bug", "2" => "Remote tracker", "4" => "Unused tracker" },
+      "tracker_used" => %w[1 2]
+    ))
+    MirrorDefaultMapping.create!(reference_type: "tracker", source_name: "Remote tracker", mode: "existing", destination_id: 3)
+    unused = Tracker.create!(name: "Unused destination", default_status_id: 1)
+    MirrorDefaultMapping.create!(reference_type: "tracker", source_name: "Unused tracker", mode: "existing", destination_id: unused.id)
+
+    log_user("admin", "admin")
+    get "/projects/ecookbook/settings/mirror"
+    assert_select "#mirror-checklist li", text: /Trackers mapped from the source issues are not used by this project: Support request/ do
+      assert_select "input[name=fix][value=enable_trackers]"
+    end
+
+    fix(fix: "enable_trackers")
+    assert_includes @project.reload.tracker_ids, 3
+    refute_includes @project.tracker_ids, unused.id
+    mapping = @project.mirror_reference_mappings.find_by(reference_type: "tracker", source_id: 2)
+    assert_equal [3, true], [mapping.destination_id, mapping.from_default]
+    assert_nil @project.mirror_reference_mappings.find_by(reference_type: "tracker", source_id: 4)
+  end
+
   def test_mapped_fields_are_enabled_in_the_project
     field = IssueCustomField.create!(name: "Remote only", field_format: "string", is_for_all: false, trackers: Tracker.all, projects: [@project])
     @setting.update!(selected_modules: %w[issue_tracking issue_custom_fields], source_catalog: @setting.source_catalog.merge("custom_field" => { "40" => "Remote only" }))

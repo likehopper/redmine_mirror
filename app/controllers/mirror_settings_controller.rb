@@ -181,7 +181,9 @@ class MirrorSettingsController < ApplicationController
       return deny_access unless User.current.allowed_to?(:edit_project, @project)
       used = @setting.source_catalog["tracker_used"]
       ids = @project.mirror_reference_mappings.where(reference_type: "tracker", mode: "existing").select { |row| used.nil? || used.include?(row.source_id.to_s) }.map(&:destination_id)
+      ids.concat(RedmineMirror::DefaultMappings.disabled_default_trackers(@setting))
       @project.trackers << (Tracker.where(id: ids).to_a - @project.trackers.to_a)
+      RedmineMirror::DefaultMappings.apply(@setting, reference_types: ["tracker"])
     when "enable_tracker"
       return deny_access unless User.current.allowed_to?(:edit_project, @project)
       tracker = Tracker.find_by(id: params[:target])

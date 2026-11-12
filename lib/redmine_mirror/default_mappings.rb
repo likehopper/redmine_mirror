@@ -46,15 +46,17 @@ module RedmineMirror
     # namesake to the form's suggestion. With `reset`, a reference whose name has a default
     # takes it even when it already has a correspondence (the fallback never replaces one).
     # Returns the number of correspondences saved.
-    def apply(setting, reset: false)
+    def apply(setting, reset: false, reference_types: nil)
       return 0 unless MirrorDefaultMapping.schema_current?
       rules = MirrorDefaultMapping.where(source_url: [nil, setting.source_url]).to_a
-      rules << USER_FALLBACK if built_in_user_fallback?(rules)
+      rules << USER_FALLBACK if (!reference_types || reference_types.include?("user")) && built_in_user_fallback?(rules)
+      rules.select! { |rule| reference_types.include?(rule.reference_type) } if reference_types
       project = setting.project
       catalog = setting.source_catalog
       existing = project.mirror_reference_mappings.to_a.index_by { |row| [row.reference_type, row.source_id.to_s] }
       saved = 0
       setting.mapping_tables.each do |table|
+        next if reference_types && !reference_types.include?(table.key)
         table_rules = rules.select { |rule| rule.reference_type == table.key }
         next if table_rules.empty?
         records = candidates(table, project)
@@ -83,7 +85,35 @@ module RedmineMirror
           saved += 1 if row.save
         end
       end
-      saved + apply_values(setting, rules, reset: reset)
+      saved + (reference_types.nil? || reference_types.include?("custom_field_value") ? apply_values(setting, rules, reset: reset) : 0)
+    end
+
+    # Destination trackers required by defaults for source trackers that are used,
+    # still unmapped and not enabled in the project. This mirrors `apply`'s choice of
+    # explicit rule, fallback and local namesake without saving an invalid mapping first.
+    def disabled_default_trackers(setting)
+      return [] unless MirrorDefaultMapping.schema_current?
+      project = setting.project
+      table = setting.mapping_tables.find { |candidate| candidate.key == "tracker" }
+      return [] unless table
+      rules = MirrorDefaultMapping.where(reference_type: "tracker", source_url: [nil, setting.source_url]).to_a
+      return [] if rules.empty?
+      catalog = setting.source_catalog
+      used = catalog["tracker_used"]
+      mapped = project.mirror_reference_mappings.where(reference_type: "tracker").pluck(:source_id).map!(&:to_s).to_set
+      records = table.local_records(project).to_a
+      names = NameMatch.index(records.flat_map { |record| LocalizedNames.record_names("tracker", record).map { |name| [name, record.id.to_s] } })
+      enabled = records.map(&:id).to_set
+      destinations = MirrorDefaultMapping.destinations("tracker").index_by(&:id)
+
+      catalog.fetch("tracker", {}).filter_map do |source_id, name|
+        next if mapped.include?(source_id) || (used && !used.include?(source_id))
+        source_names = LocalizedNames.source_names(catalog, "tracker", source_id, name)
+        rule = pick(rules, source_names.map { |source_name| NameMatch.key(source_name) }, setting.source_url)
+        namesake = source_names.any? { |source_name| NameMatch.suggest(source_name, names) }
+        rule ||= pick(rules, nil, setting.source_url) unless namesake
+        rule.destination_id if rule&.mode == "existing" && destinations.key?(rule.destination_id) && !enabled.include?(rule.destination_id)
+      end.uniq
     end
 
     # Custom field list values: per source field mapped to a local list field, each source

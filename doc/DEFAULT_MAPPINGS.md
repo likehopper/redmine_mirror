@@ -67,8 +67,11 @@ source references**), every reference still without correspondence that a defaul
 covers gets it. The correspondence is saved in the project, marked *administrator
 default* in the module tab, where it can be changed like any other. Defaults never
 replace a saved correspondence, so changing a default later does not change the
-projects already configured. A default the project cannot use (a tracker not enabled
-in it, a field not available) is left for a person to map.
+projects already configured. When a used source tracker has a default whose local
+tracker is not enabled in the project, the configuration checklist proposes to enable
+it. The one-click action enables only the required trackers and then saves their
+default correspondences. A field not available in the project is left for a person to
+map.
 
 **Apply to configured projects** fills the projects already connected from the source
 references they read last, without reading the sources again.
