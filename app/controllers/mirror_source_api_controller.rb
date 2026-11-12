@@ -17,12 +17,12 @@
 # administrator, the project and its sharing allow it, and logged request by request.
 
 class MirrorSourceApiController < ApplicationController
-  accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :scrum, :queries, :users, :issue_categories,
+  accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :scrum, :queries, :users, :custom_fields, :issue_categories,
     :project_enumerations, :project_enumeration, :repositories, :repository_links, :download, :localized_names, :subprojects
   # Once Redmine knows the user, before anything else, the project lookup included: the
   # caller's address and API key.
   before_action :check_caller
-  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users issue_categories project_enumerations repositories localized_names subprojects]
+  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users custom_fields issue_categories project_enumerations repositories localized_names subprojects]
   before_action :find_document, only: :document
   before_action :find_news, only: :news_item
   before_action :find_attachment, only: :download
@@ -128,6 +128,17 @@ class MirrorSourceApiController < ApplicationController
     @company_field = RedmineMirror.user_company_field
     RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @users.size,
       details: { "users" => @users.map { |user| { "id" => user.id, "title" => user.name } } })
+    respond_to { |format| format.api }
+  end
+
+  # Definitions of the issue fields this project can use and this account may see.
+  # Values remain in Redmine's ordinary issue API; Mirror source only removes the need
+  # for an administrator API key to understand their format and allowed choices.
+  def custom_fields
+    @custom_fields = @project.all_issue_custom_fields.select { |field| field.visible_by?(@project, User.current) }
+      .sort_by { |field| [field.position || 0, field.id] }
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @custom_fields.size,
+      details: { "custom_fields" => @custom_fields.map { |field| { "id" => field.id, "title" => field.name } } })
     respond_to { |format| format.api }
   end
 
@@ -264,6 +275,7 @@ class MirrorSourceApiController < ApplicationController
     when "scrum" then "scrum"
     when "queries" then "queries"
     when "users" then "users"
+    when "custom_fields" then "issue_custom_fields"
     when "localized_names" then "localized_names"
     when "subprojects" then "subprojects"
     when "issue_categories" then "issue_categories"

@@ -136,7 +136,9 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
     log_user("admin", "admin")
     get "/settings/plugin/redmine_mirror"
     (RedmineMirror::Source.available_kinds - RedmineMirror::Source::EXPLICIT_KINDS).each { |kind| assert_select "#settings_source_kind_#{kind}[checked]" }
-    # Repository credentials are never allowed until the administrator checks them.
+    # Field definitions and repository credentials are never allowed until the
+    # administrator checks them explicitly.
+    assert_select "#settings_source_kind_issue_custom_fields:not([checked])"
     assert_select "#settings_source_kind_repository_credentials:not([checked])"
     assert_select "#settings_source_kind_scrum", count: RedmineMirror::Source.scrum_available? ? 1 : 0
     post "/settings/plugin/redmine_mirror", params: { settings: { source_enabled: "1", source_kinds: ["", "news", "queries"] } }
@@ -146,8 +148,10 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
     assert_select "#settings_source_kind_news[checked]"
 
     @project.enable_module!(:mirror_source)
+    post "/settings/plugin/redmine_mirror", params: { settings: { source_enabled: "1", source_kinds: ["", "issue_custom_fields", "news", "queries"] } }
     MirrorSourceSetting.create!(project: @project, shared_modules: %w[documents news])
     get "/projects/ecookbook/settings", params: { tab: "mirror_source" }
+    assert_select "#mirror-source-share-issue_custom_fields:not([checked])"
     assert_select "#mirror-source-share-documents", count: 0
     assert_select "#mirror-source-share-news[checked]"
     patch "/projects/ecookbook/mirror_source", params: { shared_modules: ["", "queries", "documents"] }

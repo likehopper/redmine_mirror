@@ -1,0 +1,35 @@
+# File: redmine_mirror/app/views/mirror_source_api/custom_fields.api.rsb
+#
+# Redmine Mirror - modular project import and asynchronous replication.
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 2 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+#
+# Project-visible issue custom field definitions, without issue values.
+
+api.array :custom_fields, api_meta(total_count: @custom_fields.size) do
+  @custom_fields.each do |field|
+    api.custom_field do
+      api.id field.id
+      api.name field.name
+      api.customized_type "issue"
+      api.field_format field.field_format
+      api.multiple field.multiple?
+      api.array :possible_values do
+        field.possible_values_options.each do |label, value|
+          api.possible_value do
+            api.value((value || label).to_s)
+            api.label label.to_s
+          end
+        end
+      end
+    end
+  end
+end

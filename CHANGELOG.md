@@ -18,6 +18,10 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 ## Unreleased
 
+- **Custom field definitions from Mirror source**: a non-administrator source API key
+  can receive the format, multiplicity and allowed choices of the issue fields visible
+  in its project. The source administrator must explicitly allow this data, then the
+  source project must share it; ordinary issue values remain in Redmine's issue API.
 - **Shared issue references migrate with the project**: a version or Scrum sprint owned
   by another source project but used by this project's issues is copied when its owner
   has not been synchronized. Reopening an imported issue also keeps its closed version

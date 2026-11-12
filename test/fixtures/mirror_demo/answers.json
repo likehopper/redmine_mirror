@@ -8262,6 +8262,9 @@
       "limit": 100
     }
   },
+  "projects/1/mirror/source/custom_fields.json": {
+    "error": "Redmine API returned HTTP 403 for GET projects/1/mirror/source/custom_fields.json (Mirror source: not_shared)"
+  },
   "projects/1/mirror/source/documents.json": {
     "body": {
       "documents": [
@@ -8746,6 +8749,12 @@
         }
       ],
       "total_count": 53
+    }
+  },
+  "projects/1/mirror/source/localized_names.json": {
+    "body": {
+      "localized_names": {
+      }
     }
   },
   "projects/1/mirror/source/news.json": {
@@ -9761,12 +9770,6 @@
 
       ],
       "total_count": 0
-    }
-  },
-  "projects/1/mirror/source/localized_names.json": {
-    "body": {
-      "localized_names": {
-      }
     }
   },
   "projects/1/mirror/source/users.json": {

@@ -19,7 +19,8 @@ require_relative "../test_helper"
 
 class MirrorSourceApiTest < Redmine::ApiTest::Base
   fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules,
-    :documents, :enumerations, :attachments, :news, :comments, :queries, :issue_categories, :repositories, :changesets, :issues
+    :documents, :enumerations, :attachments, :news, :comments, :queries, :issue_categories, :repositories, :changesets, :issues,
+    :trackers, :projects_trackers, :custom_fields, :custom_fields_projects, :custom_fields_trackers
 
   SESSION = "0123456789abcdef0123456789abcdef"
 
@@ -237,6 +238,37 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     access = MirrorSourceAccess.where(session_key: SESSION).last
     assert_equal ["list", 2], [access.action, access.object_count]
     assert_equal [2, 3], access.details.fetch("users").map { |row| row["id"] }
+  end
+
+  # Field definitions need an explicit administrator choice, then the project's choice.
+  # A regular project API account receives only fields it can use and see.
+  def test_lists_project_visible_custom_field_definitions_with_both_consents
+    field = IssueCustomField.create!(name: "Migration choices", field_format: "list", possible_values: ["A", "B"],
+      multiple: true, is_for_all: true, trackers: Tracker.all)
+    outside = IssueCustomField.create!(name: "Other project", field_format: "string", is_for_all: false,
+      projects: [Project.find(2)], trackers: Tracker.all)
+    @project.mirror_source_setting.update!(shared_modules: %w[issue_custom_fields])
+
+    enabled do
+      get "/projects/ecookbook/mirror/source/custom_fields.json", headers: mirror_headers
+      assert_response :forbidden
+      assert_equal "disabled", response.headers["X-Mirror-Source-Refusal"]
+    end
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_kinds" => %w[issue_custom_fields] }) do
+      get "/projects/ecookbook/mirror/source/custom_fields.json", headers: mirror_headers
+      assert_response :success
+      fields = JSON.parse(response.body).fetch("custom_fields")
+      listed = fields.find { |row| row["id"] == field.id }
+      assert_equal ["issue", "list", true], listed.values_at("customized_type", "field_format", "multiple")
+      assert_equal [["A", "A"], ["B", "B"]], listed.fetch("possible_values").map { |value| value.values_at("value", "label") }
+      refute_includes fields.map { |row| row["id"] }, outside.id
+
+      Role.all.each { |role| role.remove_permission!(:view_issues) }
+      get "/projects/ecookbook/mirror/source/custom_fields.json", headers: mirror_headers
+      assert_equal "permission", response.headers["X-Mirror-Source-Refusal"]
+    end
+    access = MirrorSourceAccess.where(session_key: SESSION, action: "list").last
+    assert_equal field.id, access.details.fetch("custom_fields").find { |row| row["id"] == field.id }.fetch("id")
   end
 
   # Each lock refuses with its reason, logged; the destination reads the header.

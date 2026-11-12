@@ -40,11 +40,15 @@ module RedmineMirror
 
       # Redmine restricts custom field definitions to administrators. Without them,
       # nil selects the observed mode: fields and values come from the issues.
-      def definitions(client)
+      def definitions(client, project_id)
         client.get("custom_fields.json").fetch("custom_fields")
       rescue Error => error
         raise unless error.message.start_with?("Redmine API returned HTTP 403")
-        nil
+        begin
+          client.get("projects/#{Integer(project_id)}/mirror/source/custom_fields.json").fetch("custom_fields")
+        rescue Error, KeyError
+          nil
+        end
       end
 
       # A source definition known from an administrator key, or else the destination
@@ -83,7 +87,7 @@ module RedmineMirror
             end
           end
         end
-        available = definitions(client)
+        available = definitions(client, project_id)
         if available.nil?
           # Observed mode: formats are unknown, list choices are the values met in the issues.
           fields = observed.keys.map do |id|

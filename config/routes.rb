@@ -61,6 +61,7 @@ get "projects/:project_id/mirror/source/issue_tags", to: "mirror_source_api#issu
 get "projects/:project_id/mirror/source/scrum", to: "mirror_source_api#scrum", as: "mirror_source_scrum"
 get "projects/:project_id/mirror/source/queries", to: "mirror_source_api#queries", as: "mirror_source_queries"
 get "projects/:project_id/mirror/source/users", to: "mirror_source_api#users", as: "mirror_source_users"
+get "projects/:project_id/mirror/source/custom_fields", to: "mirror_source_api#custom_fields", as: "mirror_source_custom_fields"
 get "projects/:project_id/mirror/source/localized_names", to: "mirror_source_api#localized_names", as: "mirror_source_localized_names"
 get "projects/:project_id/mirror/source/subprojects", to: "mirror_source_api#subprojects", as: "mirror_source_subprojects"
 get "projects/:project_id/mirror/source/issue_categories", to: "mirror_source_api#issue_categories", as: "mirror_source_issue_categories"

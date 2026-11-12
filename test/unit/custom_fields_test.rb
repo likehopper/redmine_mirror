@@ -142,6 +142,19 @@ class MirrorCustomFieldsTest < ActiveSupport::TestCase
     refute catalog.key?("user")
   end
 
+  def test_non_administrator_key_reads_definitions_from_mirror_source
+    client = Object.new
+    def client.get(path, _params = {})
+      raise RedmineMirror::Error, "Redmine API returned HTTP 403 for GET #{path}" if path == "custom_fields.json"
+      { "custom_fields" => [{ "id" => 901, "name" => "Remote list", "customized_type" => "issue",
+        "field_format" => "list", "multiple" => true,
+        "possible_values" => [{ "value" => "Remote A", "label" => "Remote A" }] }] }
+    end
+    definitions = @adapter.definitions(client, 99)
+    assert_equal [901, "list", true, "Remote A"], [definitions.first.fetch("id"), definitions.first.fetch("field_format"),
+      definitions.first.fetch("multiple"), definitions.first.fetch("possible_values").first.fetch("value")]
+  end
+
   def test_observed_values_follow_the_destination_format
     observed = { "field_format" => nil, "observed" => true, "multiple" => true }
     options = { "value_mappings" => { "901" => { @adapter.value_key("Remote A") => "Local A" } } }

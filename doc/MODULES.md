@@ -278,9 +278,11 @@ Markdown otherwise, and a text already in the right format is unchanged.
 
 Discovery lists the fields used by the project's issues and their history.
 
-- With a **source administrator** key, Mirror also reads `/custom_fields.json`: formats,
-  multiplicity and the complete lists of possible values are known and checked.
-- Without one, Redmine hides the definitions. The fields and their values come from the
+- With a **source administrator** key, Mirror reads `/custom_fields.json`: formats,
+  multiplicity and the complete lists of possible values are known and checked. A
+  non-administrator key gets the same project-visible definitions when the source
+  administrator and project explicitly share **Custom fields** through Mirror source.
+- Otherwise, Redmine hides the definitions. The fields and their values come from the
   issues and their history; each value takes the format of the mapped local field and is
   validated in the preview; list choices are the values actually found. The module tab
   says which mode applies.

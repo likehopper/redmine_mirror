@@ -696,6 +696,10 @@ answer("projects/1/versions.json", { "limit" => 1 }, "versions" => [], "total_co
 refuse("projects/1/issue_categories.json", { "limit" => 1 }, 403)
 # Nor does it share its categories: Mirror reads them from the issues.
 @answers["projects/1/mirror/source/issue_categories.json"] = { "error" => "Redmine API returned HTTP 403 for GET projects/1/mirror/source/issue_categories.json (Mirror source: not_shared)" }
+# Nor does it share its custom field definitions: Mirror observes values on issues.
+@answers["projects/1/mirror/source/custom_fields.json"] = { "error" => "Redmine API returned HTTP 403 for GET projects/1/mirror/source/custom_fields.json (Mirror source: not_shared)" }
+# Localizable is absent from the demo source.
+answer("projects/1/mirror/source/localized_names.json", {}, "localized_names" => {})
 # The demo project has no subproject running Mirror source.
 answer("projects/1/mirror/source/subprojects.json", {}, "subprojects" => [], "total_count" => 0)
 # The source does not share its users' details (Mirror source); any list of IDs gets this answer.

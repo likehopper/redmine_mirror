@@ -29,12 +29,13 @@ module RedmineMirror
     # lists categories to their managers only, and never says whether they are shared.
     # Project enumerations (plugin) have an API for their managers only. Repositories
     # have no API at all; their credentials are a kind of their own, never allowed by default.
-    KINDS = %w[documents news issue_tags scrum queries users issue_categories project_enumerations repositories repository_credentials].freeze
+    KINDS = %w[documents news issue_tags scrum queries users issue_custom_fields issue_categories project_enumerations repositories repository_credentials].freeze
     # Kinds an administrator must check explicitly, even before saving a choice.
-    EXPLICIT_KINDS = %w[repository_credentials].freeze
+    EXPLICIT_KINDS = %w[issue_custom_fields repository_credentials].freeze
     # Redmine project module a kind's data lives in: without it, there is nothing to share.
     KIND_MODULES = { "documents" => "documents", "news" => "news", "issue_tags" => "issue_tracking", "scrum" => "scrum",
-      "issue_categories" => "issue_tracking", "repositories" => "repository", "repository_credentials" => "repository" }.freeze
+      "issue_custom_fields" => "issue_tracking", "issue_categories" => "issue_tracking",
+      "repositories" => "repository", "repository_credentials" => "repository" }.freeze
 
     # Kinds whose project module the project has not enabled.
     def kinds_without_module(project)
@@ -43,7 +44,7 @@ module RedmineMirror
 
     # Native permission the API account needs for each kind.
     PERMISSIONS = { "documents" => :view_documents, "news" => :view_news, "issue_tags" => :view_issues,
-      "scrum" => :view_sprint_board, "queries" => :view_issues, "users" => :view_issues,
+      "scrum" => :view_sprint_board, "queries" => :view_issues, "users" => :view_issues, "issue_custom_fields" => :view_issues,
       "issue_categories" => :view_issues, "project_enumerations" => :view_issues,
       "repositories" => :manage_repository, "repository_credentials" => :manage_repository }.freeze
     # Changesets linked to issues, per page of a repository's links.

@@ -453,8 +453,9 @@ defaults**. See [Default correspondences](DEFAULT_MAPPINGS.md).
 ## Mirror source (on the source Redmine)
 
 Only for the **Documents**, **News**, **Tags**, **Agile** and **Saved queries** modules,
-to create accounts from the source users, for the sharing of issue categories and for
-project enumerations (plugin) and repositories, which have no API at all:
+to create accounts from the source users, to read custom field definitions without an
+administrator API key, for the sharing of issue categories and for project enumerations
+(plugin) and repositories, which have no API at all:
 Redmine's REST API provides no documents, no news comments nor files, no tags, no Scrum
 sprints, only the names of saved queries, users' logins and emails to administrators
 only, and categories to their managers only, without sharing. On the source Redmine:
@@ -462,7 +463,8 @@ only, and categories to their managers only, without sharing. On the source Redm
 1. Install Redmine Mirror (1.0.0-beta.19 or later for Documents, 1.0.0-beta.26 for News,
    1.0.0-beta.28 for Tags, 1.0.0-beta.30 for Scrum sprints, 1.0.0-beta.31 for Saved
    queries, 1.0.0-beta.32 for Users, 1.0.0-beta.36 for Issue categories, Project
-   enumerations and Repositories) and run its migration (see the README).
+   enumerations and Repositories; this version or later for Custom fields) and run its
+   migration (see the README).
    Nothing else of Mirror needs configuring there. On Redmine 4.0 to 4.2, Mirror runs as
    a source only: Mirror source and its administration page, no Mirror project module.
 2. `Administration → Plugins → Redmine Mirror → Configure`: check **Allow Mirror
@@ -483,7 +485,7 @@ only, and categories to their managers only, without sharing. On the source Redm
    ![Mirror source allowed](screenshots/configuration/27-source-allowed.png)
 3. In the project: `Settings → Modules`, enable **Mirror source** (the **Mirror** module
    is not needed), then in `Settings → Mirror source` check **Documents**, **News**, **Tags**,
-   **Scrum sprints**, **Saved queries**, **Users**, **Issue categories**, **Project
+   **Scrum sprints**, **Saved queries**, **Users**, **Custom fields**, **Issue categories**, **Project
    enumerations**, **Repositories** and/or **Repository credentials** and save.
    Data whose Redmine module the project has not enabled (Documents, News, Repository,
    Scrum, Issue tracking for tags and categories) is greyed.
@@ -493,8 +495,9 @@ only, and categories to their managers only, without sharing. On the source Redm
    not configured otherwise: a later change in the parent reaches them only when applied
    again, and the API account needs a role in each one (or the subproject inherits the
    members).
-   Repository credentials are offered only when the administrator checked them under
-   **Data projects may share**: they are never allowed by default. Even then, they are
+   Custom field definitions and repository credentials are offered only when the
+   administrator checked them under **Data projects may share**: they are never allowed
+   by default. Even then, repository credentials are
    sent only to a destination that asks for them, to write a repository of a project
    that keeps them (**Keep the credentials** in its Repositories tab).
    Sharing Issue categories gives every category of the project with its default
@@ -503,13 +506,16 @@ only, and categories to their managers only, without sharing. On the source Redm
    the login, name, email and company (the user field chosen in the plugin settings, or
    named Company) of the users the destination asks for, only if they are members of the
    project or appear in its data (issues, notes, time entries, watchers, news, wiki, files).
+   Sharing Custom fields gives their format, multiplicity and allowed choices, only for
+   issue fields available in this project and visible to the API account. It does not
+   share additional issue values and never creates a field on the destination.
    If Localizable is installed, Mirror also exposes the original and translated names
    of references this project can use. This is automatic metadata for matching: there is
    no additional sharing choice, and no Localizable setting is transferred.
 
    ![Shared data](screenshots/configuration/28-source-sharing.png)
 4. Give the source API account *View documents* (Documents), *View news* (News) or
-   *View issues* (Tags, Saved queries, Users, Issue categories, Project enumerations),
+   *View issues* (Tags, Saved queries, Users, Custom fields, Issue categories, Project enumerations),
    *Manage repository* (Repositories) or *View sprint board* (Scrum sprints) in that project. Anonymous access is refused, even on public projects.
 
 The **Access log** below the sharing lists one session per destination run or reference
