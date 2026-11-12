@@ -18,6 +18,9 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 ## Unreleased
 
+- **Only used references need correspondences**: references known to be unused stay
+  outside the mapping counters and behind the unused-references link, even when an old
+  correspondence exists. Administrator defaults are no longer saved for them.
 - **Custom field definitions from Mirror source**: a non-administrator source API key
   can receive the format, multiplicity and allowed choices of the issue fields visible
   in its project. The source administrator must explicitly allow this data, then the

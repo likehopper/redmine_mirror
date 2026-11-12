@@ -42,8 +42,8 @@ module RedmineMirror
 
     # Fill the project's references that have no correspondence yet, after its source
     # references were read. A rule for the source URL wins over a rule for any source. The
-    # fallback only takes references the project uses, and leaves those with a single local
-    # namesake to the form's suggestion. With `reset`, a reference whose name has a default
+    # Defaults only take references the project uses; a fallback leaves those with a single
+    # local namesake to the form's suggestion. With `reset`, a reference whose name has a default
     # takes it even when it already has a correspondence (the fallback never replaces one).
     # Returns the number of correspondences saved.
     def apply(setting, reset: false, reference_types: nil)
@@ -63,6 +63,7 @@ module RedmineMirror
         names = NameMatch.index(records.flat_map { |record| LocalizedNames.record_names(table.key, record).map { |name| [name, record.id.to_s] } })
         used = catalog["#{table.key}_used"]
         catalog.fetch(table.key, {}).each do |source_id, name|
+          next if used && !used.include?(source_id)
           row = existing[[table.key, source_id]]
           next if row && !reset
           source_names = LocalizedNames.source_names(catalog, table.key, source_id, name)

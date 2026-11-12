@@ -57,21 +57,25 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     assert_select "#mirror-module-list a[href$='mirror_tab=users']", text: "Configure"
   end
 
-  # The references to map are shown first; the mapped ones and all of them on request.
+  # Unused references stay outside the counters even when an old mapping exists; asking
+  # for every reference reveals them and their mapping.
   def test_filter_shows_references_to_map_mapped_or_all
     @project.mirror_reference_mappings.create!(reference_type: "tracker", source_id: 2, mode: "existing", destination_id: @project.trackers.first.id)
+    @setting.update!(source_catalog: @setting.source_catalog.merge("tracker_used" => ["1"]))
     log_user("admin", "admin")
     settings("issue_tracking")
     assert_select "#mirror-mapping-filter strong", text: "to map (3)"
     assert_select "#mirror-tracker-1"
     assert_select "#mirror-tracker-2", count: 0
+    assert_select ".mirror-unused-references", text: /Show the 1 references not used/
     settings("issue_tracking", mirror_filter: "mapped")
-    assert_select "#mirror-mapping-filter strong", text: "mapped (1)"
+    assert_select "#mirror-mapping-filter strong", text: "mapped (0)"
     assert_select "#mirror-tracker-1", count: 0
-    assert_select "#mirror-tracker-2"
-    settings("issue_tracking", mirror_filter: "all")
+    assert_select "#mirror-tracker-2", count: 0
+    settings("issue_tracking", mirror_filter: "all", all_references: "1")
     assert_select "#mirror-tracker-1"
     assert_select "#mirror-tracker-2"
+    assert_select "#mirror-mapping-filter", text: /mapped \(1\)/
     assert_select "input[type=hidden][name=mirror_filter][value=all]"
   end
 

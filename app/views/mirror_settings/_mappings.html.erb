@@ -59,8 +59,8 @@ the Users tab then offers to create the missing accounts (mirror_settings/_user_
   <% end %>
 <% end %>
 <%# Each table's rows, computed before the form so that the filter counts them all. Only
-    references used by the source project (and those already mapped) are listed, unless
-    all are requested. Unsaved proposals count as to map. %>
+    references used by the source project are listed unless all are requested. Unsaved
+    proposals count as to map. %>
 <% tables = adapter.mapping_tables.map do |table|
   # The special choice (anonymize, do not give, ignore) is a checkbox beside the field.
   special = if table.anonymous_allowed? then ["anonymous", l(:label_mirror_anonymous)]
@@ -71,7 +71,7 @@ the Users tab then offers to create the missing accounts (mirror_settings/_user_
   local_choices += table.extra_choices.map { |choice| [l("label_mirror_destination_#{choice}"), choice] }
   used = @setting.source_catalog["#{table.key}_used"]&.to_set
   rows = @setting.source_catalog.fetch(table.key, {}).sort_by { |id, name| [name.downcase, id.to_i] }
-  hidden, rows = rows.partition { |id, _| used && params[:all_references] != "1" && !used.include?(id) && @mapping_values[[table.key, id]].blank? }
+  hidden, rows = rows.partition { |id, _| used && params[:all_references] != "1" && !used.include?(id) }
   mails = table.key == "user" ? records.each_with_object({}) { |user, index| index[user.mail.downcase] ||= user.id.to_s if user.mail.present? } : {}
   { table: table, special: special, records: records, choices: local_choices, labels: local_choices.to_h { |label, value| [value, label] },
     names: mirror_name_index(local_choices, type: table.key, records: records), rows: rows, hidden: hidden, mails: mails,

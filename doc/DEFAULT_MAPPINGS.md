@@ -34,9 +34,10 @@ the form on its own page; **Import CSV** and **Export CSV** are at the top right
 ## Rules
 
 - **Per table**: trackers, statuses, priorities, activities, document categories, roles,
-  groups and custom fields. A default gives one or more source names the same local
-  reference, or the table's special choice (*Do not import its issues*, *Ignore this
-  field*…). Names are compared ignoring case, accents, punctuation and word order.
+  groups and custom fields. For a reference the project uses, a default gives one or
+  more source names the same local reference, or the table's special choice (*Do not
+  import its issues*, *Ignore this field*…). Names are compared ignoring case, accents,
+  punctuation and word order.
 - **Fallback**: a default without a source name takes every reference the project uses
   that has neither a default nor a single local namesake (the namesake stays a
   suggestion in the form). Users only take a fallback, such as a generic account (it need
@@ -63,9 +64,11 @@ the form on its own page; **Import CSV** and **Export CSV** are at the top right
 ## When they apply
 
 Each time a project reads its source references (saving the connection, **Refresh the
-source references**), every reference still without correspondence that a default
-covers gets it. The correspondence is saved in the project, marked *administrator
-default* in the module tab, where it can be changed like any other. Defaults never
+source references**), every used reference still without correspondence that a default
+covers gets it. An unused reference is left alone; an older correspondence for it stays
+stored but is shown only with **Show the references not used by the source project**.
+The correspondence is saved in the project, marked *administrator default* in the
+module tab, where it can be changed like any other. Defaults never
 replace a saved correspondence, so changing a default later does not change the
 projects already configured. When a used source tracker has a default whose local
 tracker is not enabled in the project, the configuration checklist proposes to enable

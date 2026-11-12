@@ -104,6 +104,7 @@ class MirrorDefaultMappingsTest < Redmine::IntegrationTest
     rule("status", nil, nil, mode: "ignore")
     rule("status", "Resolu", 3)
     rule("status", "Resolu", 2, source_url: "#{SOURCE}/")
+    rule("status", "Unused status", 3)
     rule("priority", "normal priority", 5)
     rule("activity", "Development web", 10)
     rule("user", nil, 4)
@@ -125,7 +126,7 @@ class MirrorDefaultMappingsTest < Redmine::IntegrationTest
     # The rule for this source wins over the rule for any source; the fallback ignores.
     assert_equal 2, mapping("status", 8).destination_id
     assert_equal "ignore", mapping("status", 7).mode
-    # The fallback leaves the references the project does not use.
+    # Defaults, including explicit ones, leave references the project does not use.
     assert_nil mapping("status", 9)
     # A saved correspondence is never changed.
     assert_equal [6, false], [mapping("priority", 4).destination_id, mapping("priority", 4).from_default]
