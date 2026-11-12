@@ -18,6 +18,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 ## Unreleased
 
+## 1.0.0-beta.43 — 2026-11-12
+
 - **Mappings use every Localizable name**: when Localizable is installed, Mirror source
   shares the original and translated names of the references a project can use. Mirror
   uses them as aliases for defaults, same-name suggestions and CSV destinations without
