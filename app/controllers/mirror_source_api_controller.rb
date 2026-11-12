@@ -90,7 +90,6 @@ class MirrorSourceApiController < ApplicationController
   # The project's Scrum sprints and product backlogs, and the sprint, backlog position
   # and story points of every visible issue of the project that has one of them.
   def scrum
-    @sprints = ::Sprint.where(project_id: @project.id).order(:id).to_a
     issues = Issue.visible.where(project_id: @project.id)
     field_id = (Scrum::Setting.story_points_custom_field_id if defined?(Scrum::Setting)).presence
     points = field_id ? CustomValue.where(custom_field_id: field_id, customized_type: "Issue", customized_id: issues.select(:id))
@@ -99,6 +98,10 @@ class MirrorSourceApiController < ApplicationController
     @scrum_issues = issues.order(:id).pluck(:id, :sprint_id, :position).map do |id, sprint_id, position|
       [id, sprint_id, position, points[id]] if sprint_id || position || points[id]
     end.compact
+    # A project issue may use a shared sprint owned by another project. It is part of
+    # this explicit sharing because the API account can see the issue that references it.
+    used_sprint_ids = @scrum_issues.map { |_, sprint_id, _, _| sprint_id }.compact.uniq
+    @sprints = ::Sprint.where(project_id: @project.id).or(::Sprint.where(id: used_sprint_ids)).order(:id).to_a
     RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @sprints.size + @scrum_issues.size,
       details: { "scrum" => { "sprints" => @sprints.size, "issues" => @scrum_issues.size } })
     respond_to { |format| format.api }

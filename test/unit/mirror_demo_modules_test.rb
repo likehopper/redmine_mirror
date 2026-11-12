@@ -88,7 +88,7 @@ class MirrorDemoModulesTest < ActiveSupport::TestCase
     before = [@project.wiki.pages.count, project_files, @project.news.count]
     with_settings attachment_max_size: 10_240, notified_events: %w[wiki_content_added document_added news_added file_added] do
       ActionMailer::Base.deliveries.clear
-      assert_imported_then_unchanged("issue_categories" => { "create" => 4 }, "project_versions" => { "create" => 3 },
+      assert_imported_then_unchanged("issue_categories" => { "create" => 4 }, "project_versions" => { "create" => 4 },
         # jsmith and dlopper are already members: one keeps its roles, one gets more.
         "project_members" => { "create" => 4, "update" => 1, "unchanged" => 1 }, "wiki" => { "create" => 12 }, "documents" => { "create" => 5 },
         "project_files" => { "create" => 4 }, "news" => { "create" => 4 },

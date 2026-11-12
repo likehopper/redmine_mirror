@@ -129,7 +129,9 @@ appear in the read-only **Synchronized objects** list. Categories keep their nam
 name, description, status, due date and sharing.
 
 - A missing reference blocks the import; a local change is reported as a conflict.
-- A version shared from another project must be imported in its owner project first.
+- A version shared from another source project and used as an issue's target version
+  takes the version already imported from its owner when that version is usable here.
+  Otherwise Mirror creates a project-local copy, so the project can migrate alone.
 - Category sharing with subprojects (*none* or *descendants*) needs a sharing column on
   both sides, added by a patch or plugin. The source gives it through Mirror source
   (**Issue categories** shared); the destination writes it when it has the column.
@@ -399,12 +401,14 @@ the destination. Enable the Agile module on the destination project.
   dates takes its creation date. Of several source sprints with the same name, the first
   keeps it and the others get their source number, as does a sprint whose name a local
   sprint already holds.
+- A sprint shared from another source project is included when an issue of this project
+  uses it, so migrating this project alone does not leave its agile data unresolved.
 - **Agile issue data**: each imported issue gets its sprint, its backlog position and
   its story points, written as agile data without journal nor notification. Story points
   come from the Scrum story points field and are rounded up to whole numbers (0.5
   becomes 1); the field itself is copied by the custom fields module. A sprint owned by
-  another project (shared with subprojects) is found once that project is synchronized,
-  as for shared versions.
+  another project but used by one of these issues is included and copied with this
+  project.
 - redmine_agile refuses overlapping sprints and closing a sprint that holds open
   issues; Scrum allowed both and production data has them, so these two rules are not
   applied to imported sprints. Every other redmine_agile validation applies.

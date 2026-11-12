@@ -127,7 +127,7 @@ module RedmineMirror
       # and validations), but without a journal: when the history comes from the source,
       # Redmine's journal of the update, as the API account, would repeat a source change or
       # record Mirror's own remapping, and notify it.
-      def update_locally(target_id, attributes, user)
+      def update_locally(target_id, attributes, user, held_attributes: {})
         previous = User.current
         issue = Issue.find(target_id)
         User.current = user
@@ -137,6 +137,10 @@ module RedmineMirror
         # entry is then removed, never notified.
         journal = issue.init_journal(user)
         journal.notify = false
+        # A closed version can stay on a closed issue, but Redmine refuses to reopen the
+        # issue while that version is attached. The REST path holds such references back;
+        # clear them for this validation too, then restore them after the save.
+        held_attributes.each_key { |field| issue[field] = nil }
         issue.safe_attributes = attributes
         raise Error, "Destination rejected issue ##{issue.id}: #{issue.errors.full_messages.join(', ')}" unless issue.save
         journal.destroy if journal.persisted?

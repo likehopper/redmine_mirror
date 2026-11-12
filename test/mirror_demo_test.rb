@@ -37,7 +37,7 @@ class MirrorDemoTest < Minitest::Test
   def test_the_catalog_reads_every_module_of_the_demo_project
     statistics = catalog.fetch("module_statistics").transform_values { |counts| counts.fetch("records") }
     assert_equal({ "issue_tracking" => 53, "time_tracking" => 132, "issue_journals" => 141, "issue_attachments" => 23,
-      "issue_relations" => 6, "issue_categories" => 4, "project_versions" => 3, "project_members" => 6, "wiki" => 12,
+      "issue_relations" => 6, "issue_categories" => 4, "project_versions" => 4, "project_members" => 6, "wiki" => 12,
       "documents" => 5, "project_files" => 4, "news" => 4, "issue_tags" => 53, "agile_sprints" => 5,
       "agile_issues" => 53, "project_queries" => 11 }, statistics.slice(*%w[issue_tracking time_tracking issue_journals
         issue_attachments issue_relations issue_categories project_versions project_members wiki documents project_files

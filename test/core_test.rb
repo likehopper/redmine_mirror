@@ -387,6 +387,26 @@ class MirrorCoreTest < Minitest::Test
     assert_equal [3, 12], RedmineMirror::Adapters::Files.new.records(client, 7).map { |row| row.fetch("id") }
   end
 
+  def test_only_used_shared_versions_are_copied_into_the_project
+    client = Object.new
+    def client.get(_path, _params = {})
+      { "versions" => [
+        { "id" => 3, "name" => "Own", "status" => "open", "project" => { "id" => 7 } },
+        { "id" => 12, "name" => "Used shared", "status" => "open", "sharing" => "system", "project" => { "id" => 8 } },
+        { "id" => 13, "name" => "Unused shared", "status" => "open", "sharing" => "system", "project" => { "id" => 8 } }
+      ] }
+    end
+    def client.each_record(_collection, _params)
+      [{ "id" => 1, "fixed_version" => { "id" => 12 } }].each
+    end
+    adapter = RedmineMirror::Adapters::Versions.new
+    records = adapter.records(client, 7)
+    assert_equal [3, 12], records.map { |record| record.fetch("id") }
+    shared = records.last
+    assert_equal [{ "id" => 7 }, { "id" => 8 }, true], [shared.fetch("project"), shared.fetch("source_project"), shared.fetch("foreign")]
+    assert_equal "none", adapter.attributes(shared, {}).fetch("sharing")
+  end
+
   def test_collect_mode_reports_every_failing_object_and_continues
     @issue["status"] = { "id" => 999 }
     assert_raises(RedmineMirror::Error) { @runner.run(@config) }

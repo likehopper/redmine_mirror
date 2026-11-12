@@ -60,6 +60,19 @@ class MirrorLockedReferencesTest < ActiveSupport::TestCase
     assert_equal journals, issue.journals.count
   end
 
+  def test_issue_can_reopen_while_keeping_a_closed_version
+    issue = Issue.find(1)
+    closed = Version.find(1)
+    closed.update_columns(status: "closed")
+    issue.update_columns(status_id: IssueStatus.where(is_closed: true).first!.id, fixed_version_id: closed.id)
+    adapter = RedmineMirror::Adapters::Issues.new
+    adapter.update_locally(issue.id, { "status_id" => IssueStatus.where(is_closed: false).first!.id }, User.find(1),
+      held_attributes: { "fixed_version_id" => closed.id })
+    assert_nil issue.reload.fixed_version_id
+    adapter.restore_metadata({ "fixed_version_id" => closed.id, "project_id" => @project.id }, issue.id, @project.id)
+    assert_equal [false, closed.id], [issue.reload.closed?, issue.fixed_version_id]
+  end
+
   def test_time_entry_of_a_locked_user_is_given_back_locally
     adapter = RedmineMirror::Adapters::TimeEntries.new
     entry = TimeEntry.where(project_id: 1).first

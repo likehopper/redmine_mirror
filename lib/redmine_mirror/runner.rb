@@ -162,7 +162,8 @@ module RedmineMirror
               # With the issue history imported, a REST update would add a journal repeating it.
               if adapter.is_a?(Adapters::Issues) && @mapping_store.is_a?(DatabaseStore) && adapters.any? { |entry| entry.is_a?(Adapters::Journals) }
                 @destination_user ||= User.find(@destination_client.get("users/current.json").fetch("user").fetch("id"))
-                adapter.update_locally(mapping.fetch("destination_id"), attributes, @destination_user)
+                held_attributes = payload.slice(*adapter.local_references(payload))
+                adapter.update_locally(mapping.fetch("destination_id"), attributes, @destination_user, held_attributes: held_attributes)
               else
                 @destination_client.update("#{adapter.collection}/#{mapping.fetch('destination_id')}.json", adapter.entity => attributes)
               end

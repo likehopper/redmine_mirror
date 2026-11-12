@@ -154,10 +154,21 @@ module RedmineMirror
       def fields; %w[name description status effective_date sharing]; end
       def attributes(record, _mappings)
         { "name" => record.fetch("name"), "description" => record["description"].to_s,
-          "status" => record.fetch("status"), "effective_date" => record["due_date"], "sharing" => record.fetch("sharing", "none") }
+          "status" => record.fetch("status"), "effective_date" => record["due_date"],
+          "sharing" => record["foreign"] ? "none" : record.fetch("sharing", "none") }
       end
+
+      # Redmine's project endpoint also lists versions shared by another project. Keep
+      # only those the source issues actually use and copy them locally when their owner
+      # is not synchronized, so a standalone project migration has no missing reference.
       def records(client, project_id)
-        super.select { |record| record.fetch("project").fetch("id").to_i == project_id.to_i }
+        used = Issues.new.records(client, project_id).filter_map { |issue| issue.dig("fixed_version", "id") }.map(&:to_i).to_set
+        super.filter_map do |record|
+          owner = record.fetch("project").fetch("id").to_i
+          next unless owner == project_id.to_i || used.include?(record.fetch("id").to_i)
+          owner == project_id.to_i ? record : record.merge("source_project" => record["project"],
+            "project" => { "id" => project_id }, "foreign" => true)
+        end
       end
       def local_attributes(record)
         super.merge("effective_date" => record.effective_date&.iso8601)

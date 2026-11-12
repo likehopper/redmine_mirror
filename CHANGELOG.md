@@ -18,6 +18,10 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 ## Unreleased
 
+- **Shared issue references migrate with the project**: a version or Scrum sprint owned
+  by another source project but used by this project's issues is copied when its owner
+  has not been synchronized. Reopening an imported issue also keeps its closed version
+  without failing destination validation.
 - **Default tracker mappings are actionable**: when a used source tracker maps by
   default to a local tracker that the destination project has not enabled, the setup
   checklist proposes to enable it. The one-click fix then records the default mapping;
