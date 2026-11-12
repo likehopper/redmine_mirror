@@ -156,14 +156,16 @@ module MirrorHelper
 
   # A single local reference with the same name, ignoring case, accents, punctuation and
   # word order. index: mirror_name_index of the table's choices.
-  def mirror_name_suggestion(index, name)
-    RedmineMirror::NameMatch.suggest(name, index)
+  def mirror_name_suggestion(index, name, aliases = [])
+    suggestions = ([name] + Array(aliases)).filter_map { |candidate| RedmineMirror::NameMatch.suggest(candidate, index) }.uniq
+    suggestions.one? ? suggestions.first : nil
   end
 
   # The local choices indexed by name, once per table. Labels end with " (#id)" and, for
   # users, their login and email.
-  def mirror_name_index(choices)
+  def mirror_name_index(choices, type: nil, records: [])
     candidates = choices.select { |_, value| value.match?(/\A\d+\z/) }.map { |label, value| [label.sub(/ \(#\d+\)(?: .*)?\z/, ""), value] }
+    candidates.concat(records.flat_map { |record| RedmineMirror::LocalizedNames.record_names(type, record).map { |name| [name, record.id.to_s] } }) if type
     RedmineMirror::NameMatch.index(candidates)
   end
 

@@ -30,6 +30,7 @@ and the destination, for a reference table or the list values of a local field.
   <% choices = [] %>
   <% choices << [l(@table.ignore_label), "ignore"] if @table.ignore_allowed? %>
   <% choices << [l(:label_mirror_anonymous), "anonymous"] if @table.anonymous_allowed? %>
+  <% choices += @table.extra_choices.map { |choice| [l("label_mirror_destination_#{choice}"), choice] } %>
   <% choices += MirrorDefaultMapping.destinations(@type).map { |record| ["#{record.name} (##{record.id})", record.id] } %>
 <% end %>
 <%= form_tag mirror_admin_defaults_path, class: "mirror-default-form", id: "mirror-default-form-#{@type}" do %>

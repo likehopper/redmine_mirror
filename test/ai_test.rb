@@ -54,6 +54,7 @@ class MirrorAiTest < Minitest::Test
     candidates = [["Jérôme Dupont", "4"], ["In progress", "2"], ["Bug", "1"], ["bug", "9"]]
     assert_equal "4", RedmineMirror::NameMatch.suggest("DUPONT, Jerome", candidates)
     assert_equal "2", RedmineMirror::NameMatch.suggest("in-progress", candidates)
+    assert_equal "2", RedmineMirror::NameMatch.suggest("In progress", candidates + [["In progress", "2"]])
     # Two local namesakes: no proposal.
     assert_nil RedmineMirror::NameMatch.suggest("Bug", candidates)
     assert_nil RedmineMirror::NameMatch.suggest(" ", candidates)

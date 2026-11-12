@@ -36,7 +36,7 @@ module RedmineMirror
     # Candidate IDs by key, to suggest for many names without normalizing the candidates
     # again for each one.
     def index(candidates)
-      candidates.group_by { |label, _| key(label) }.transform_values { |pairs| pairs.map(&:last) }
+      candidates.group_by { |label, _| key(label) }.transform_values { |pairs| pairs.map(&:last).uniq }
     end
 
     # Similarity between 0 and 1 (Dice coefficient of the keys' trigrams), used to send the

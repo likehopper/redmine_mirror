@@ -24,7 +24,7 @@ class MirrorDefaultMapping < ActiveRecord::Base
 
   belongs_to :custom_field, optional: true
   validates :reference_type, inclusion: { in: TYPES }
-  validates :mode, inclusion: { in: %w[existing anonymous ignore] }
+  validates :mode, inclusion: { in: %w[existing anonymous ignore priority] }
   validates :source_name, length: { maximum: 255 }
   before_validation :normalize
   validate :validate_rule
@@ -134,6 +134,8 @@ class MirrorDefaultMapping < ActiveRecord::Base
       errors.add(:destination_id, :invalid) unless destination_id.nil?
     when "anonymous"
       errors.add(:mode, :invalid) unless table&.anonymous_allowed?
+      errors.add(:destination_id, :invalid) unless destination_id.nil?
+    when *Array(table&.extra_choices)
       errors.add(:destination_id, :invalid) unless destination_id.nil?
     else
       errors.add(:destination_id, :invalid) unless destination

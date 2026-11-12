@@ -201,8 +201,9 @@ module RedmineMirror
     # destination which lock to open: administrator, project module, shared data, account.
     # Data the administrator does not allow is refused as "disabled": the same lock.
     def refusal(project, kind, user)
-      # The project tree is in Redmine's own API already: no data choice, only the locks.
-      if kind == "subprojects"
+      # Project structure and optional reference aliases are metadata of data already
+      # visible through Redmine's API: no separate sharing choice, only the source locks.
+      if %w[subprojects localized_names].include?(kind)
         return "disabled" unless enabled?
         return project.module_enabled?(:mirror_source) ? nil : "module"
       end

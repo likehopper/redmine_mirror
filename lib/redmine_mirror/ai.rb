@@ -50,7 +50,9 @@ module RedmineMirror
 
     # [[id, name]] of the local references a person sees in this table's form.
     def self.local_candidates(setting, table)
-      table.local_records(setting.project).map { |record| [record.id.to_s, record.name.to_s] }
+      table.local_records(setting.project).flat_map do |record|
+        LocalizedNames.record_names(table.key, record).map { |name| [record.id.to_s, name] }
+      end
     end
 
     # Source references worth asking about: used by the project, unmapped, without a
@@ -61,7 +63,8 @@ module RedmineMirror
       asked = ((catalog.dig("ai_suggestions", "tables", table.key) || {}).keys | (catalog.dig("ai_suggestions", "asked", table.key) || [])).to_set
       names = NameMatch.index(locals.map(&:reverse))
       catalog.fetch(table.key, {}).select do |id, name|
-        (used.nil? || used.include?(id)) && !mapped.include?(id) && !asked.include?(id) && !NameMatch.suggest(name, names)
+        source_names = LocalizedNames.source_names(catalog, table.key, id, name)
+        (used.nil? || used.include?(id)) && !mapped.include?(id) && !asked.include?(id) && source_names.none? { |source_name| NameMatch.suggest(source_name, names) }
       end
     end
 

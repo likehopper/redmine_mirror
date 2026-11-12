@@ -95,6 +95,7 @@ module RedmineMirror
         end
       end
       user_details(tables) if tables.fetch("user", {}).any?
+      localized_names(tables) if source_modules&.include?("mirror_source")
       # "<table>_used" lists the source IDs that the project's records reference.
       used.each { |kind, ids| tables["#{kind}_used"] = ids.uniq.sort_by(&:to_i) }
       # Detected markup of descriptions and notes, shown next to the source text format.
@@ -127,6 +128,26 @@ module RedmineMirror
       rescue StandardError
         [module_key, nil]
       end
+    end
+
+    # Newer Mirror sources expose Localizable aliases. Older sources return 404: this
+    # optional metadata must never prevent the ordinary reference catalog from loading.
+    def localized_names(tables)
+      body = @client.get("projects/#{Integer(@project_id)}/mirror/source/localized_names.json")
+      received = body["localized_names"]
+      return unless received.is_a?(Hash)
+      aliases = {}
+      received.each do |type, records|
+        next unless LocalizedNames::TYPES.include?(type) && records.is_a?(Hash) && tables[type].is_a?(Hash)
+        records.each do |id, names|
+          next unless tables[type].key?(id.to_s)
+          values = Array(names).first(20).map { |name| name.to_s.strip[0, 255] }.reject(&:empty?).uniq
+          ((aliases[type] ||= {})[id.to_s] = values) if values.any?
+        end
+      end
+      tables["reference_aliases"] = aliases if aliases.any?
+    rescue Error
+      nil
     end
 
     # Login, names, email and company of the source users, when the source project shares
