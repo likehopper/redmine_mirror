@@ -25,7 +25,8 @@ module RedmineMirror
     CSV_COLUMNS = %w[type source_name source_url destination custom_field].freeze
     # Without an administrator's fallback for users, a source user with neither a
     # correspondence, an account with the same email nor a single namesake is anonymized.
-    BuiltInRule = Struct.new(:reference_type, :source_key, :source_url, :mode, :destination_id, keyword_init: true)
+    BuiltInRule = Struct.new(:reference_type, :source_key, :source_url, :mode, :destination_id,
+      :destination_value, :custom_field_id, keyword_init: true)
     USER_FALLBACK = BuiltInRule.new(reference_type: "user", source_key: nil, source_url: nil, mode: "anonymous", destination_id: nil).freeze
 
     def built_in_user_fallback?(rules)

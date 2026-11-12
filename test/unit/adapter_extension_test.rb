@@ -67,6 +67,7 @@ class MirrorAdapterExtensionTest < ActionView::TestCase
 
   def test_checklist_names_only_the_parent_configuration_module
     @project.disable_module!(:documents)
+    @project.reload
     @setting.update!(catalog_status: "ready")
     parent = RedmineMirror::Adapters::Documents.new
     child = RedmineMirror::Adapters::Base.new

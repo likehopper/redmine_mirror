@@ -140,11 +140,12 @@ class MirrorDefaultMappingsTest < Redmine::IntegrationTest
     catalog["reference_aliases"] = { "tracker" => { "2" => ["Feature", "Fonction - Exigence"] } }
     @setting.update!(source_catalog: catalog)
     settings = { "locales" => { "tracker" => { "2" => { "fr" => "Exigence" } } } }
-    with_settings(plugin_localizable: settings) do
+    RedmineMirror::LocalizedNames.stub(:localizable_settings, settings) do
       result = RedmineMirror::DefaultMappings.import(
         "type;source_name;destination\ntracker;Fonction - Exigence;Exigence\n")
       assert_equal [1, []], [result.saved, result.errors]
-      assert_equal 1, RedmineMirror::DefaultMappings.apply(@setting)
+      # The explicit tracker rule and the built-in departed-user fallback are saved.
+      assert_equal 2, RedmineMirror::DefaultMappings.apply(@setting)
     end
     assert_equal [2, true], [mapping("tracker", 2).destination_id, mapping("tracker", 2).from_default]
   end
@@ -157,7 +158,8 @@ class MirrorDefaultMappingsTest < Redmine::IntegrationTest
     assert_equal 1, result.saved
     @setting.update!(source_catalog: catalog.merge("reference_aliases" => { "custom_field" => { "900" => ["Sévérité", "Severity"] } }))
 
-    assert_equal 1, RedmineMirror::DefaultMappings.apply(@setting)
+    # The explicit field rule and the built-in departed-user fallback are saved.
+    assert_equal 2, RedmineMirror::DefaultMappings.apply(@setting)
     assert_equal ["priority", nil, true], [mapping("custom_field", 900).mode, mapping("custom_field", 900).destination_id,
       mapping("custom_field", 900).from_default]
   end

@@ -85,13 +85,15 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     settings["locales"]["tracker"]["999"] = { "fr" => "Hors projet" }
     # Keep both a project tracker and an unrelated configured ID: only usable references
     # may leave the source.
-    with_settings(plugin_redmine_mirror: { "source_enabled" => "1" }, plugin_localizable: settings) do
-      get "/projects/ecookbook/mirror/source/localized_names.json", headers: mirror_headers
-      assert_response :success
-      names = JSON.parse(response.body).fetch("localized_names")
-      assert_equal [Tracker.find(1)[:name], "Anomalie"], names.dig("tracker", "1")
-      assert_nil names.dig("tracker", "999")
-      assert_nil names["locales"]
+    RedmineMirror::LocalizedNames.stub(:localizable_settings, settings) do
+      with_settings(plugin_redmine_mirror: { "source_enabled" => "1" }) do
+        get "/projects/ecookbook/mirror/source/localized_names.json", headers: mirror_headers
+        assert_response :success
+        names = JSON.parse(response.body).fetch("localized_names")
+        assert_equal [Tracker.find(1)[:name], "Anomalie"], names.dig("tracker", "1")
+        assert_nil names.dig("tracker", "999")
+        assert_nil names["locales"]
+      end
     end
     access = MirrorSourceAccess.where(session_key: SESSION).last
     assert_equal ["list", { "tracker" => 1, "status" => 1 }], [access.action, access.details.fetch("localized_names")]
