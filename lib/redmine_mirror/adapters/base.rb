@@ -91,6 +91,21 @@ module RedmineMirror
         {}
       end
 
+      # References used by this current source record. Mapping-table fields and indirect
+      # references both count; adapters may override this when their record shape differs.
+      def current_references(record)
+        references = Hash.new { |hash, key| hash[key] = [] }
+        mapping_tables.each { |table| references[table.key].concat(table.references(record)) }
+        used_references(record).each { |kind, values| references[kind].concat(Array(values)) }
+        references["user"].concat(referenced_users(record))
+        references
+      end
+
+      # References mentioned only by immutable history, counted separately in mapping forms.
+      def historical_references(_record)
+        {}
+      end
+
       # Source issue IDs a record belongs to. A record of an issue the run does not
       # import (its tracker or status is ignored) is ignored with it instead of failing.
       def source_issue_ids(_record)

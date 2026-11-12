@@ -25,7 +25,8 @@ module RedmineMirror
     CSV_COLUMNS = %w[type source_name source_url destination custom_field].freeze
     # Without an administrator's fallback for users, a source user with neither a
     # correspondence, an account with the same email nor a single namesake is anonymized.
-    BuiltInRule = Struct.new(:reference_type, :source_key, :source_url, :mode, :destination_id, keyword_init: true)
+    BuiltInRule = Struct.new(:reference_type, :source_key, :source_url, :mode, :destination_id,
+      :destination_value, :custom_field_id, keyword_init: true)
     USER_FALLBACK = BuiltInRule.new(reference_type: "user", source_key: nil, source_url: nil, mode: "anonymous", destination_id: nil).freeze
 
     def built_in_user_fallback?(rules)
@@ -57,13 +58,15 @@ module RedmineMirror
         table_rules = rules.select { |rule| rule.reference_type == table.key }
         next if table_rules.empty?
         records = candidates(table, project)
-        names = NameMatch.index(records.map { |record| [record.name.to_s, record.id.to_s] })
+        names = NameMatch.index(records.flat_map { |record| LocalizedNames.record_names(table.key, record).map { |name| [name, record.id.to_s] } })
         used = catalog["#{table.key}_used"]
         catalog.fetch(table.key, {}).each do |source_id, name|
           row = existing[[table.key, source_id]]
           next if row && !reset
-          rule = pick(table_rules, NameMatch.key(name), setting.source_url)
-          if rule.nil? && row.nil? && (used.nil? || used.include?(source_id)) && !NameMatch.suggest(name, names) &&
+          source_names = LocalizedNames.source_names(catalog, table.key, source_id, name)
+          rule = pick(table_rules, source_names.map { |source_name| NameMatch.key(source_name) }, setting.source_url)
+          namesake = source_names.any? { |source_name| NameMatch.suggest(source_name, names) }
+          if rule.nil? && row.nil? && (used.nil? || used.include?(source_id)) && !namesake &&
              !(table.key == "user" && email_account?(catalog, source_id))
             rule = pick(table_rules, nil, setting.source_url)
           end
@@ -128,9 +131,13 @@ module RedmineMirror
       MirrorProjectSetting.where(catalog_status: [nil, "ready"], use_default_mappings: true).preload(:project).to_a.sum { |setting| apply(setting) }
     end
 
-    def pick(rules, key, url)
-      matching = rules.select { |rule| rule.source_key == key }
-      matching.find { |rule| rule.source_url == url } || matching.find { |rule| rule.source_url.nil? }
+    def pick(rules, keys, url)
+      keys = [keys] unless keys.is_a?(Array)
+      matching = rules.select { |rule| keys.include?(rule.source_key) }
+      scoped = matching.select { |rule| rule.source_url == url }
+      matching = scoped.any? ? scoped : matching.select { |rule| rule.source_url.nil? }
+      signatures = matching.group_by { |rule| [rule.mode, rule.destination_id, rule.destination_value, rule.custom_field_id] }
+      signatures.one? ? signatures.values.first.first : nil
     end
 
     # A local account has the email the source shares for this user: the form proposes it.
@@ -220,7 +227,7 @@ module RedmineMirror
       raise Error, "Unknown type #{values['type']}" unless MirrorDefaultMapping::TYPES.include?(type)
       field = nil
       if type == "custom_field_value"
-        field = find_by_name(MirrorDefaultMapping.list_fields, values["custom_field"]) or raise Error, "Unknown custom field #{values['custom_field']}"
+        field = find_by_name(MirrorDefaultMapping.list_fields, values["custom_field"], type: "custom_field") or raise Error, "Unknown custom field #{values['custom_field']}"
       end
       key = values["source_name"] && NameMatch.key(values["source_name"]).presence
       rule = MirrorDefaultMapping.find_or_initialize_by(reference_type: type, custom_field_id: field&.id,
@@ -233,10 +240,10 @@ module RedmineMirror
                 choices.find { |label, _| NameMatch.key(label) == NameMatch.key(destination) }
         raise Error, "Unknown value #{destination} of #{field.name}" unless value
         rule.mode, rule.destination_id, rule.destination_value = "existing", nil, value.last
-      elsif %w[ignore anonymous].include?(destination.downcase)
+      elsif %w[ignore anonymous].include?(destination.downcase) || MirrorDefaultMapping.table(type)&.extra_choices&.include?(destination.downcase)
         rule.mode, rule.destination_id, rule.destination_value = destination.downcase, nil, nil
       else
-        record = find_by_name(MirrorDefaultMapping.destinations(type), destination) or raise Error, "Unknown destination #{destination}"
+        record = find_by_name(MirrorDefaultMapping.destinations(type), destination, type: type) or raise Error, "Unknown destination #{destination}"
         rule.mode, rule.destination_id, rule.destination_value = "existing", record.id, nil
       end
       rule
@@ -244,13 +251,18 @@ module RedmineMirror
 
     # "#12" is an ID; otherwise the exact name, its login for a user, then the name written
     # differently when only one record has it.
-    def find_by_name(records, text)
+    def find_by_name(records, text, type: nil)
       text = text.to_s.strip
       return nil if text.empty?
       return records.find { |record| record.id == Integer(text[1..-1]) } if text.match?(/\A#\d+\z/)
-      records.find { |record| record.name.to_s.casecmp?(text) } ||
-        records.find { |record| record.respond_to?(:login) && record.login.to_s.casecmp?(text) } ||
-        records.select { |record| NameMatch.key(record.name) == NameMatch.key(text) }.then { |found| found.one? ? found.first : nil }
+      exact = records.select { |record| record.name.to_s.casecmp?(text) }
+      return exact.first if exact.one?
+      logins = records.select { |record| record.respond_to?(:login) && record.login.to_s.casecmp?(text) }
+      return logins.first if logins.one?
+      found = records.select do |record|
+        (type ? LocalizedNames.record_names(type, record) : [record.name]).any? { |name| NameMatch.key(name) == NameMatch.key(text) }
+      end
+      found.one? ? found.first : nil
     end
   end
 end

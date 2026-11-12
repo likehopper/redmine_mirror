@@ -9763,6 +9763,12 @@
       "total_count": 0
     }
   },
+  "projects/1/mirror/source/localized_names.json": {
+    "body": {
+      "localized_names": {
+      }
+    }
+  },
   "projects/1/mirror/source/users.json": {
     "error": "Redmine API returned HTTP 403 for GET projects/1/mirror/source/users.json (Mirror source: not_shared)"
   },

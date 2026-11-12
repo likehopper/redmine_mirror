@@ -64,4 +64,24 @@ class MirrorAdapterExtensionTest < ActionView::TestCase
       assert_equal "5", mirror_object_link("unknown_reference", 5)
     end
   end
+
+  def test_checklist_names_only_the_parent_configuration_module
+    @project.disable_module!(:documents)
+    @project.reload
+    @setting.update!(catalog_status: "ready")
+    parent = RedmineMirror::Adapters::Documents.new
+    child = RedmineMirror::Adapters::Base.new
+    child.define_singleton_method(:key) { "document_attachments" }
+    child.define_singleton_method(:project_module) { :documents }
+    child.define_singleton_method(:configuration_parent) { "documents" }
+    User.current = User.find(1)
+
+    @setting.stub(:adapters, [parent, child]) do
+      labels = I18n.with_locale(:en) { mirror_checklist(@project, @setting).flat_map { |item| Array(item[:buttons]).map(&:first) } }
+      assert_includes labels, "Do not import: Documents"
+      refute labels.any? { |label| label.include?("Document files") }
+    end
+  ensure
+    User.current = nil
+  end
 end

@@ -537,6 +537,12 @@ en:
   text_mirror_sync_help: "Writes into this project with the current mappings."
   text_mirror_sync_confirm: "No preview has succeeded yet. Synchronize anyway?"
   label_mirror_recent_runs: "Recent executions"
+  label_mirror_reference_current_usage:
+    one: "1 current source item"
+    other: "%{count} current source items"
+  label_mirror_reference_history_usage:
+    one: "1 historical change"
+    other: "%{count} historical changes"
   label_mirror_all_history: "Full history"
   label_mirror_source_project_short: "Source project"
   label_mirror_admin_defaults: "Default correspondences"

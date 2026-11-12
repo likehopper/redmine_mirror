@@ -70,6 +70,8 @@ class MirrorDefaultMappingsTest < Redmine::IntegrationTest
     get "/admin/mirror/defaults/new", params: { type: "tracker" }
     assert_response :success
     assert_select "#mirror-default-form-tracker textarea"
+    get "/admin/mirror/defaults/new", params: { type: "custom_field" }
+    assert_select "#mirror-default-destination option[value=priority]", text: "Priority (standard field)"
     # Users only take a fallback.
     get "/admin/mirror/defaults/new", params: { type: "user" }
     assert_select "#mirror-default-form-user textarea", count: 0
@@ -131,6 +133,35 @@ class MirrorDefaultMappingsTest < Redmine::IntegrationTest
     # A generic account need not be a project member.
     refute @project.users.include?(User.find(4))
     assert_equal 4, mapping("user", 70).destination_id
+  end
+
+  def test_localizable_aliases_match_both_sides_without_changing_their_names
+    catalog = @setting.source_catalog
+    catalog["reference_aliases"] = { "tracker" => { "2" => ["Feature", "Fonction - Exigence"] } }
+    @setting.update!(source_catalog: catalog)
+    settings = { "locales" => { "tracker" => { "2" => { "fr" => "Exigence" } } } }
+    RedmineMirror::LocalizedNames.stub(:localizable_settings, settings) do
+      result = RedmineMirror::DefaultMappings.import(
+        "type;source_name;destination\ntracker;Fonction - Exigence;Exigence\n")
+      assert_equal [1, []], [result.saved, result.errors]
+      # The explicit tracker rule and the built-in departed-user fallback are saved.
+      assert_equal 2, RedmineMirror::DefaultMappings.apply(@setting)
+    end
+    assert_equal [2, true], [mapping("tracker", 2).destination_id, mapping("tracker", 2).from_default]
+  end
+
+  def test_custom_field_default_can_feed_the_standard_priority
+    catalog = @setting.source_catalog.merge("custom_field" => { "900" => "Sévérité" }, "custom_field_definitions" => {
+      "900" => { "field_format" => "list", "multiple" => false, "possible_values" => [{ "value" => "Blocking", "label" => "Blocking" }] } })
+    @setting.update!(source_catalog: catalog)
+    result = RedmineMirror::DefaultMappings.import("type;source_name;destination\ncustom_field;Severity;priority\n")
+    assert_equal 1, result.saved
+    @setting.update!(source_catalog: catalog.merge("reference_aliases" => { "custom_field" => { "900" => ["Sévérité", "Severity"] } }))
+
+    # The explicit field rule and the built-in departed-user fallback are saved.
+    assert_equal 2, RedmineMirror::DefaultMappings.apply(@setting)
+    assert_equal ["priority", nil, true], [mapping("custom_field", 900).mode, mapping("custom_field", 900).destination_id,
+      mapping("custom_field", 900).from_default]
   end
 
   def test_project_form_marks_defaults_until_changed

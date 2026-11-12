@@ -74,7 +74,7 @@ the Users tab then offers to create the missing accounts (mirror_settings/_user_
   hidden, rows = rows.partition { |id, _| used && params[:all_references] != "1" && !used.include?(id) && @mapping_values[[table.key, id]].blank? }
   mails = table.key == "user" ? records.each_with_object({}) { |user, index| index[user.mail.downcase] ||= user.id.to_s if user.mail.present? } : {}
   { table: table, special: special, records: records, choices: local_choices, labels: local_choices.to_h { |label, value| [value, label] },
-    names: mirror_name_index(local_choices), rows: rows, hidden: hidden, mails: mails,
+    names: mirror_name_index(local_choices, type: table.key, records: records), rows: rows, hidden: hidden, mails: mails,
     details: table.key == "user" ? catalog.fetch("user_details", {}) : {} }
 end %>
 <% to_map = tables.sum { |entry| entry[:rows].count { |id, _| @mapping_values[[entry[:table].key, id]].blank? } } %>
@@ -103,8 +103,10 @@ end %>
         <% selected = @mapping_values[[table.key, id]] %>
         <% next if filter == (selected.blank? ? "mapped" : "unmapped") %>
         <% info = entry[:details][id] %>
+        <% usage = mirror_reference_usage(catalog, table.key, id) %>
         <% mail_match = selected.blank? && info && info["mail"].present? ? entry[:mails][info["mail"].downcase] : nil %>
-        <% suggestion = selected.blank? ? mail_match || mirror_name_suggestion(entry[:names], name) : nil %>
+        <% source_aliases = @setting.source_catalog.dig("reference_aliases", table.key, id) || [] %>
+        <% suggestion = selected.blank? ? mail_match || mirror_name_suggestion(entry[:names], name, source_aliases) : nil %>
         <% suggested += 1 if suggestion %>
         <%# Then the AI proposal, if one was asked for. %>
         <% ai_proposal = selected.blank? && !suggestion ? mirror_ai_suggestion(ai, labels, table.key, id) : nil %>
@@ -115,6 +117,7 @@ end %>
         <% choices << [labels[value], value] if shared && value.present? && labels.key?(value) %>
         <% choices << [l(:label_mirror_invalid_destination), selected] if selected.present? && !checked && !labels.key?(selected) %>
         <tr class="<%= selected.blank? ? (suggestion || ai_proposal ? 'mirror-suggested' : 'mirror-unmapped') : nil %>"><td><%= name %> (#<%= mirror_object_link(table.key, id, source_url: @setting.source_url) %>)
+          <% if usage %><br><em class="info mirror-reference-usage"><%= usage %></em><% end %>
           <% if info %><br><em class="info mirror-source-user"><%= mirror_source_user_details(info) %></em><% end %></td><td class="<%= 'mirror-special-on' if checked %>">
           <%= label_tag "mirror-#{table.key}-#{id}", l(:label_mirror_destination), class: "hidden-for-sighted" %>
           <%= select_tag "mappings[#{table.key}][#{id}]", options_for_select(choices, value), id: "mirror-#{table.key}-#{id}",
@@ -133,7 +136,8 @@ end %>
     </table>
     <% if shared %><%= content_tag :script, local_choices.reject { |_, value| value.empty? }.to_json.html_safe, type: "application/json", id: "mirror-choices-#{table.key}" %><% end %>
     <% if @setting.source_catalog.fetch(table.key, {}).empty? %><p class="nodata"><%= l(:label_no_data) %></p><% end %>
-    <% if (offer = mirror_ai_offer(ai_config, table, entry[:records].map { |record| [record.id.to_s, record.name.to_s] }, catalog)) && !%w[pending running].include?(@setting.ai_status) %>
+    <% local_names = entry[:records].flat_map { |record| RedmineMirror::LocalizedNames.record_names(table.key, record).map { |name| [record.id.to_s, name] } } %>
+    <% if (offer = mirror_ai_offer(ai_config, table, local_names, catalog)) && !%w[pending running].include?(@setting.ai_status) %>
       <p class="mirror-ai-offer" id="mirror-ai-offer-<%= table.key %>">
         <%= link_to l(:button_mirror_ai_propose), project_mirror_ai_path(@project, module_key: adapter.key, table: table.key), method: :post, class: "mirror-ai-propose" %>
         <em class="info"><%= l(:text_mirror_ai_offer, count: offer[:count], requests: offer[:requests], left: offer[:left]) %></em>

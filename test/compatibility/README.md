@@ -18,7 +18,17 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Minimum declared Redmine version: **5.0** as a destination, **4.0** as a source with
 Mirror source (source only). This is not a compatibility certification.
-Current plugin version: **1.0.0-beta.42**.
+Current plugin version: **1.0.0-beta.43**.
+
+## 1.0.0-beta.43 validation — 2026-11-12
+
+The exact candidate passed the complete Redmine 6.1.4 / Ruby 3.4.11 / Rails
+7.2.3.2 / SQLite 3 runner locally: 331 tests and 1,985 assertions, including
+Chromium, fresh installation, rollback/reinstallation and the standalone adapter
+suites, without failures, errors or skips. The Localizable integration was exercised
+with controlled settings, but was not browser-tested with an installed Localizable
+plugin. No real two-instance synchronization smoke was rerun for these mapping and
+catalog changes.
 
 ## 1.0.0-beta.42 validation — 2026-11-12
 

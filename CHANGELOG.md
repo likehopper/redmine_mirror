@@ -16,6 +16,20 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+## 1.0.0-beta.43 — 2026-11-12
+
+- **Mappings use every Localizable name**: when Localizable is installed, Mirror source
+  shares the original and translated names of the references a project can use. Mirror
+  uses them as aliases for defaults, same-name suggestions and CSV destinations without
+  copying or changing Localizable settings. A source custom field may now take the
+  administrative default `priority` to feed Redmine's standard priority.
+- **Checklist names user-facing modules only**: a project-module warning no longer
+  exposes internal child adapters in the **Do not import** button.
+- **Reference impact is visible before mapping**: every remote reference shows how many
+  current source items use it and, separately, how many historical changes mention it.
+
 ## 1.0.0-beta.42 — 2026-11-12
 
 - **Missing source modules stay grey, without false API warnings**: the reference

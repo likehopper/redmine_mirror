@@ -150,6 +150,9 @@ Saving checks the connection; the worker then loads the source references, which
 take a few minutes on large projects. The page shows its progress and refreshes until
 it has finished. The URL and project cannot be changed afterwards. **Refresh source
 references** reloads them after new users, statuses or activities appear on the source.
+When both plugins are recent and the source runs Localizable, this refresh also reads
+the original and translated names of references available to the project. They are
+matching aliases only: Mirror neither imports nor synchronizes Localizable settings.
 
 Once the references are read, the **Connection** tab lists what to settle, each with a
 one-click fix when your Redmine permissions allow it:
@@ -169,6 +172,9 @@ one-click fix when your Redmine permissions allow it:
 ![Settings to complete](screenshots/configuration/44-setup-fixes.png)
 
 A red counter on a module tab gives the number of references it still has to map.
+Each mapping row gives the number of current source items that use the reference and,
+when applicable, the number of historical changes that mention it. An available source
+value with no count is not used by the data read during the last reference refresh.
 
 ![Modules to map](screenshots/configuration/09-modules-to-map.png)
 
@@ -497,6 +503,9 @@ only, and categories to their managers only, without sharing. On the source Redm
    the login, name, email and company (the user field chosen in the plugin settings, or
    named Company) of the users the destination asks for, only if they are members of the
    project or appear in its data (issues, notes, time entries, watchers, news, wiki, files).
+   If Localizable is installed, Mirror also exposes the original and translated names
+   of references this project can use. This is automatic metadata for matching: there is
+   no additional sharing choice, and no Localizable setting is transferred.
 
    ![Shared data](screenshots/configuration/28-source-sharing.png)
 4. Give the source API account *View documents* (Documents), *View news* (News) or

@@ -60,6 +60,12 @@ module RedmineMirror
       def empty_state; {}; end
       def accept_existing_state?; true; end
 
+      # Field definitions come from catalog_references; count only their current issue use
+      # here, without replacing complete definitions with the shorter issue representation.
+      def current_references(record)
+        { "custom_field" => record.fetch("custom_fields", []) }
+      end
+
       # Historical values can survive after removal from the current source list.
       # Include them so journal translation can use explicit value correspondences.
       def catalog_references(client, project_id)

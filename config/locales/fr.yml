@@ -537,6 +537,12 @@ fr:
   text_mirror_sync_help: "Écrit dans ce projet avec les correspondances actuelles."
   text_mirror_sync_confirm: "Aucune prévisualisation n'a encore réussi. Synchroniser quand même ?"
   label_mirror_recent_runs: "Exécutions récentes"
+  label_mirror_reference_current_usage:
+    one: "1 élément source actuel"
+    other: "%{count} éléments source actuels"
+  label_mirror_reference_history_usage:
+    one: "1 changement historique"
+    other: "%{count} changements historiques"
   label_mirror_all_history: "Tout l'historique"
   label_mirror_source_project_short: "Projet source"
   label_mirror_admin_defaults: "Correspondances par défaut"

@@ -453,9 +453,12 @@ class MirrorCoreTest < Minitest::Test
       { "property" => "attr", "name" => "status_id", "old_value" => "1", "new_value" => "5" },
       { "property" => "attr", "name" => "priority_id", "old_value" => nil, "new_value" => "4" },
       { "property" => "attr", "name" => "subject", "old_value" => "a", "new_value" => "b" },
-      { "property" => "cf", "name" => "status_id", "old_value" => "9", "new_value" => "9" }] }
-    used = RedmineMirror::Adapters::Journals.new.used_references(journal)
+      { "property" => "cf", "name" => "status_id", "old_value" => "9", "new_value" => "9" },
+      { "property" => "cf", "name" => "77", "old_value" => "a", "new_value" => "b" }] }
+    adapter = RedmineMirror::Adapters::Journals.new
+    used = adapter.used_references(journal)
     assert_equal({ "status" => %w[1 5], "priority" => %w[4] }, used)
+    assert_equal({ "status" => %w[1 5], "priority" => %w[4], "custom_field" => %w[77] }, adapter.historical_references(journal))
   end
 
   def test_client_rejects_insecure_or_embedded_credentials
@@ -498,8 +501,34 @@ class MirrorCoreTest < Minitest::Test
     assert_equal "Remote user", catalog.dig("user", "8")
     assert_equal({ "login" => "ruser", "mail" => "user@source.example", "company" => "ACME", "status" => 1 }, catalog.dig("user_details", "8"))
     assert catalog.dig("tracker", "1")
+    assert_equal({ "current" => 1 }, catalog.dig("tracker_usage", "1"))
+    assert_equal({ "current" => 1 }, catalog.dig("status_usage", "1"))
+    assert_equal({ "current" => 1 }, catalog.dig("user_usage", "8"))
+    assert_nil catalog.dig("tracker_usage", "77")
     assert_equal({ "records" => 1 }, catalog.dig("module_statistics", "issue_tracking"))
     assert Time.iso8601(catalog.fetch("read_at"))
+  end
+
+  def test_module_catalog_counts_current_and_historical_reference_usage_separately
+    adapter = RedmineMirror::Adapters::Base.new
+    def adapter.key; "usage"; end
+    def adapter.mapping_tables; [RedmineMirror::MappingTable.new("tracker"), RedmineMirror::MappingTable.new("status")]; end
+    def adapter.catalog_references(*)
+      { "tracker" => [{ "id" => 7, "name" => "Bug" }], "status" => [{ "id" => 9, "name" => "Closed" }] }
+    end
+    def adapter.records(*)
+      [{ "id" => 1, "project" => { "id" => 1 }, "tracker" => { "id" => 7, "name" => "Bug" } }]
+    end
+    def adapter.historical_references(_record); { "status" => [9, 9] }; end
+    client = Object.new
+    client.define_singleton_method(:get) do |path, _params = {}|
+      path == "projects/1.json" ? { "project" => { "id" => 1 } } : raise("Unexpected path #{path}")
+    end
+
+    catalog = RedmineMirror::SourceCatalog.new(client: client, project_id: 1, adapters: [adapter]).fetch
+
+    assert_equal({ "current" => 1 }, catalog.dig("tracker_usage", "7"))
+    assert_equal({ "history" => 1 }, catalog.dig("status_usage", "9"))
   end
 
   # A source that does not share its users still gives a catalog, with the reason.
@@ -560,6 +589,73 @@ class MirrorCoreTest < Minitest::Test
     assert_nil catalog.dig("module_statistics", "project_files")
   end
 
+  def test_module_catalog_keeps_optional_localized_reference_names
+    adapter = RedmineMirror::Adapters::Base.new
+    def adapter.key; "translated"; end
+    def adapter.mapping_tables; [RedmineMirror::MappingTable.new("tracker")]; end
+    def adapter.catalog_references(*); { "tracker" => [{ "id" => 7, "name" => "Anomalie" }] }; end
+    def adapter.records(*); []; end
+    client = Object.new
+    client.define_singleton_method(:get) do |path, _params = {}|
+      case path
+      when "projects/1.json" then { "project" => { "id" => 1, "enabled_modules" => [{ "name" => "mirror_source" }] } }
+      when "projects/1/mirror/source/localized_names.json"
+        { "localized_names" => { "tracker" => { "7" => ["Anomalie", "Bug"] }, "status" => { "9" => ["Hidden"] } } }
+      else raise "Unexpected path #{path}"
+      end
+    end
+
+    catalog = RedmineMirror::SourceCatalog.new(client: client, project_id: 1, adapters: [adapter]).fetch
+
+    assert_equal ["Anomalie", "Bug"], catalog.dig("reference_aliases", "tracker", "7")
+    assert_nil catalog.dig("reference_aliases", "status")
+  end
+
+  def test_localized_names_keep_raw_displayed_and_translated_names
+    record = Struct.new(:id) do
+      def [](key); key == :name ? "Bug" : nil; end
+      def name; "Anomalie"; end
+    end.new(7)
+    settings = { "locales" => { "tracker" => { "7" => { "fr" => "Anomalie", "de" => "Fehler" } } } }
+
+    RedmineMirror::LocalizedNames.stub(:localizable_settings, settings) do
+      assert_equal ["Bug", "Anomalie", "Fehler"], RedmineMirror::LocalizedNames.record_names("tracker", record)
+    end
+  end
+
+  def test_localized_names_respect_reference_visibility
+    field = Struct.new(:visible)
+    visible, hidden = field.new(true), field.new(false)
+    [visible, hidden].each { |record| record.define_singleton_method(:visible_by?) { |_project, _user| self.visible } }
+    project = Struct.new(:all_issue_custom_fields).new([visible, hidden])
+    user = Object.new
+    user.define_singleton_method(:allowed_to?) { |_permission, _project| false }
+
+    assert_equal [visible], RedmineMirror::LocalizedNames.source_records(project, "custom_field", user)
+    assert_empty RedmineMirror::LocalizedNames.source_records(project, "role", user)
+  end
+
+  def test_module_catalog_accepts_a_mirror_source_without_localized_names
+    adapter = RedmineMirror::Adapters::Base.new
+    def adapter.key; "legacy"; end
+    def adapter.mapping_tables; [RedmineMirror::MappingTable.new("tracker")]; end
+    def adapter.catalog_references(*); { "tracker" => [{ "id" => 7, "name" => "Bug" }] }; end
+    def adapter.records(*); []; end
+    client = Object.new
+    client.define_singleton_method(:get) do |path, _params = {}|
+      if path == "projects/1.json"
+        { "project" => { "id" => 1, "enabled_modules" => [{ "name" => "mirror_source" }] } }
+      else
+        raise RedmineMirror::Error, "Redmine API returned HTTP 404 for GET #{path}"
+      end
+    end
+
+    catalog = RedmineMirror::SourceCatalog.new(client: client, project_id: 1, adapters: [adapter]).fetch
+
+    assert_equal "Bug", catalog.dig("tracker", "7")
+    assert_nil catalog["reference_aliases"]
+  end
+
   def test_invalid_url_is_reported_as_a_mirror_error
     assert_raises(RedmineMirror::Error) { RedmineMirror::Client.new(url: "https://invalid host", api_key: "key") }
   end
@@ -610,7 +706,7 @@ class MirrorCoreTest < Minitest::Test
     root = File.expand_path("..", __dir__)
     files = %w[app/controllers/mirror_source_api_controller.rb app/controllers/mirror_source_settings_controller.rb
       app/helpers/mirror_source_api_helper.rb app/models/mirror_source_access.rb app/models/mirror_source_setting.rb
-      lib/redmine_mirror/source.rb] + Dir[File.join(root, "app/views/mirror_source_{api,settings}/*")].map { |path| path.delete_prefix("#{root}/") }
+      lib/redmine_mirror/localized_names.rb lib/redmine_mirror/source.rb] + Dir[File.join(root, "app/views/mirror_source_{api,settings}/*")].map { |path| path.delete_prefix("#{root}/") }
     offenders = files.flat_map do |file|
       File.readlines(File.join(root, file)).each_with_index.select do |line, _|
         code = line.sub(/#.*/, "")

@@ -154,6 +154,12 @@ For user references, add `users` to `dependencies`, provide `referenced_users(re
 for discovery and call `Users#resolve`; never create accounts. The user table is shared
 by the project's modules.
 
+Mirror counts the mapping-table references, `referenced_users` and `used_references`
+of every current record and shows that impact in the mapping form. Override
+`current_references(record)` only when the source record has another shape. References
+found only in immutable history belong in `historical_references(record)` so their count
+is shown separately; see the custom-fields and journals adapters.
+
 ## 5. Resolve dependencies before importing links
 
 Declare dependencies when your payload needs another module's destination IDs:

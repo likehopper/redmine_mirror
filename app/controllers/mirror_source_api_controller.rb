@@ -18,11 +18,11 @@
 
 class MirrorSourceApiController < ApplicationController
   accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :scrum, :queries, :users, :issue_categories,
-    :project_enumerations, :project_enumeration, :repositories, :repository_links, :download, :subprojects
+    :project_enumerations, :project_enumeration, :repositories, :repository_links, :download, :localized_names, :subprojects
   # Once Redmine knows the user, before anything else, the project lookup included: the
   # caller's address and API key.
   before_action :check_caller
-  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users issue_categories project_enumerations repositories subprojects]
+  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users issue_categories project_enumerations repositories localized_names subprojects]
   before_action :find_document, only: :document
   before_action :find_news, only: :news_item
   before_action :find_attachment, only: :download
@@ -126,6 +126,16 @@ class MirrorSourceApiController < ApplicationController
     RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @users.size,
       details: { "users" => @users.map { |user| { "id" => user.id, "title" => user.name } } })
     respond_to { |format| format.api }
+  end
+
+  # Optional aliases supplied by Localizable for references this project can use. They
+  # improve matching only: the destination never imports or updates these translations.
+  def localized_names
+    names = RedmineMirror::LocalizedNames.source_aliases(@project)
+    count = names.values.sum(&:size)
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: count,
+      details: { "localized_names" => names.transform_values(&:size) })
+    render json: { "localized_names" => names }
   end
 
   # The project's own categories, with their sharing with subprojects when this Redmine
@@ -251,6 +261,7 @@ class MirrorSourceApiController < ApplicationController
     when "scrum" then "scrum"
     when "queries" then "queries"
     when "users" then "users"
+    when "localized_names" then "localized_names"
     when "subprojects" then "subprojects"
     when "issue_categories" then "issue_categories"
     when "project_enumerations", "project_enumeration" then "project_enumerations"

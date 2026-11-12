@@ -156,15 +156,25 @@ module MirrorHelper
 
   # A single local reference with the same name, ignoring case, accents, punctuation and
   # word order. index: mirror_name_index of the table's choices.
-  def mirror_name_suggestion(index, name)
-    RedmineMirror::NameMatch.suggest(name, index)
+  def mirror_name_suggestion(index, name, aliases = [])
+    suggestions = ([name] + Array(aliases)).filter_map { |candidate| RedmineMirror::NameMatch.suggest(candidate, index) }.uniq
+    suggestions.one? ? suggestions.first : nil
   end
 
   # The local choices indexed by name, once per table. Labels end with " (#id)" and, for
   # users, their login and email.
-  def mirror_name_index(choices)
+  def mirror_name_index(choices, type: nil, records: [])
     candidates = choices.select { |_, value| value.match?(/\A\d+\z/) }.map { |label, value| [label.sub(/ \(#\d+\)(?: .*)?\z/, ""), value] }
+    candidates.concat(records.flat_map { |record| RedmineMirror::LocalizedNames.record_names(type, record).map { |name| [name, record.id.to_s] } }) if type
     RedmineMirror::NameMatch.index(candidates)
+  end
+
+  def mirror_reference_usage(catalog, type, id)
+    usage = catalog.dig("#{type}_usage", id.to_s) || {}
+    labels = []
+    labels << l(:label_mirror_reference_current_usage, count: usage["current"].to_i) if usage["current"].to_i.positive?
+    labels << l(:label_mirror_reference_history_usage, count: usage["history"].to_i) if usage["history"].to_i.positive?
+    safe_join(labels, " · ") if labels.any?
   end
 
   # The AI proposal for an unmapped source reference, when it is still a valid choice.
@@ -336,7 +346,8 @@ module MirrorHelper
         label = l_or_humanize(name, prefix: "project_module_")
         source_name = adapter.source_project_module
         # Names the Mirror modules the button would unselect.
-        unselect = l(:button_mirror_unselect_named, modules: setting.adapters.select { |entry| entry.project_module == name }.map { |entry| l(entry.label) }.join(", "))
+        modules = setting.adapters.select { |entry| entry.project_module == name && entry.configuration_parent.nil? }
+        unselect = l(:button_mirror_unselect_named, modules: modules.map { |entry| l(entry.label) }.join(", "))
         if source_modules && source_name && !source_modules.include?(source_name.to_s)
           items << { text: l(:text_mirror_source_module_disabled, module: label), actions: [],
             buttons: [[unselect, { fix: "unselect_module", target: name }, manager]] }

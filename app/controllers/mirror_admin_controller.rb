@@ -148,7 +148,7 @@ class MirrorAdminController < ApplicationController
         custom_field_id: input[:custom_field_id].presence)
       if rule.reference_type == "custom_field_value"
         rule.destination_value = destination
-      elsif %w[ignore anonymous].include?(destination)
+      elsif %w[ignore anonymous].include?(destination) || MirrorDefaultMapping.table(rule.reference_type)&.extra_choices&.include?(destination)
         rule.mode = destination
       else
         rule.destination_id = destination.match?(/\A\d+\z/) ? destination.to_i : nil

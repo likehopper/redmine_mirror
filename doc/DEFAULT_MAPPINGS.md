@@ -55,6 +55,10 @@ the form on its own page; **Import CSV** and **Export CSV** are at the top right
   field, for example *10 - Duplicate* → *Duplicate*.
 - **Per source**: a default may be limited to one source Redmine URL; it then wins over
   the default for any source.
+- **Localized names**: when Localizable is installed, the original name and all its
+  translations are aliases of the same source or destination ID. Mirror source shares
+  only these names for references the project can use; it does not copy or update the
+  Localizable configuration. Ambiguous aliases never choose a destination.
 
 ## When they apply
 
@@ -96,7 +100,7 @@ Neither button reads the source again: refresh the source references first for n
 | `type` | `tracker`, `status`, `priority`, `activity`, `document_category`, `role`, `group`, `custom_field`, `user` or `custom_field_value` |
 | `source_name` | The source name; empty for the fallback |
 | `source_url` | Optional: the source Redmine the default is limited to |
-| `destination` | A local name, a login, `#ID`, `ignore` or `anonymous`; for a value, its label |
+| `destination` | A local name (including a Localizable alias), a login, `#ID`, `ignore`, `anonymous`, or `priority` for a source custom field; for a value, its label |
 | `custom_field` | For `custom_field_value` only: the local list field |
 
 ```csv
@@ -104,6 +108,7 @@ type;source_name;source_url;destination;custom_field
 tracker;Feature;;Requirement;
 priority;Haute;;High;
 status;;;Archived;
+custom_field;Severity;;priority;
 role;Former reader;;ignore;
 user;;;#12;
 custom_field_value;10 - Duplicate;;Duplicate;Resolution
@@ -120,7 +125,10 @@ with the type, source URL and name of an existing default replaces it.
 
 ## Limits
 
-- A source reference that changes kind (a source priority becoming a local custom field,
-  or the reverse) is not a correspondence: it needs a transformation, not covered here.
+- A list custom field can feed Redmine's standard priority with `priority`. Other changes
+  of kind (for example a source priority becoming a local custom field) remain
+  transformations, not default correspondences.
+- Localizable does not translate the possible values of ordinary list custom fields;
+  their French and English aliases still need separate `custom_field_value` CSV lines.
 - Field settings after an import (required again, *For all projects* unchecked) stay
   manual.
