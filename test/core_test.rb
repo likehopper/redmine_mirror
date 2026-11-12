@@ -453,9 +453,12 @@ class MirrorCoreTest < Minitest::Test
       { "property" => "attr", "name" => "status_id", "old_value" => "1", "new_value" => "5" },
       { "property" => "attr", "name" => "priority_id", "old_value" => nil, "new_value" => "4" },
       { "property" => "attr", "name" => "subject", "old_value" => "a", "new_value" => "b" },
-      { "property" => "cf", "name" => "status_id", "old_value" => "9", "new_value" => "9" }] }
-    used = RedmineMirror::Adapters::Journals.new.used_references(journal)
+      { "property" => "cf", "name" => "status_id", "old_value" => "9", "new_value" => "9" },
+      { "property" => "cf", "name" => "77", "old_value" => "a", "new_value" => "b" }] }
+    adapter = RedmineMirror::Adapters::Journals.new
+    used = adapter.used_references(journal)
     assert_equal({ "status" => %w[1 5], "priority" => %w[4] }, used)
+    assert_equal({ "status" => %w[1 5], "priority" => %w[4], "custom_field" => %w[77] }, adapter.historical_references(journal))
   end
 
   def test_client_rejects_insecure_or_embedded_credentials
@@ -498,8 +501,34 @@ class MirrorCoreTest < Minitest::Test
     assert_equal "Remote user", catalog.dig("user", "8")
     assert_equal({ "login" => "ruser", "mail" => "user@source.example", "company" => "ACME", "status" => 1 }, catalog.dig("user_details", "8"))
     assert catalog.dig("tracker", "1")
+    assert_equal({ "current" => 1 }, catalog.dig("tracker_usage", "1"))
+    assert_equal({ "current" => 1 }, catalog.dig("status_usage", "1"))
+    assert_equal({ "current" => 1 }, catalog.dig("user_usage", "8"))
+    assert_nil catalog.dig("tracker_usage", "77")
     assert_equal({ "records" => 1 }, catalog.dig("module_statistics", "issue_tracking"))
     assert Time.iso8601(catalog.fetch("read_at"))
+  end
+
+  def test_module_catalog_counts_current_and_historical_reference_usage_separately
+    adapter = RedmineMirror::Adapters::Base.new
+    def adapter.key; "usage"; end
+    def adapter.mapping_tables; [RedmineMirror::MappingTable.new("tracker"), RedmineMirror::MappingTable.new("status")]; end
+    def adapter.catalog_references(*)
+      { "tracker" => [{ "id" => 7, "name" => "Bug" }], "status" => [{ "id" => 9, "name" => "Closed" }] }
+    end
+    def adapter.records(*)
+      [{ "id" => 1, "project" => { "id" => 1 }, "tracker" => { "id" => 7, "name" => "Bug" } }]
+    end
+    def adapter.historical_references(_record); { "status" => [9, 9] }; end
+    client = Object.new
+    client.define_singleton_method(:get) do |path, _params = {}|
+      path == "projects/1.json" ? { "project" => { "id" => 1 } } : raise("Unexpected path #{path}")
+    end
+
+    catalog = RedmineMirror::SourceCatalog.new(client: client, project_id: 1, adapters: [adapter]).fetch
+
+    assert_equal({ "current" => 1 }, catalog.dig("tracker_usage", "7"))
+    assert_equal({ "history" => 1 }, catalog.dig("status_usage", "9"))
   end
 
   # A source that does not share its users still gives a catalog, with the reason.

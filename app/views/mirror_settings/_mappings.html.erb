@@ -103,6 +103,7 @@ end %>
         <% selected = @mapping_values[[table.key, id]] %>
         <% next if filter == (selected.blank? ? "mapped" : "unmapped") %>
         <% info = entry[:details][id] %>
+        <% usage = mirror_reference_usage(catalog, table.key, id) %>
         <% mail_match = selected.blank? && info && info["mail"].present? ? entry[:mails][info["mail"].downcase] : nil %>
         <% source_aliases = @setting.source_catalog.dig("reference_aliases", table.key, id) || [] %>
         <% suggestion = selected.blank? ? mail_match || mirror_name_suggestion(entry[:names], name, source_aliases) : nil %>
@@ -116,6 +117,7 @@ end %>
         <% choices << [labels[value], value] if shared && value.present? && labels.key?(value) %>
         <% choices << [l(:label_mirror_invalid_destination), selected] if selected.present? && !checked && !labels.key?(selected) %>
         <tr class="<%= selected.blank? ? (suggestion || ai_proposal ? 'mirror-suggested' : 'mirror-unmapped') : nil %>"><td><%= name %> (#<%= mirror_object_link(table.key, id, source_url: @setting.source_url) %>)
+          <% if usage %><br><em class="info mirror-reference-usage"><%= usage %></em><% end %>
           <% if info %><br><em class="info mirror-source-user"><%= mirror_source_user_details(info) %></em><% end %></td><td class="<%= 'mirror-special-on' if checked %>">
           <%= label_tag "mirror-#{table.key}-#{id}", l(:label_mirror_destination), class: "hidden-for-sighted" %>
           <%= select_tag "mappings[#{table.key}][#{id}]", options_for_select(choices, value), id: "mirror-#{table.key}-#{id}",

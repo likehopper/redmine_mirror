@@ -25,6 +25,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   administrative default `priority` to feed Redmine's standard priority.
 - **Checklist names user-facing modules only**: a project-module warning no longer
   exposes internal child adapters in the **Do not import** button.
+- **Reference impact is visible before mapping**: every remote reference shows how many
+  current source items use it and, separately, how many historical changes mention it.
 
 ## 1.0.0-beta.42 — 2026-11-12
 

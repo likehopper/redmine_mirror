@@ -35,6 +35,7 @@ module RedmineMirror
       # The subprojects running Mirror source, for the Connection tab's subproject table.
       tables["subprojects"], tables["subprojects_refusal"] = subprojects
       used = Hash.new { |hash, key| hash[key] = [] }
+      usage = Hash.new { |hash, kind| hash[kind] = Hash.new { |records, id| records[id] = Hash.new(0) } }
       formats = Hash.new(0)
       statistics = {}
       @adapters.each_with_index do |adapter, index|
@@ -89,6 +90,8 @@ module RedmineMirror
             adapter.used_references(record).each do |kind, ids|
               used[kind].concat(ids.map { |id| Integer(id).to_s }) if tables.key?(kind)
             end
+            count_reference_usage(usage, adapter.current_references(record), "current", tables)
+            count_reference_usage(usage, adapter.historical_references(record), "history", tables)
           end
         rescue Error => error
           (tables["module_errors"] ||= {})[adapter.key] = error.message
@@ -98,6 +101,7 @@ module RedmineMirror
       localized_names(tables) if source_modules&.include?("mirror_source")
       # "<table>_used" lists the source IDs that the project's records reference.
       used.each { |kind, ids| tables["#{kind}_used"] = ids.uniq.sort_by(&:to_i) }
+      usage.each { |kind, records| tables["#{kind}_usage"] = records.transform_values(&:to_h) }
       # Detected markup of descriptions and notes, shown next to the source text format.
       tables["text_formats"] = formats unless formats.empty?
       # Per module: records of the project and adapter statistics, with the time they
@@ -108,6 +112,17 @@ module RedmineMirror
     end
 
     private
+
+    # One source record counts once for each reference ID, even if the same ID occurs in
+    # several fields of that record.
+    def count_reference_usage(usage, references, scope, tables)
+      references.each do |kind, values|
+        next unless tables[kind].is_a?(Hash)
+        ids = Array(values).map { |value| value.is_a?(Hash) ? value["id"] || value[:id] : value }
+          .compact.map { |id| Integer(id).to_s }.uniq
+        ids.each { |id| usage[kind][id][scope] += 1 }
+      end
+    end
 
     # Counts of members, categories and versions of the source project, each nil when
     # the account cannot list them (or anything else goes wrong: it is only a hint). One

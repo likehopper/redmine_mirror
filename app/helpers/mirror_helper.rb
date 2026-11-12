@@ -169,6 +169,14 @@ module MirrorHelper
     RedmineMirror::NameMatch.index(candidates)
   end
 
+  def mirror_reference_usage(catalog, type, id)
+    usage = catalog.dig("#{type}_usage", id.to_s) || {}
+    labels = []
+    labels << l(:label_mirror_reference_current_usage, count: usage["current"].to_i) if usage["current"].to_i.positive?
+    labels << l(:label_mirror_reference_history_usage, count: usage["history"].to_i) if usage["history"].to_i.positive?
+    safe_join(labels, " · ") if labels.any?
+  end
+
   # The AI proposal for an unmapped source reference, when it is still a valid choice.
   # ai: the "ai_suggestions" entry of the source catalog; labels: choice labels by value.
   def mirror_ai_suggestion(ai, labels, kind, source_id)

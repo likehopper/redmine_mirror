@@ -172,6 +172,9 @@ one-click fix when your Redmine permissions allow it:
 ![Settings to complete](screenshots/configuration/44-setup-fixes.png)
 
 A red counter on a module tab gives the number of references it still has to map.
+Each mapping row gives the number of current source items that use the reference and,
+when applicable, the number of historical changes that mention it. An available source
+value with no count is not used by the data read during the last reference refresh.
 
 ![Modules to map](screenshots/configuration/09-modules-to-map.png)
 

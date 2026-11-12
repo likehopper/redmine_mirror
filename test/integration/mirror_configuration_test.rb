@@ -28,7 +28,8 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     @setting.selected_modules = %w[issue_tracking time_tracking]
     @setting.api_key = "private-api-key"
     @setting.source_catalog = { "tracker" => { "1" => "Bug", "2" => "Remote tracker" }, "status" => { "1" => "Open" },
-      "priority" => { "1" => "Normal" }, "user" => { "7" => "Remote Alice" }, "activity" => { "9" => "Development" } }
+      "priority" => { "1" => "Normal" }, "user" => { "7" => "Remote Alice" }, "activity" => { "9" => "Development" },
+      "activity_usage" => { "9" => { "current" => 12, "history" => 2 } } }
     @setting.catalog_status = "ready"
     @setting.save!
   end
@@ -72,6 +73,12 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     assert_select "#mirror-tracker-1"
     assert_select "#mirror-tracker-2"
     assert_select "input[type=hidden][name=mirror_filter][value=all]"
+  end
+
+  def test_mapping_rows_show_current_and_historical_source_usage
+    log_user("admin", "admin")
+    settings("time_tracking")
+    assert_select "#mirror-table-activity .mirror-reference-usage", text: "12 current source items · 2 historical changes"
   end
 
   # Long lists are sent once per table: each row only holds the empty choice and its value.

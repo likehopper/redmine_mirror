@@ -32,6 +32,19 @@ module RedmineMirror
         end
       end
 
+      def current_references(record)
+        { "user" => referenced_users(record) }
+      end
+
+      def historical_references(record)
+        references = used_references(record)
+        fields = record.fetch("details", []).each_with_object([]) do |detail, ids|
+          id = detail["property"] == "cf" ? Integer(detail["name"].to_s, exception: false) : nil
+          ids << id.to_s if id
+        end
+        references.merge(fields.empty? ? {} : { "custom_field" => fields })
+      end
+
       def imported_attributes(record, mappings, lookup: nil, project: nil)
         fields = CustomFields.new
         details = record.fetch("details", []).filter_map do |detail|
