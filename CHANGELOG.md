@@ -23,6 +23,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   uses them as aliases for defaults, same-name suggestions and CSV destinations without
   copying or changing Localizable settings. A source custom field may now take the
   administrative default `priority` to feed Redmine's standard priority.
+- **Checklist names user-facing modules only**: a project-module warning no longer
+  exposes internal child adapters in the **Do not import** button.
 
 ## 1.0.0-beta.42 — 2026-11-12
 

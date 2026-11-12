@@ -338,7 +338,8 @@ module MirrorHelper
         label = l_or_humanize(name, prefix: "project_module_")
         source_name = adapter.source_project_module
         # Names the Mirror modules the button would unselect.
-        unselect = l(:button_mirror_unselect_named, modules: setting.adapters.select { |entry| entry.project_module == name }.map { |entry| l(entry.label) }.join(", "))
+        modules = setting.adapters.select { |entry| entry.project_module == name && entry.configuration_parent.nil? }
+        unselect = l(:button_mirror_unselect_named, modules: modules.map { |entry| l(entry.label) }.join(", "))
         if source_modules && source_name && !source_modules.include?(source_name.to_s)
           items << { text: l(:text_mirror_source_module_disabled, module: label), actions: [],
             buttons: [[unselect, { fix: "unselect_module", target: name }, manager]] }
