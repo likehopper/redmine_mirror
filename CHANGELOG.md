@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.44 — 2026-11-12
 
 - **Only used references need correspondences**: references known to be unused stay
   outside the mapping counters and behind the unused-references link, even when an old
