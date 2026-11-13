@@ -40,6 +40,14 @@ module RedmineMirror
       key == "user"
     end
 
+    # A source custom field can replace the standard source priority entirely. Keep the
+    # priority references in the catalog for history and later configuration changes, but
+    # do not ask the project manager to map a table the issue adapter will not read.
+    def unused?(setting)
+      key == "priority" && setting.selected_modules.include?("issue_custom_fields") &&
+        setting.project.mirror_reference_mappings.exists?(reference_type: "custom_field", mode: "priority")
+    end
+
     # Destinations other than a local object, offered after them (a field feeding the priority).
     def extra_choices; []; end
 

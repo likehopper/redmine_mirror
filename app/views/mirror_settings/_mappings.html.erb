@@ -61,7 +61,7 @@ the Users tab then offers to create the missing accounts (mirror_settings/_user_
 <%# Each table's rows, computed before the form so that the filter counts them all. Only
     references used by the source project are listed unless all are requested. Unsaved
     proposals count as to map. %>
-<% tables = adapter.mapping_tables.map do |table|
+<% tables = adapter.mapping_tables.reject { |table| table.unused?(@setting) }.map do |table|
   # The special choice (anonymize, do not give, ignore) is a checkbox beside the field.
   special = if table.anonymous_allowed? then ["anonymous", l(:label_mirror_anonymous)]
             elsif table.ignore_allowed? then ["ignore", l(table.ignore_label)] end

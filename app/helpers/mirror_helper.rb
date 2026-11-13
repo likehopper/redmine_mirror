@@ -62,6 +62,7 @@ module MirrorHelper
       setting.adapters.each_with_object({}) do |adapter, counts|
         next if adapter.configuration_parent
         count = adapter.mapping_tables.sum do |table|
+          next 0 if table.unused?(setting)
           next 0 if table.respond_to?(:unmapped_allowed?) && table.unmapped_allowed?(setting)
           ids = catalog.fetch(table.key, {}).keys
           used = catalog["#{table.key}_used"]
@@ -359,6 +360,7 @@ module MirrorHelper
         end
       end
       adapter.mapping_tables.each do |table|
+        next if table.unused?(setting)
         next if table.respond_to?(:unmapped_allowed?) && table.unmapped_allowed?(setting)
         used = catalog["#{table.key}_used"]&.to_set
         missing = catalog.fetch(table.key, {}).select { |id, _| (used.nil? || used.include?(id)) && !mapped_keys.include?([table.key, id]) }
