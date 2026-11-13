@@ -16,6 +16,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+- **Unused priority mappings stay out of project setup**: when an issue custom field
+  supplies Redmine's standard priority, the source priority table is hidden and no
+  longer contributes to the module badge or setup checklist.
+
 ## 1.0.0-beta.44 — 2026-11-12
 
 - **Only used references need correspondences**: references known to be unused stay

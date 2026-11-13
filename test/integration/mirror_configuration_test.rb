@@ -79,6 +79,25 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     assert_select "input[type=hidden][name=mirror_filter][value=all]"
   end
 
+  def test_priority_table_is_not_required_when_a_custom_field_feeds_the_priority
+    catalog = @setting.source_catalog.merge(
+      "custom_field" => { "950" => "Severity" },
+      "custom_field_definitions" => { "950" => { "field_format" => "list", "multiple" => false,
+        "possible_values" => [{ "value" => "low" }, { "value" => "high" }] } }
+    )
+    @setting.update!(selected_modules: %w[issue_tracking issue_custom_fields], source_catalog: catalog)
+    @project.mirror_reference_mappings.create!(reference_type: "custom_field", source_id: 950, mode: "priority")
+
+    log_user("admin", "admin")
+    settings("issue_tracking")
+
+    assert_select "#mirror-priority-from-field", text: /Severity/
+    assert_select "#mirror-table-priority", count: 0
+    assert_select "#mirror-mapping-filter strong", text: "to map (3)"
+    # The global badge also includes the one unmapped source user from the fixture.
+    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=modules'] .mirror-badge", text: "4"
+  end
+
   def test_mapping_rows_show_current_and_historical_source_usage
     log_user("admin", "admin")
     settings("time_tracking")
