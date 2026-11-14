@@ -29,6 +29,12 @@ module RedmineMirror
         end
       end
 
+      def records_for(client, project_id, source_ids)
+        Issues.new.records_for(client, project_id, source_ids).map do |issue|
+          issue_detail(client, issue.fetch("id"), "watchers")
+        end
+      end
+
       # Secondary state has its own fingerprint, independent of the issue REST pass.
       # First imports must also respect adapter-specific existing local state.
       def synchronize(record, project_id:, mappings:, lookup:, store:, source:, apply:)

@@ -18,7 +18,18 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Minimum declared Redmine version: **5.0** as a destination, **4.0** as a source with
 Mirror source (source only). This is not a compatibility certification.
-Current plugin version: **1.0.0-beta.45**.
+Current plugin version: **1.0.0-beta.46**.
+
+## 1.0.0-beta.46 validation — 2026-11-14
+
+The candidate passed the Redmine 6.1.4 / Ruby 3.4.11 / Rails 7.2.3.2 /
+SQLite 3 runner locally: 349 tests and 2,077 assertions, including Chromium, fresh
+installation, rollback/reinstallation and the standalone adapter suites, without
+failures, errors or skips. The incremental protocol also passed a real two-instance
+smoke from a Mirror source on Redmine 4.2.10 / Ruby 2.7.8 into this destination:
+partial baseline, targeted retry after adding a missing mapping, one changed issue,
+destination acknowledgement and no reproposal. The wider inter-version harness stopped
+in Selenium before its other smokes; PostgreSQL, MariaDB and MySQL were not tested.
 
 ## 1.0.0-beta.45 validation — 2026-11-13
 

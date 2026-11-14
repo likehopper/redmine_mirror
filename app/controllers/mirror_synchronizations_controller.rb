@@ -42,7 +42,7 @@ class MirrorSynchronizationsController < ApplicationController
   def create
     raise RedmineMirror::Error, "Invalid synchronization mode" unless %w[preview apply].include?(params[:mode])
     run = RedmineMirror::Synchronization.enqueue(@setting, apply: params[:mode] == "apply", trigger: "manual", user: User.current,
-      confirm_deletions: params[:confirm_deletions] == "1")
+      confirm_deletions: params[:confirm_deletions] == "1", force_full: params[:force_full] == "1")
     flash[:notice] = l(:text_mirror_sync_queued)
     redirect_to project_mirror_run_path(@project, run)
   rescue RedmineMirror::Error => error

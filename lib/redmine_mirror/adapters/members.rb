@@ -53,6 +53,7 @@ module RedmineMirror
     # wins, a member's own roles are exactly the mapped source roles.
     class Members < Base
       def key; "project_members"; end
+      def incremental?; true; end
       def phase; :references; end
       def dependencies; ["users"]; end
       def mapping_tables; [RoleMappingTable.new, GroupMappingTable.new]; end
@@ -75,6 +76,10 @@ module RedmineMirror
             break if rows.empty? || offset >= Integer(page.fetch("total_count"))
           end
         end
+      end
+
+      def records_for(client, _project_id, source_ids)
+        source_ids.sort.map { |id| client.get("memberships/#{Integer(id)}.json").fetch("membership") }
       end
 
       UNMAPPED = %w[block skip].freeze

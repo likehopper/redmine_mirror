@@ -339,6 +339,13 @@ issue numbers, links to the source Redmine, images and links to attachments. Cli
 to list the objects concerned, each with its local and source links. The preview shows
 them too, before anything is written.
 
+The first successful import is complete. Later runs ask Mirror source only for additions,
+modifications and explicit deletions not yet acknowledged by this destination. A preview
+never acknowledges them. An object in error stays proposed and is also retained in the
+destination retry queue; adding its missing correspondence retries it without rereading
+the whole project. Use **Full synchronization** when you intentionally want to reconcile
+every selected object again.
+
 ![Import log](screenshots/configuration/16-import-log.png)
 
 Once a synchronization has succeeded, **Overview** no longer shows Getting started.

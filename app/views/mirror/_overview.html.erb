@@ -40,6 +40,8 @@ Overview: getting started, source and schedule, actions, current execution, item
         <em class="info"><%= l(:text_mirror_sync_help) %></em></p>
       <%# Deletions beyond the safety limit wait for this explicit confirmation. %>
       <% awaiting = !active && current&.apply? ? current.log_events.count { |event| event["action"] == "error" && event["reason"].to_s.start_with?("Deletion awaits confirmation") } : 0 %>
+      <p><%= button_to l(:button_mirror_full_sync), project_mirror_enqueue_path(@project), params: { mode: "apply", force_full: "1" }, method: :post,
+               form_class: "mirror-inline-form", disabled: active.present?, data: { confirm: l(:text_mirror_full_sync_confirm) } %></p>
       <% if awaiting.positive? %>
         <p class="warning" id="mirror-confirm-deletions"><%= l(:text_mirror_deletions_await, count: awaiting) %>
           <%= link_to l(:label_mirror_log), project_mirror_run_path(@project, current, action_filter: "error") %></p>

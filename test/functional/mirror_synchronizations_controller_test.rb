@@ -52,6 +52,12 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     assert flash[:error].present?
   end
 
+  def test_manual_full_synchronization_is_explicitly_queued
+    post :create, params: { project_id: @project.identifier, mode: "apply", force_full: "1" }
+    assert_response :redirect
+    assert @project.mirror_sync_runs.order(:id).last.force_full?
+  end
+
   def test_queued_run_is_cancelled_and_a_running_one_asked_to_stop
     run = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual")
     patch :cancel, params: { project_id: @project.identifier, id: run.id }
@@ -290,8 +296,11 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
   def execute_with(runner, on_error:, apply: true)
     @setting.update!(on_error: on_error)
     run = RedmineMirror::Synchronization.enqueue(@setting, apply: apply, trigger: "manual")
+    change_set = RedmineMirror::ChangeSet.new(cursor: 0, changes: [], full_required: true, supported: false)
     with_destination_env do
-      RedmineMirror::Runner.stub(:new, runner) { RedmineMirror::Synchronization.execute(run) }
+      RedmineMirror::ChangeSet.stub(:read, change_set) do
+        RedmineMirror::Runner.stub(:new, runner) { RedmineMirror::Synchronization.execute(run) }
+      end
     end
     run.reload
   end

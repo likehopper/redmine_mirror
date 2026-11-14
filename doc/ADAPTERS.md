@@ -281,8 +281,16 @@ or extend Mirror with code and tests (see below).
 ## What Mirror already handles
 
 `Runner` compares fingerprints, writes REST objects, stores source/local IDs and emits
-progress and log events. `Synchronization` previews everything before applying, holds the
-project lease and handles schedules. Registered adapters get all of this for free.
+progress and log events. `Synchronization` prevalidates the planned records before
+applying, holds the project lease and handles schedules. Registered adapters get all of
+this for free.
+
+External adapters are complete-pass adapters by default. To opt into incremental reads,
+return `true` from `incremental?`, implement `records_for(client, project_id, source_ids)`,
+and make the source-side model callbacks call `RedmineMirror::SourceChanges.record` with
+the adapter key, numeric source ID and `action: "delete"` for a tombstone. If the record
+is a child fetched through its parent, include `parent_id`. Mirror handles per-destination
+acknowledgements and retries; do not infer a deletion from absence in an incremental list.
 
 There is no transaction across HTTP writes and mapping storage, no propagated deletion
 and no forced overwrite. Your endpoints must not leak private data in notifications or logs.

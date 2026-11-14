@@ -44,8 +44,8 @@ seeds=(issue_state_seed custom_fields_seed locked_seed wiki_seed members_seed fi
 smokes=(smoke synchronization_smoke history_smoke relations_smoke issue_state_smoke custom_fields_smoke conflicts_smoke locked_smoke wiki_smoke members_smoke mirror_mode_smoke files_smoke)
 if [ "${MIRROR_SOURCE_PLUGIN:-}" = 1 ]; then
   "${compose[@]}" exec -T source bundle exec rails runner 'puts "Source Mirror #{RedmineMirror::VERSION}, source only: #{RedmineMirror.source_only?}"'
-  seeds+=(documents_seed)
-  smokes+=(documents_smoke)
+  seeds+=(documents_seed incremental_source_seed)
+  smokes+=(documents_smoke incremental_smoke)
 fi
 for seed in "${seeds[@]}"; do
   # A seed normally takes seconds, but the Redmine 4.2 source occasionally stalls: bound

@@ -78,7 +78,7 @@ class MirrorControllerTest < ActionController::TestCase
     assert_select "#mirror-step-mappings.mirror-step-current a[href='/projects/ecookbook/settings/mirror?mirror_tab=modules']"
     assert_select "#mirror-step-mappings .mirror-step-detail", text: "Users 1, Issues 3, Time tracking 1"
     assert_select "#mirror-source-summary a[href='https://source.example/redmine/projects/legacy']"
-    assert_select "#mirror-actions form", count: 2
+    assert_select "#mirror-actions form", count: 3
     assert_no_match "private-api-key", response.body
   end
 
@@ -112,7 +112,7 @@ class MirrorControllerTest < ActionController::TestCase
     grant(:run_mirror)
     @request.session[:user_id] = 2
     get :index, params: { project_id: @project.identifier }
-    assert_select "#mirror-actions form", count: 2
+    assert_select "#mirror-actions form", count: 3
     assert_select ".contextual a.icon-settings", count: 0
   end
 

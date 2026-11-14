@@ -66,6 +66,15 @@ Redmine::Plugin.register :redmine_mirror do
 end
 
 Project.include(RedmineMirror::ProjectPatch) unless Project < RedmineMirror::ProjectPatch
+Issue.include(RedmineMirror::SourceChanges::IssuePatch) unless Issue < RedmineMirror::SourceChanges::IssuePatch
+TimeEntry.include(RedmineMirror::SourceChanges::TimeEntryPatch) unless TimeEntry < RedmineMirror::SourceChanges::TimeEntryPatch
+Member.include(RedmineMirror::SourceChanges::MemberPatch) unless Member < RedmineMirror::SourceChanges::MemberPatch
+MemberRole.include(RedmineMirror::SourceChanges::MemberRolePatch) unless MemberRole < RedmineMirror::SourceChanges::MemberRolePatch
+Journal.include(RedmineMirror::SourceChanges::JournalPatch) unless Journal < RedmineMirror::SourceChanges::JournalPatch
+Attachment.include(RedmineMirror::SourceChanges::AttachmentPatch) unless Attachment < RedmineMirror::SourceChanges::AttachmentPatch
+IssueRelation.include(RedmineMirror::SourceChanges::IssueRelationPatch) unless IssueRelation < RedmineMirror::SourceChanges::IssueRelationPatch
+Watcher.include(RedmineMirror::SourceChanges::IssueAssociationPatch) unless Watcher < RedmineMirror::SourceChanges::IssueAssociationPatch
+CustomValue.include(RedmineMirror::SourceChanges::IssueAssociationPatch) unless CustomValue < RedmineMirror::SourceChanges::IssueAssociationPatch
 # The settings tab is added by a helper of ProjectsController, not by patching
 # ProjectsHelper: plugins that chain project_settings_tabs with alias_method would
 # capture a prepended method and break its call to super.

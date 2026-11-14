@@ -42,6 +42,7 @@ module RedmineMirror
       end
 
       def key; "issue_tracking"; end
+      def incremental?; true; end
       def project_module; :issue_tracking; end
       def text_samples(record); [record["description"]]; end
       def collection; "issues"; end
@@ -54,6 +55,12 @@ module RedmineMirror
       # correspondence namespace, configuration and independent synchronization.
       def filters(project_id)
         super.merge("status_id" => "*", "subproject_id" => "!*", "sort" => "id:asc")
+      end
+
+      def records_for(client, project_id, source_ids)
+        source_ids.sort.map { |id| client.get("issues/#{Integer(id)}.json").fetch("issue") }.select do |record|
+          record.fetch("project").fetch("id").to_i == project_id.to_i
+        end
       end
 
       # A tracker or status mapped to "ignore": its issues, and what belongs to them, are

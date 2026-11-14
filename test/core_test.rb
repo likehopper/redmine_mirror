@@ -27,6 +27,21 @@ class MirrorCoreTest < Minitest::Test
     def resolve_issue(_id); nil; end
   end
 
+
+  class RetryStore < Store
+    attr_reader :retry_rows
+    def initialize
+      super
+      @retry_rows = []
+    end
+    def retries; @retry_rows.dup; end
+    def record_retry(key, id, error, action: "upsert", parent_id: nil)
+      @retry_rows.reject! { |row| row["module_key"] == key && row["source_id"] == id }
+      @retry_rows << { "module_key" => key, "source_id" => id, "action" => action, "parent_id" => parent_id, "message" => error.message }
+    end
+    def resolve_retry(key, id); @retry_rows.reject! { |row| row["module_key"] == key && row["source_id"] == id }; end
+  end
+
   class Api
     attr_reader :writes, :records
     def initialize(records = {})
@@ -157,6 +172,20 @@ class MirrorCoreTest < Minitest::Test
     assert_equal 9, @issues.deleted.size
   end
 
+  def test_incremental_deletions_keep_the_mass_deletion_confirmation
+    runner = mirror_runner(30)
+    config = @config.merge("source_wins" => true)
+    runner.run(config, apply: true)
+    changes = (4..10).map do |id|
+      { "id" => 100 + id, "module_key" => "issue_tracking", "source_id" => id, "action" => "delete" }
+    end
+    blocked = runner.run(config.merge("incremental" => true, "changes" => changes, "on_error" => "collect"), apply: true)
+    assert_equal 7, blocked.count { |event| event[:action] == "error" }
+    assert_empty @issues.deleted
+    applied = runner.run(config.merge("incremental" => true, "changes" => changes, "confirm_deletions" => true), apply: true)
+    assert_equal 7, applied.count { |event| event[:action] == "delete" }
+  end
+
   def test_preview_resolves_dependencies_without_writes
     result = @runner.run(@config)
     assert_equal %w[issue_tracking time_tracking], result.map { |item| item[:module] }
@@ -175,6 +204,58 @@ class MirrorCoreTest < Minitest::Test
     @issue["subject"] = "Updated source"
     assert_equal "update", @runner.run(@config, apply: true).first[:action]
     assert_equal "Updated source", @destination.records["issues"].first["subject"]
+  end
+
+  def test_incremental_run_reads_only_changed_objects
+    @runner.run(@config, apply: true)
+    @issue["subject"] = "Changed"
+    second_time = @source.records["time_entries"].first.merge("id" => 9, "hours" => 3.0)
+    @source.records["time_entries"] << second_time
+    changes = [
+      { "id" => 11, "module_key" => "issue_tracking", "source_id" => 3, "action" => "upsert" },
+      { "id" => 12, "module_key" => "time_tracking", "source_id" => 9, "action" => "upsert" }
+    ]
+    events = @runner.run(@config.merge("incremental" => true, "changes" => changes), apply: true)
+    assert_equal [["issue_tracking", 3, "update"], ["time_tracking", 9, "create"]],
+      events.map { |event| event.values_at(:module, :source_id, :action) }
+    assert_equal 3.0, @destination.records["time_entries"].find { |row| row["hours"] == 3.0 }["hours"]
+  end
+
+  def test_failed_incremental_object_is_retried_after_its_mapping_is_fixed
+    store = RetryStore.new
+    runner = RedmineMirror::Runner.new(source: @source, destination: @destination, store: store)
+    runner.run(@config, apply: true)
+    entry = @source.records["time_entries"].first.merge("id" => 9, "activity" => { "id" => 7 })
+    @source.records["time_entries"] << entry
+    change = { "id" => 13, "module_key" => "time_tracking", "source_id" => 9, "action" => "upsert" }
+    failed = runner.run(@config.merge("incremental" => true, "changes" => [change], "on_error" => "collect", "track_retries" => true), apply: true)
+    assert_equal "error", failed.first.fetch(:action)
+    assert_equal [["time_tracking", 9]], store.retries.map { |row| row.values_at("module_key", "source_id") }
+
+    fixed = Marshal.load(Marshal.dump(@config))
+    fixed["mappings"]["activity"]["7"] = 17
+    retried = runner.run(fixed.merge("incremental" => true, "changes" => [], "on_error" => "collect", "track_retries" => true), apply: true)
+    assert_equal [["time_tracking", 9, "create"]], retried.map { |event| event.values_at(:module, :source_id, :action) }
+    assert_empty store.retries
+  end
+
+  def test_adding_a_missing_mapping_keeps_incremental_mode_but_rewriting_one_does_not
+    previous = { "activity" => { "1" => 10 } }
+    refute RedmineMirror::Synchronization.mapping_rewrite?(previous,
+      { "activity" => { "1" => 10, "7" => 17 } })
+    assert RedmineMirror::Synchronization.mapping_rewrite?(previous,
+      { "activity" => { "1" => 11 } })
+    assert RedmineMirror::Synchronization.mapping_rewrite?(previous, {})
+  end
+
+  def test_source_without_the_change_protocol_keeps_complete_runs
+    client = Object.new
+    client.define_singleton_method(:get) do |path, _params|
+      raise RedmineMirror::Error, "Redmine API returned HTTP 404 for GET #{path}"
+    end
+    change_set = RedmineMirror::ChangeSet.read(client, 1, consumer_key: "a" * 64)
+    assert change_set.full_required?
+    refute change_set.supported?
   end
 
   def test_ignored_tracker_leaves_its_issues_and_their_records_out_without_errors
