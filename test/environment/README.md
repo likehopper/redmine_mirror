@@ -164,7 +164,8 @@ Unless stated otherwise, it imports into temporary projects and deletes them aft
 | Script | Checks |
 | --- | --- |
 | `smoke.rb` | Preview without writes, import, persisted correspondences (27 with categories and versions), idempotent rerun, local conflict; then ignored activities (time entries left out) and statuses (issues and their time left out), logged as ignored. `MIRROR_PROJECT_CONFIG_SMOKE=1` uses the UI mappings |
-| `synchronization_smoke.rb` | Browser preview and import, worker logs, simulated automatic deadline, no duplicates, next deadline |
+| `synchronization_smoke.rb` | Browser preview and complete import, worker logs, unchanged issue/time collections skipped, one changed source issue applied and acknowledged once, no duplicates, next deadline |
+| `incremental_smoke.rb` | Partial complete baseline with a missing activity mapping, source-side reproposal plus destination retry after adding it, one changed issue acknowledged once, unchanged issue/time collections skipped |
 | `history_smoke.rb` | 36 dated journals (12 private), 12 files, authors and dates against the source API, private issue visibility, rerun, local change refused |
 | `relations_smoke.rb` | Missing targets, private notes without duplicates, late target import, reuse from the other side, delays, categories and versions, translated journal changes, blocked/resolved tracking, native cross-project setting refusal (restored afterwards) |
 | `issue_state_smoke.rb` | Hierarchy and watchers: two passes, out-of-project watcher, preview, idempotence |

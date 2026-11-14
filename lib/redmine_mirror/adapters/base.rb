@@ -176,6 +176,24 @@ module RedmineMirror
         client.each_record(collection, filters(project_id))
       end
 
+      # Incremental source events normally use the adapter key. Issue-derived adapters
+      # override this so one issue change refreshes all of its selected facets.
+      def change_key
+        key
+      end
+
+      # External adapters stay correct without adopting the change journal: they keep
+      # their complete pass until they explicitly implement this contract.
+      def incremental?
+        false
+      end
+
+      def records_for(client, project_id, source_ids)
+        source_ids.sort.map { |id| read(client, id) }.select do |record|
+          record.fetch("project").fetch("id").to_i == project_id.to_i
+        end
+      end
+
       def filters(project_id)
         { "project_id" => project_id }
       end

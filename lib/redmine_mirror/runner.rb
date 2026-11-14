@@ -101,6 +101,7 @@ module RedmineMirror
               store: @mapping_store, source: @source_client, apply: apply, **(adapter.is_a?(Adapters::Relations) ? { options: config.fetch("module_options", {}).fetch(adapter.key, {}), track_blocks: track_relation_blocks } : (adapter.is_a?(Adapters::Hierarchy) ? { track_blocks: track_relation_blocks } : {})))
             planned_correspondences[[adapter.key, record.fetch("id")]] = "planned:#{record.fetch('id')}" if !apply && !event[:destination_id] && adapter.is_a?(Adapters::ProjectReferences)
             @mapping_store.resolve_conflict(adapter.key, record.fetch("id")) if apply && @mapping_store.respond_to?(:resolve_conflict)
+            @mapping_store.resolve_retry(adapter.key, record.fetch("id")) if apply && @mapping_store.respond_to?(:resolve_retry)
             flag(event)
             results << event
             yield event if block_given?
@@ -183,44 +184,134 @@ module RedmineMirror
           results << event
           # Before the callback, which may stop the execution once the object is written.
           @mapping_store.resolve_conflict(adapter.key, record.fetch("id")) if apply && @mapping_store.respond_to?(:resolve_conflict)
+          @mapping_store.resolve_retry(adapter.key, record.fetch("id")) if apply && @mapping_store.respond_to?(:resolve_retry)
           yield event if block_given?
         # Keep the first actionable divergence and stop; remaining records are
         # deliberately left unprocessed rather than reported as successful.
         rescue Error => error
           @mapping_store.record_conflict(adapter.key, record.fetch("id"), error) if @mapping_store.respond_to?(:record_conflict)
+          if config["track_retries"] && @mapping_store.respond_to?(:record_retry)
+            parent_id = adapter.is_a?(Adapters::IssueChildren) ? adapter.source_issue_ids(record).first : nil
+            @mapping_store.record_retry(adapter.key, record.fetch("id"), error, parent_id: parent_id)
+          end
           # on_error "stop" (default) ends the run at the first object error; "collect"
           # and "skip" record it and go on. Objects that depend on this one then fail
           # on their missing correspondence and are reported as well.
           raise unless %w[collect skip].include?(config["on_error"])
-          event = { module: adapter.key, source_id: record.fetch("id"), action: "error" }.merge(error_fields(error))
+          event = { module: adapter.key, source_id: record.fetch("id"), action: "error" }
+          event[:parent_id] = parent_id if defined?(parent_id) && parent_id
+          event.merge!(error_fields(error))
           results << event
           yield event if block_given?
         end
       end
       seen = {}
+      incremental_changes = Array(config["changes"])
+      retries = @mapping_store.respond_to?(:retries) ? @mapping_store.retries : []
       adapters.each do |adapter|
         seen_source_ids = seen[adapter.key] = []
-        adapter.records(@source_client, source_project_id).each do |record|
+        adapter_changes = incremental_changes.select { |change| [adapter.key, adapter.change_key].include?(change.fetch("module_key")) }
+        adapter_retries = retries.select { |change| change.fetch("module_key") == adapter.key }
+        adapter_incremental = config["incremental"] && adapter.incremental?
+        if adapter_incremental
+          issue_ids = adapter_changes.select { |change| change.fetch("action") == "upsert" }.map { |change| change["parent_id"] || change.fetch("source_id") }
+          issue_ids.concat(adapter_retries.select { |change| change.fetch("action") == "upsert" }.map { |change| change["parent_id"] || change.fetch("source_id") })
+          records = adapter.records_for(@source_client, source_project_id, issue_ids.compact.uniq)
+          retry_ids = adapter_retries.map { |change| change.fetch("source_id") }
+          changed_object_ids = adapter_changes.select { |change| change.fetch("module_key") == adapter.key && change["parent_id"] }.map { |change| change.fetch("source_id") }
+          scoped_object_ids = (adapter_changes + adapter_retries).select do |change|
+            change["parent_id"] && change.fetch("source_id") != change["parent_id"]
+          end.map { |change| change.fetch("source_id") }
+        else
+          records = adapter.records(@source_client, source_project_id)
+          retry_ids = []
+        end
+        records.each do |record|
           # APIs may include descendants; never import another project's records.
           next unless record.fetch("project").fetch("id").to_i == source_project_id
+          if adapter_incremental && adapter.key != adapter.change_key &&
+             !adapter_changes.any? { |change| change.fetch("module_key") == adapter.change_key }
+            target_ids = retry_ids | changed_object_ids
+            next unless target_ids.include?(record.fetch("id"))
+          end
+          next if adapter_incremental && scoped_object_ids.any? && !scoped_object_ids.include?(record.fetch("id"))
           seen_source_ids << record.fetch("id")
           before = results.size
           process.call(adapter, record)
           unresolved = results.drop(before).any? { |event| Array(event[:flags]).include?("issue_references_unresolved") }
           deferred << [adapter, record] if apply && unresolved
         end
-        @mapping_store.prune_pending_parents(seen_source_ids) if apply && adapter.is_a?(Adapters::Hierarchy) && @mapping_store.respond_to?(:prune_pending_parents)
-        @mapping_store.prune_pending_relations(seen_source_ids) if apply && adapter.is_a?(Adapters::Relations)
+        @mapping_store.prune_pending_parents(seen_source_ids) if apply && !adapter_incremental && adapter.is_a?(Adapters::Hierarchy) && @mapping_store.respond_to?(:prune_pending_parents)
+        @mapping_store.prune_pending_relations(seen_source_ids) if apply && !adapter_incremental && adapter.is_a?(Adapters::Relations)
       end
       # The cited issues are imported now: rewrite those references to local numbers.
       deferred.each { |adapter, record| process.call(adapter, record) }
-      if config["source_wins"] && @mapping_store.respond_to?(:mappings)
+      if config["source_wins"] && config["incremental"]
+        incremental_adapters = adapters.select(&:incremental?)
+        propagate_explicit_deletions(incremental_adapters, incremental_changes + retries, destination_project_id, apply, config) do |event|
+          results << event
+          yield event if block_given?
+        end
+        complete_adapters = adapters.reject(&:incremental?)
+        propagate_deletions(complete_adapters, seen, config, source_project_id, destination_project_id, apply) do |event|
+          results << event
+          yield event if block_given?
+        end if complete_adapters.any? && @mapping_store.respond_to?(:mappings)
+      elsif config["source_wins"] && @mapping_store.respond_to?(:mappings)
         propagate_deletions(adapters, seen, config, source_project_id, destination_project_id, apply) do |event|
           results << event
           yield event if block_given?
         end
       end
       results
+    end
+
+    def propagate_explicit_deletions(adapters, changes, project_id, apply, config)
+      by_key = adapters.to_h { |adapter| [adapter.key, adapter] }
+      deletions = changes.select { |change| change.fetch("action") == "delete" }
+        .uniq { |change| [change.fetch("module_key"), change.fetch("source_id")] }
+      limits = deletions.group_by { |change| change.fetch("module_key") }.to_h do |key, rows|
+        known = @mapping_store.respond_to?(:mappings) ? @mapping_store.mappings(key).size : rows.size
+        [key, [rows.size, [(known * DELETION_LIMIT).floor, 2].max]]
+      end
+      blocked = !config["confirm_deletions"] && limits.values.any? { |count, limit| count > limit }
+      deletions.reverse_each do |change|
+        adapter = by_key[change.fetch("module_key")]
+        next unless adapter&.respond_to?(:delete_local)
+        mapping = @mapping_store.find(adapter.key, change.fetch("source_id"))
+        unless mapping
+          @mapping_store.resolve_retry(adapter.key, change.fetch("source_id")) if apply && @mapping_store.respond_to?(:resolve_retry)
+          yield({ module: adapter.key, source_id: change.fetch("source_id"), destination_id: nil, action: "delete" })
+          next
+        end
+        event = { module: adapter.key, source_id: change.fetch("source_id"), destination_id: mapping.fetch("destination_id"), action: "delete" }
+        if blocked
+          count, limit = limits.fetch(adapter.key)
+          error = Error.new("Deletion awaits confirmation: #{count} #{adapter.key} object(s) deleted on the source, more than the limit of #{limit}")
+          @mapping_store.record_retry(adapter.key, change.fetch("source_id"), error, action: "delete") if config["track_retries"] && @mapping_store.respond_to?(:record_retry)
+          yield event.merge(action: "error", reason: error.message)
+          next
+        end
+        begin
+          if apply
+            transaction do
+              adapter.delete_local(mapping.fetch("destination_id"), project_id)
+              @mapping_store.delete(adapter.key, change.fetch("source_id"))
+              if adapter.is_a?(Adapters::Issues)
+                %w[issue_hierarchy issue_watchers issue_custom_fields issue_tags agile_issues].each do |module_key|
+                  @mapping_store.delete(module_key, change.fetch("source_id"))
+                end
+              end
+              @mapping_store.resolve_retry(adapter.key, change.fetch("source_id")) if @mapping_store.respond_to?(:resolve_retry)
+            end
+          end
+          yield event
+        rescue Error => error
+          @mapping_store.record_retry(adapter.key, change.fetch("source_id"), error, action: "delete") if config["track_retries"] && @mapping_store.respond_to?(:record_retry)
+          raise unless %w[collect skip].include?(config["on_error"])
+          yield event.merge(action: "error").merge(error_fields(error))
+        end
+      end
     end
 
     # Share of a module's objects a run may delete without an explicit confirmation.

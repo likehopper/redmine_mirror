@@ -19,6 +19,7 @@ module RedmineMirror
   module Adapters
     # Historical objects require native destination models to retain their dates.
     class IssueChildren < Base
+      def incremental?; true; end
       def dependencies; %w[users issue_tracking]; end
       def referenced_users(record); [record["user"] || record["author"]].compact; end
       def source_issue_ids(record); [record.fetch("issue_id")]; end
@@ -27,6 +28,17 @@ module RedmineMirror
         Enumerator.new do |output|
           Issues.new.records(client, project_id).each do |issue|
             next unless issue.fetch("project").fetch("id").to_i == project_id.to_i
+            detailed = issue_detail(client, issue.fetch("id"), association)
+            detailed.fetch(association, []).each do |child|
+              output << child.merge("project" => issue.fetch("project"), "issue_id" => issue.fetch("id"))
+            end
+          end
+        end
+      end
+
+      def records_for(client, project_id, source_ids)
+        Enumerator.new do |output|
+          Issues.new.records_for(client, project_id, source_ids).each do |issue|
             detailed = issue_detail(client, issue.fetch("id"), association)
             detailed.fetch(association, []).each do |child|
               output << child.merge("project" => issue.fetch("project"), "issue_id" => issue.fetch("id"))

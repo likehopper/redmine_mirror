@@ -46,7 +46,7 @@ module RedmineMirror
     PERMISSIONS = { "documents" => :view_documents, "news" => :view_news, "issue_tags" => :view_issues,
       "scrum" => :view_sprint_board, "queries" => :view_issues, "users" => :view_issues, "issue_custom_fields" => :view_issues,
       "issue_categories" => :view_issues, "project_enumerations" => :view_issues,
-      "repositories" => :manage_repository, "repository_credentials" => :manage_repository }.freeze
+      "repositories" => :manage_repository, "repository_credentials" => :manage_repository, "changes" => :view_issues }.freeze
     # Changesets linked to issues, per page of a repository's links.
     LINKS_PER_PAGE = 500
     # Users a destination may ask for in one request.
@@ -204,9 +204,11 @@ module RedmineMirror
     def refusal(project, kind, user)
       # Project structure and optional reference aliases are metadata of data already
       # visible through Redmine's API: no separate sharing choice, only the source locks.
-      if %w[subprojects localized_names].include?(kind)
+      if %w[subprojects localized_names changes].include?(kind)
         return "disabled" unless enabled?
-        return project.module_enabled?(:mirror_source) ? nil : "module"
+        return "module" unless project.module_enabled?(:mirror_source)
+        return "permission" if kind == "changes" && !user.allowed_to?(PERMISSIONS.fetch(kind), project)
+        return nil
       end
       return "disabled" unless enabled? && allowed_kinds.include?(kind)
       return "module" unless project.module_enabled?(:mirror_source)

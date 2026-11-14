@@ -93,10 +93,35 @@ begin
   end
   automatic = project.mirror_sync_runs.where(trigger: "automatic").last
   abort "Automatic import not idempotent" unless automatic.log_events.all? { |event| event["action"] == "unchanged" }
+  abort "Unchanged issues or time entries were scanned again" if automatic.log_events.any? { |event| %w[issue_tracking time_tracking].include?(event["module"]) }
   abort "Next deadline not scheduled" unless setting.reload.next_sync_at > Time.current
+
+  # One source change is proposed, applied and acknowledged. The following run must not
+  # receive it again; unchanged issue and time collections remain unread.
+  source = setting.source_client(purpose: "synchronization")
+  source_issue = source.each_record("issues", "project_id" => setting.source_project_id, "status_id" => "*", "sort" => "id:asc").first
+  source.update("issues/#{source_issue.fetch('id')}.json", "issue" => { "subject" => "Incremental #{SecureRandom.hex(4)}" })
+  previous_run_id = automatic.id
+  setting.update_columns(next_sync_at: 1.second.ago)
+  changed = wait.until do
+    candidate = project.mirror_sync_runs.where(trigger: "automatic").where("id > ?", previous_run_id).order(:id).last
+    abort "Incremental import failed: #{candidate.error_message}" if candidate&.status == "failed"
+    candidate if candidate&.status == "succeeded"
+  end
+  issue_events = changed.log_events.select { |event| event["module"] == "issue_tracking" }
+  abort "Changed issue was not the only issue synchronized: #{issue_events.inspect}" unless issue_events.size == 1 && issue_events.first["source_id"] == source_issue.fetch("id")
+  abort "Unchanged time entries were scanned" if changed.log_events.any? { |event| event["module"] == "time_tracking" }
+
+  setting.update_columns(next_sync_at: 1.second.ago)
+  acknowledged = wait.until do
+    candidate = project.mirror_sync_runs.where(trigger: "automatic").where("id > ?", changed.id).order(:id).last
+    abort "Post-acknowledgement import failed: #{candidate.error_message}" if candidate&.status == "failed"
+    candidate if candidate&.status == "succeeded"
+  end
+  abort "Acknowledged source change was proposed again" if acknowledged.log_events.any? { |event| %w[issue_tracking time_tracking].include?(event["module"]) }
   driver.navigate.to("http://gateway:3102/projects/#{project.identifier}/mirror/synchronizations/#{automatic.id}")
   abort "Log not visible" unless driver.page_source.include?("unchanged")
-  puts "Synchronization smoke passed: browser preview, manual import, worker logs, automatic due execution, no duplicates and next deadline"
+  puts "Synchronization smoke passed: full import, unchanged collections skipped, one changed issue acknowledged once, no duplicates and next deadline"
 ensure
   driver.quit
   setting.update_columns(auto_sync_enabled: false)

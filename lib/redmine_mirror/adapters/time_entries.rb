@@ -35,6 +35,7 @@ module RedmineMirror
       end
 
       def key; "time_tracking"; end
+      def incremental?; true; end
       def project_module; :time_tracking; end
       def collection; "time_entries"; end
       def entity; "time_entry"; end

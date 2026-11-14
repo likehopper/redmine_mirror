@@ -20,9 +20,10 @@ require_relative "../test_helper"
 class MirrorSourceApiTest < Redmine::ApiTest::Base
   fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules,
     :documents, :enumerations, :attachments, :news, :comments, :queries, :issue_categories, :repositories, :changesets, :issues,
-    :trackers, :projects_trackers, :custom_fields, :custom_fields_projects, :custom_fields_trackers
+    :trackers, :projects_trackers, :custom_fields, :custom_fields_projects, :custom_fields_trackers, :time_entries
 
   SESSION = "0123456789abcdef0123456789abcdef"
+  CONSUMER = "a" * 64
 
   def setup
     super
@@ -70,6 +71,96 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_allowed_addresses" => "127.0.0.x" }) do
       get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
       assert_equal "address", response.headers["X-Mirror-Source-Refusal"]
+    end
+  end
+
+  def test_changes_are_proposed_until_this_destination_acknowledges_them
+    issue = @project.issues.first
+    issue.update!(subject: "Changed for incremental Mirror")
+
+    enabled do
+      get "/projects/ecookbook/mirror/source/changes.json", params: { consumer: CONSUMER }, headers: mirror_headers
+      assert_response :success
+      first = JSON.parse(response.body)
+      issue_change = first.fetch("changes").find { |change| change["module_key"] == "issue_tracking" }
+      assert_equal [issue.id, "upsert"], issue_change.values_at("source_id", "action")
+
+      get "/projects/ecookbook/mirror/source/changes.json", params: { consumer: CONSUMER }, headers: mirror_headers
+      assert JSON.parse(response.body).fetch("changes").any? { |change| change["id"] == issue_change["id"] }
+
+      post "/projects/ecookbook/mirror/source/changes/acknowledgements.json",
+        params: { consumer: CONSUMER, changes: [issue_change.slice("id", "module_key", "source_id")] },
+        headers: mirror_headers, as: :json
+      assert_response :success
+      get "/projects/ecookbook/mirror/source/changes.json", params: { consumer: CONSUMER }, headers: mirror_headers
+      remaining = JSON.parse(response.body).fetch("changes")
+      refute remaining.any? { |change| change["module_key"] == "issue_tracking" && change["source_id"] == issue.id }
+      assert remaining.any? { |change| change["module_key"] == "issue_hierarchy" && change["source_id"] == issue.id }
+    end
+  end
+
+  def test_a_full_baseline_acknowledgement_hides_older_changes
+    @project.issues.first.update!(subject: "Baseline change")
+    enabled do
+      get "/projects/ecookbook/mirror/source/changes.json", params: { consumer: CONSUMER }, headers: mirror_headers
+      cursor = JSON.parse(response.body).fetch("high_water")
+      post "/projects/ecookbook/mirror/source/changes/acknowledgements.json",
+        params: { consumer: CONSUMER, baseline: cursor, changes: [] }, headers: mirror_headers, as: :json
+      assert_response :success
+      get "/projects/ecookbook/mirror/source/changes.json", params: { consumer: CONSUMER }, headers: mirror_headers
+      assert_empty JSON.parse(response.body).fetch("changes")
+    end
+  end
+
+  def test_failed_object_reported_with_a_baseline_is_proposed_after_it
+    issue = @project.issues.first
+    issue.update!(subject: "Will be retried")
+    enabled do
+      get "/projects/ecookbook/mirror/source/changes.json", params: { consumer: CONSUMER }, headers: mirror_headers
+      cursor = JSON.parse(response.body).fetch("high_water")
+      post "/projects/ecookbook/mirror/source/changes/acknowledgements.json",
+        params: { consumer: CONSUMER, baseline: cursor, changes: [],
+          pending: [{ module_key: "issue_tracking", source_id: issue.id }] }, headers: mirror_headers, as: :json
+      assert_response :success
+      get "/projects/ecookbook/mirror/source/changes.json", params: { consumer: CONSUMER }, headers: mirror_headers
+      retry_change = JSON.parse(response.body).fetch("changes").find do |change|
+        change["module_key"] == "issue_tracking" && change["source_id"] == issue.id
+      end
+      assert retry_change
+      assert_operator retry_change.fetch("id"), :>, cursor
+    end
+  end
+
+  def test_time_and_membership_changes_include_updates_and_tombstones
+    time_entry = TimeEntry.where(project_id: @project.id).first!
+    time_entry.update!(hours: time_entry.hours + 1)
+    time_entry.destroy!
+    time_changes = MirrorSourceChange.where(project_id: @project.id, module_key: "time_tracking", source_id: time_entry.id).order(:id)
+    assert_equal %w[upsert delete], time_changes.pluck(:action).last(2)
+
+    member = @project.memberships.first
+    role = Role.where.not(id: member.roles.select(:id)).first!
+    member_role = MemberRole.create!(member: member, role: role)
+    member_change = MirrorSourceChange.where(project_id: @project.id, module_key: "project_members",
+      source_id: member_role.member_id).order(:id).last
+    assert_equal "upsert", member_change.action
+  end
+
+  def test_destroying_a_project_removes_its_incremental_protocol_state
+    project = Project.create!(name: "Disposable Mirror source", identifier: "disposable-mirror-source")
+    MirrorSourceChange.create!(project: project, module_key: "issue_tracking", source_id: 1, action: "upsert", created_at: Time.current)
+    MirrorSourceChangeState.create!(project: project)
+    MirrorSourceConsumer.create!(project: project, consumer_key: CONSUMER)
+    MirrorSourceAcknowledgement.create!(project: project, consumer_key: CONSUMER,
+      module_key: "issue_tracking", source_id: 1, change_id: 1)
+    MirrorSyncRetry.create!(project: project, connection_key: "b" * 64,
+      module_key: "issue_tracking", source_id: 1)
+
+    project.destroy!
+
+    [MirrorSourceChange, MirrorSourceChangeState, MirrorSourceConsumer,
+      MirrorSourceAcknowledgement, MirrorSyncRetry].each do |model|
+      assert_not model.exists?(project_id: project.id), "#{model.name} kept an orphan row"
     end
   end
 

@@ -64,6 +64,8 @@ get "projects/:project_id/mirror/source/users", to: "mirror_source_api#users", a
 get "projects/:project_id/mirror/source/custom_fields", to: "mirror_source_api#custom_fields", as: "mirror_source_custom_fields"
 get "projects/:project_id/mirror/source/localized_names", to: "mirror_source_api#localized_names", as: "mirror_source_localized_names"
 get "projects/:project_id/mirror/source/subprojects", to: "mirror_source_api#subprojects", as: "mirror_source_subprojects"
+get "projects/:project_id/mirror/source/changes", to: "mirror_source_api#changes", as: "mirror_source_changes"
+post "projects/:project_id/mirror/source/changes/acknowledgements", to: "mirror_source_api#acknowledge_changes", as: "mirror_source_change_acknowledgements"
 get "projects/:project_id/mirror/source/issue_categories", to: "mirror_source_api#issue_categories", as: "mirror_source_issue_categories"
 get "projects/:project_id/mirror/source/project_enumerations", to: "mirror_source_api#project_enumerations", as: "mirror_source_project_enumerations"
 get "mirror/source/project_enumerations/:id", to: "mirror_source_api#project_enumeration", as: "mirror_source_project_enumeration"

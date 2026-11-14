@@ -62,6 +62,26 @@ module RedmineMirror
       MirrorConflict.where(project_id: @project_id, connection_key: @connection_key, module_key: module_key, source_id: source_id, status: "open").update_all(status: "resolved", checked_at: Time.current, updated_at: Time.current)
     end
 
+    def retries
+      return [] unless @project_id
+      MirrorSyncRetry.where(project_id: @project_id, connection_key: @connection_key).map do |row|
+        row.attributes.slice("module_key", "source_id", "action", "parent_id")
+      end
+    end
+
+    def record_retry(module_key, source_id, error, action: "upsert", parent_id: nil)
+      return unless @project_id
+      row = MirrorSyncRetry.find_or_initialize_by(project_id: @project_id, connection_key: @connection_key,
+        module_key: module_key, source_id: source_id)
+      row.update!(action: action, parent_id: parent_id, message: error.message.to_s[0, 2_000])
+    end
+
+    def resolve_retry(module_key, source_id)
+      return unless @project_id
+      MirrorSyncRetry.where(project_id: @project_id, connection_key: @connection_key,
+        module_key: module_key, source_id: source_id).delete_all
+    end
+
     def pending_parent(record, local_issue_id:, status:, reason:)
       return unless @project_id && record["parent"]
       row = MirrorPendingParent.find_or_initialize_by(project_id: @project_id, connection_key: @connection_key, source_id: record.fetch("id"))

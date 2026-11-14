@@ -18,11 +18,11 @@
 
 class MirrorSourceApiController < ApplicationController
   accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :scrum, :queries, :users, :custom_fields, :issue_categories,
-    :project_enumerations, :project_enumeration, :repositories, :repository_links, :download, :localized_names, :subprojects
+    :project_enumerations, :project_enumeration, :repositories, :repository_links, :download, :localized_names, :subprojects, :changes, :acknowledge_changes
   # Once Redmine knows the user, before anything else, the project lookup included: the
   # caller's address and API key.
   before_action :check_caller
-  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users custom_fields issue_categories project_enumerations repositories localized_names subprojects]
+  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users custom_fields issue_categories project_enumerations repositories localized_names subprojects changes acknowledge_changes]
   before_action :find_document, only: :document
   before_action :find_news, only: :news_item
   before_action :find_attachment, only: :download
@@ -67,6 +67,38 @@ class MirrorSourceApiController < ApplicationController
     RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @subprojects.size,
       details: { "subprojects" => @subprojects.map { |child| { "id" => child.id, "identifier" => child.identifier } } })
     respond_to { |format| format.api }
+  end
+
+  def changes
+    after = Integer(params[:after].presence || 0)
+    consumer = consumer_key
+    raise ArgumentError if after.negative?
+    result = RedmineMirror::SourceChanges.page(@project, consumer_key: consumer, after: after)
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: result.fetch(:changes).size,
+      details: { "changes" => result.fetch(:changes).size, "cursor" => result.fetch(:cursor) })
+    render json: result
+  rescue ArgumentError, TypeError
+    render json: { error: "Invalid change cursor" }, status: :unprocessable_entity
+  end
+
+  def acknowledge_changes
+    consumer = consumer_key
+    changes = Array(params[:changes]).map do |change|
+      value = change.respond_to?(:to_unsafe_h) ? change.to_unsafe_h : change.to_h
+      value.slice("id", "module_key", "source_id")
+    end
+    pending = Array(params[:pending]).map do |change|
+      value = change.respond_to?(:to_unsafe_h) ? change.to_unsafe_h : change.to_h
+      value.slice("module_key", "source_id", "parent_id")
+    end
+    RedmineMirror::SourceChanges.acknowledge(@project, consumer_key: consumer, changes: changes,
+      baseline: params[:baseline].presence, pending: pending)
+    RedmineMirror::Source.log(@project, request, User.current, "acknowledge", object_count: changes.size,
+      details: { "changes" => changes.size, "pending" => pending.size, "baseline" => params[:baseline].present? })
+    render json: { acknowledged: changes.size }
+  rescue ArgumentError, KeyError, TypeError, ActiveRecord::RecordInvalid => error
+    logger&.warn("Mirror source rejected a change acknowledgement: #{error.class}: #{error.message}")
+    render json: { error: "Invalid change acknowledgement" }, status: :unprocessable_entity
   end
 
   def news_item
@@ -277,6 +309,7 @@ class MirrorSourceApiController < ApplicationController
     when "users" then "users"
     when "custom_fields" then "issue_custom_fields"
     when "localized_names" then "localized_names"
+    when "changes", "acknowledge_changes" then "changes"
     when "subprojects" then "subprojects"
     when "issue_categories" then "issue_categories"
     when "project_enumerations", "project_enumeration" then "project_enumerations"
@@ -301,6 +334,12 @@ class MirrorSourceApiController < ApplicationController
     logger&.warn("Mirror source refused #{request.path} from #{address}: #{reason}")
     response.headers[RedmineMirror::Source::REFUSAL_HEADER] = reason
     render_403
+  end
+
+  def consumer_key
+    value = params[:consumer].to_s
+    raise ArgumentError unless value.match?(/\A[0-9a-f]{64}\z/)
+    value
   end
 
   # An account is required, even on public projects. Projects it cannot see are

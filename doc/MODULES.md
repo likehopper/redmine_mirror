@@ -463,10 +463,18 @@ send no notification.
 
 ## Synchronization and worker
 
-**Run preview** and **Synchronize now** queue a run; the worker processes it. Every run
-first validates all records (preflight), then writes. The preflight lists every failing
-object, not only the first one. Progress counts processed objects, unchanged ones
-included, and reaches 100% when the run ends.
+**Run preview** and **Synchronize now** queue a run; the worker processes it. The first
+run, a configuration rewrite and **Full synchronization** validate all records. Ordinary
+later runs validate only source changes not acknowledged by this destination and retained
+failures; adapters without incremental source events keep their complete pass. The
+preflight lists every failing object, not only the first one. Progress counts processed
+objects, unchanged ones included, and reaches 100% when the run ends.
+
+Mirror source records a monotonic change journal with explicit deletion tombstones. A
+preview never acknowledges it. An applying destination acknowledges each successful
+object; a failed one is proposed again. When *The source wins* is off, a source deletion
+is acknowledged but deliberately kept locally. When it is on, deletion safety limits and
+their explicit confirmation still apply.
 
 **When an object fails** (Settings → Mirror → Automatic synchronization):
 
@@ -478,6 +486,10 @@ included, and reaches 100% when the run ends.
 
 Connection or configuration errors (unreachable source, invalid settings) always stop the
 run.
+
+Adding a missing mapping retries the objects that failed on it. Replacing or removing an
+established mapping can affect objects imported earlier and therefore starts a complete
+reconciliation.
 
 Automatic synchronization is off by default. Intervals: 5, 15, 30, 60, 360 or 1440
 minutes. The first deadline is set on save, and each finished run schedules the next:

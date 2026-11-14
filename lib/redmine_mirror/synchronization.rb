@@ -32,13 +32,14 @@ module RedmineMirror
     WORKER_SILENCE = 120
     # Lock the project configuration so concurrent manual requests cannot queue
     # two imports before either worker has acquired the execution lease.
-    def self.enqueue(setting, apply:, trigger:, user: nil, confirm_deletions: false)
+    def self.enqueue(setting, apply:, trigger:, user: nil, confirm_deletions: false, force_full: false)
       setting.with_lock do
         raise Error, "Mirror module is disabled" unless setting.project.module_enabled?(:mirror)
         raise Error, "Synchronization already queued or running" if setting.running_run_id || setting.project.mirror_sync_runs.where(status: %w[queued running]).exists?
         raise Error, "Unavailable modules: #{setting.unavailable_modules.join(', ')}" if setting.unavailable_modules.any?
         raise Error, ::I18n.t(:text_mirror_no_module_selected) if setting.selected_modules.empty?
         setting.project.mirror_sync_runs.create!(apply: apply, trigger: trigger, requested_by: user, confirm_deletions: apply && confirm_deletions,
+          force_full: force_full,
           module_totals: JSON.generate(setting.selected_modules.to_h { |key| [key, 0] }))
       end
     end
@@ -193,7 +194,18 @@ module RedmineMirror
         run.update!(source_url: source_url, connection_key: key)
         destination_key = ENV.fetch("MIRROR_DESTINATION_API_KEY") { raise Error, "MIRROR_DESTINATION_API_KEY is not configured for the worker" }
         destination = Client.new(url: destination_url, api_key: destination_key, allow_http: config.fetch("allow_http"))
-        runner = Runner.new(source: setting.source_client(purpose: run.apply? ? "synchronization" : "preview"), destination: destination, store: DatabaseStore.new(key, project_id: setting.project_id))
+        source = setting.source_client(purpose: run.apply? ? "synchronization" : "preview")
+        consumer_key = setting.source_consumer_key!
+        signature = Digest::SHA256.hexdigest(JSON.generate(config.slice("source_url", "source_project_id", "destination_project_id",
+          "modules", "module_options", "source_wins", "text_format")))
+        previous_mappings = JSON.parse(setting.incremental_mapping_state.presence || "{}")
+        current_mappings = config.fetch("mappings")
+        full = run.force_full? || setting.source_change_cursor.nil? || setting.incremental_signature != signature ||
+          mapping_rewrite?(previous_mappings, current_mappings)
+        change_set = ChangeSet.read(source, setting.source_project_id, consumer_key: consumer_key)
+        full ||= change_set.full_required?
+        config = config.merge("incremental" => !full, "changes" => change_set.changes, "track_retries" => run.apply?)
+        runner = Runner.new(source: source, destination: destination, store: DatabaseStore.new(key, project_id: setting.project_id))
         stop_check = stop_checker(run)
         # Also share the legacy operator task's local lock on this host.
         FileUtils.mkdir_p(Rails.root.join("tmp"))
@@ -215,15 +227,41 @@ module RedmineMirror
           run.update!(total_records: preview.size, processed_records: 0, module_totals: JSON.generate(totals))
           preview_errors = preview.count { |event| event[:action] == "error" }
           # "skip" writes everything else; "stop" writes nothing while an object fails.
+          applied = false
+          applied_events = []
           if run.apply? && (preview_errors.zero? || setting.on_error == "skip")
-            runner.run(config.merge("on_error" => setting.on_error), apply: true) do |event|
+            applied_events = runner.run(config.merge("on_error" => setting.on_error), apply: true) do |event|
               run.append_event(event)
               stop_check.call
             end
+            applied = true
           else
             preview.each do |event|
               run.append_event(event)
               stop_check.call
+            end
+          end
+          if applied
+            successful = applied_events.reject { |event| event[:action] == "error" }
+              .to_h { |event| [[event.fetch(:module), event.fetch(:source_id)], true] }
+            selected = setting.selected_modules
+            acknowledgements = change_set.changes.select do |change|
+              !selected.include?(change.fetch("module_key")) ||
+                (!config["source_wins"] && change.fetch("action") == "delete") ||
+                successful[[change.fetch("module_key"), change.fetch("source_id")]]
+            end
+            if full && change_set.supported?
+              pending = applied_events.select { |event| event[:action] == "error" }.map do |event|
+                { "module_key" => event.fetch(:module), "source_id" => event.fetch(:source_id), "parent_id" => event[:parent_id] }.compact
+              end
+              change_set.acknowledge(source, setting.source_project_id, consumer_key: consumer_key,
+                baseline: change_set.cursor, pending: pending)
+              setting.update_columns(source_change_cursor: change_set.cursor, incremental_signature: signature,
+                incremental_mapping_state: JSON.generate(current_mappings))
+            elsif !full
+              change_set.acknowledge(source, setting.source_project_id, consumer_key: consumer_key, changes: acknowledgements) if acknowledgements.any?
+              setting.update_columns(source_change_cursor: change_set.cursor,
+                incremental_mapping_state: JSON.generate(current_mappings))
             end
           end
         end
@@ -276,6 +314,15 @@ module RedmineMirror
         next if checked_at && now - checked_at < stop_check_interval
         checked_at = now
         raise Stopped if MirrorSyncRun.where(id: run.id).where.not(stop_requested_at: nil).exists?
+      end
+    end
+
+    # Adding a previously absent correspondence only unlocks objects already retained
+    # in the retry queue. Replacing or removing an established choice can alter objects
+    # that succeeded earlier, so that configuration change requires a complete pass.
+    def self.mapping_rewrite?(previous, current)
+      previous.any? do |table, rows|
+        rows.any? { |source_id, value| current.fetch(table, {})[source_id] != value }
       end
     end
 

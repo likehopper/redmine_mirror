@@ -16,7 +16,7 @@
 # One request a Mirror destination made to this source: served or refused, and what was sent.
 
 class MirrorSourceAccess < ActiveRecord::Base
-  ACTIONS = %w[list show download refused].freeze
+  ACTIONS = %w[list show download acknowledge refused].freeze
   belongs_to :project
   belongs_to :user, optional: true
   validates :action, inclusion: { in: ACTIONS }

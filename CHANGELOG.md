@@ -16,6 +16,20 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.46 — 2026-11-14
+
+- **Incremental synchronization acknowledged by each destination**: after the first
+  complete import, Mirror source proposes explicit additions, modifications and
+  tombstones. A destination acknowledges only objects it applied successfully; failed
+  objects, including time entries blocked by a missing mapping, remain proposed and in
+  its local retry queue. Preview never acknowledges data. Core issues, issue history and
+  state, time entries and project members are read by ID; adapters not yet instrumented
+  keep their complete pass.
+- **Safe recovery and reconciliation**: source deletions are applied only in mirror mode
+  and retain the mass-deletion confirmation. Configuration rewrites, an expired source
+  journal or the new **Full synchronization** action trigger a complete reconciliation;
+  merely adding a missing correspondence retries the failed objects only. Migration 21.
+
 ## 1.0.0-beta.45 — 2026-11-13
 
 - **Unused priority mappings stay out of project setup**: when an issue custom field
