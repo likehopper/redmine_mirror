@@ -16,6 +16,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.48 — 2026-11-14
+
+- **Issue timestamp fallback without Mirror source**: when the source does not expose
+  the acknowledged change journal, Mirror filters issues through Redmine's native
+  `updated_on` API from the previous applied run and still retries failed issues. Other
+  modules keep their compatible complete pass; filtered issue lists never imply source
+  deletions. Mirror source remains the complete and most efficient mode.
+
 ## 1.0.0-beta.47 — 2026-11-14
 
 - **Large source identifiers remain retryable**: incremental journals,

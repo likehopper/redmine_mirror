@@ -213,7 +213,11 @@ module RedmineMirror
         adapter_changes = incremental_changes.select { |change| [adapter.key, adapter.change_key].include?(change.fetch("module_key")) }
         adapter_retries = retries.select { |change| change.fetch("module_key") == adapter.key }
         adapter_incremental = config["incremental"] && adapter.incremental?
-        if adapter_incremental
+        issue_updated_on = config["issue_updated_on_since"] if adapter.is_a?(Adapters::Issues)
+        if issue_updated_on
+          retry_ids = adapter_retries.select { |change| change.fetch("action") == "upsert" }.map { |change| change.fetch("source_id") }
+          records = adapter.records_updated_since(@source_client, source_project_id, issue_updated_on, retry_ids)
+        elsif adapter_incremental
           issue_ids = adapter_changes.select { |change| change.fetch("action") == "upsert" }.map { |change| change["parent_id"] || change.fetch("source_id") }
           issue_ids.concat(adapter_retries.select { |change| change.fetch("action") == "upsert" }.map { |change| change["parent_id"] || change.fetch("source_id") })
           records = adapter.records_for(@source_client, source_project_id, issue_ids.compact.uniq)
@@ -258,7 +262,9 @@ module RedmineMirror
           yield event if block_given?
         end if complete_adapters.any? && @mapping_store.respond_to?(:mappings)
       elsif config["source_wins"] && @mapping_store.respond_to?(:mappings)
-        propagate_deletions(adapters, seen, config, source_project_id, destination_project_id, apply) do |event|
+        # A timestamp-filtered issue list says nothing about absent/deleted issues.
+        complete_adapters = config["issue_updated_on_since"] ? adapters.reject { |adapter| adapter.is_a?(Adapters::Issues) } : adapters
+        propagate_deletions(complete_adapters, seen, config, source_project_id, destination_project_id, apply) do |event|
           results << event
           yield event if block_given?
         end

@@ -63,6 +63,23 @@ module RedmineMirror
         end
       end
 
+      # A source without Mirror's acknowledged journal can still limit ordinary issue
+      # reads by Redmine's native timestamp filter. Failed issues are read explicitly so
+      # fixing a mapping retries them even when their source timestamp did not change.
+      def records_updated_since(client, project_id, since, retry_ids = [])
+        timestamp = Time.iso8601(since.to_s).utc.iso8601
+        Enumerator.new do |records|
+          seen = {}
+          client.each_record(collection, filters(project_id).merge("updated_on" => ">=#{timestamp}")).each do |record|
+            seen[record.fetch("id")] = true
+            records << record
+          end
+          records_for(client, project_id, retry_ids.reject { |id| seen[id] }).each { |record| records << record }
+        end
+      rescue ArgumentError, TypeError
+        raise Error, "Invalid issue update cursor"
+      end
+
       # A tracker or status mapped to "ignore": its issues, and what belongs to them, are
       # not imported.
       def ignored_reference(record, mappings)

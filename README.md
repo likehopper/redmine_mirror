@@ -18,7 +18,7 @@ Document Mirror setup, operation, extension points or validation evidence.
 
 # <img src="assets/images/synchronisation-des-donnees-64.png" width="64" height="64" alt=""> Redmine Mirror
 
-![Version](https://img.shields.io/badge/Version-1.0.0--beta.47-orange)
+![Version](https://img.shields.io/badge/Version-1.0.0--beta.48-orange)
 ![Destination tested](https://img.shields.io/badge/Destination_tested-5.1_%7C_6.1-blue)
 ![Source tested](https://img.shields.io/badge/Source_tested-4.0_%7C_4.2_%7C_5.0_%7C_6.1-blue)
 ![Database tested](https://img.shields.io/badge/Database_tested-SQLite_3-blue)
@@ -32,7 +32,7 @@ existing destination project, through the destination REST API and native models
 
 Use it to migrate projects to a new instance, or to keep a regularly updated secondary
 copy. Each project has its own connection, mappings, schedule, history and conflicts.
-Version **1.0.0-beta.47** is a pre-release for testing before 1.0.0, not a stable release.
+Version **1.0.0-beta.48** is a pre-release for testing before 1.0.0, not a stable release.
 
 ## Features
 
@@ -62,6 +62,10 @@ Version **1.0.0-beta.47** is a pre-release for testing before 1.0.0, not a stabl
 - Preview before writing, manual runs and automatic schedules.
 - Incremental runs after the first complete import: each destination acknowledges
   successful source changes; failed objects remain queued and proposed again.
+- Without Mirror source on the source instance, scheduled runs remain compatible:
+  issues are filtered by `updated_on` from the previous applied run, with a safety
+  overlap and explicit retries. Other selected modules keep their complete pass, and
+  issue deletions cannot be inferred until Mirror source is available.
 - Logs with remote and local IDs, links, filters and progress.
 - Local changes detected as conflicts, or overwritten in mirror mode, which also
   recreates local deletions and propagates source deletions, checked one by one and

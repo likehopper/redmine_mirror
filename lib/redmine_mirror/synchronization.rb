@@ -30,6 +30,7 @@ module RedmineMirror
     # (killed process, server restart), on any host.
     HEARTBEAT_INTERVAL = 30
     WORKER_SILENCE = 120
+    ISSUE_UPDATED_ON_OVERLAP = 5 * 60
     # Lock the project configuration so concurrent manual requests cannot queue
     # two imports before either worker has acquired the execution lease.
     def self.enqueue(setting, apply:, trigger:, user: nil, confirm_deletions: false, force_full: false)
@@ -200,11 +201,14 @@ module RedmineMirror
           "modules", "module_options", "source_wins", "text_format")))
         previous_mappings = JSON.parse(setting.incremental_mapping_state.presence || "{}")
         current_mappings = config.fetch("mappings")
-        full = run.force_full? || setting.source_change_cursor.nil? || setting.incremental_signature != signature ||
+        configuration_full = run.force_full? ||
+          (setting.incremental_signature.present? && setting.incremental_signature != signature) ||
           mapping_rewrite?(previous_mappings, current_mappings)
         change_set = ChangeSet.read(source, setting.source_project_id, consumer_key: consumer_key)
-        full ||= change_set.full_required?
-        config = config.merge("incremental" => !full, "changes" => change_set.changes, "track_retries" => run.apply?)
+        full = configuration_full || setting.source_change_cursor.nil? || change_set.full_required?
+        issue_updated_on = fallback_issue_updated_on(run) unless change_set.supported? || configuration_full
+        config = config.merge("incremental" => change_set.supported? && !full, "changes" => change_set.changes,
+          "track_retries" => run.apply?, "issue_updated_on_since" => issue_updated_on)
         runner = Runner.new(source: source, destination: destination, store: DatabaseStore.new(key, project_id: setting.project_id))
         stop_check = stop_checker(run)
         # Also share the legacy operator task's local lock on this host.
@@ -261,6 +265,9 @@ module RedmineMirror
             elsif !full
               change_set.acknowledge(source, setting.source_project_id, consumer_key: consumer_key, changes: acknowledgements) if acknowledgements.any?
               setting.update_columns(source_change_cursor: change_set.cursor,
+                incremental_mapping_state: JSON.generate(current_mappings))
+            elsif !change_set.supported?
+              setting.update_columns(incremental_signature: signature,
                 incremental_mapping_state: JSON.generate(current_mappings))
             end
           end
@@ -324,6 +331,14 @@ module RedmineMirror
       previous.any? do |table, rows|
         rows.any? { |source_id, value| current.fetch(table, {})[source_id] != value }
       end
+    end
+
+    # Use the previous applied run's start, not its end: changes made while that run was
+    # reading remain eligible. A small overlap also covers normal clock skew.
+    def self.fallback_issue_updated_on(run)
+      previous = run.project.mirror_sync_runs.where(apply: true, status: %w[succeeded partial])
+        .where.not(started_at: nil).where("id < ?", run.id).order(id: :desc).limit(1).pluck(:started_at).first
+      previous && (previous - ISSUE_UPDATED_ON_OVERLAP).utc.iso8601
     end
 
     def self.stop_check_interval
