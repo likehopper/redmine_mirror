@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.48 — 2026-11-14
 
 - **Issue timestamp fallback without Mirror source**: when the source does not expose
   the acknowledged change journal, Mirror filters issues through Redmine's native
