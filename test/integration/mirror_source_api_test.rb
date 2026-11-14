@@ -164,6 +164,22 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     end
   end
 
+  def test_incremental_tables_accept_synthetic_64_bit_source_identifiers
+    synthetic_id = 83_953_617_425_747_053
+    assert MirrorProjectSetting.bigint_identifiers?
+
+    change = MirrorSourceChange.create!(project: @project, module_key: "wiki", source_id: synthetic_id,
+      parent_id: synthetic_id, action: "upsert", created_at: Time.current)
+    acknowledgement = MirrorSourceAcknowledgement.create!(project: @project, consumer_key: CONSUMER,
+      module_key: "wiki", source_id: synthetic_id, change_id: change.id)
+    retry_record = MirrorSyncRetry.create!(project: @project, connection_key: "c" * 64,
+      module_key: "wiki", source_id: synthetic_id, parent_id: synthetic_id)
+
+    assert_equal synthetic_id, change.reload.source_id
+    assert_equal synthetic_id, acknowledgement.reload.source_id
+    assert_equal synthetic_id, retry_record.reload.source_id
+  end
+
   def test_a_browser_session_is_refused
     log_user("jsmith", "jsmith")
     enabled { get "/projects/ecookbook/mirror/source/documents.json" }

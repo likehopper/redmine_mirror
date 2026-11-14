@@ -16,6 +16,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.47 — 2026-11-14
+
+- **Large source identifiers remain retryable**: incremental journals,
+  acknowledgements and the destination retry queue now store 64-bit source and
+  parent identifiers. This includes synthetic identifiers used by Wiki pages and
+  prevents a failed Wiki object from aborting the baseline before its acknowledgement.
+  Migration 22 upgrades existing beta.46 installations.
+
 ## 1.0.0-beta.46 — 2026-11-14
 
 - **Incremental synchronization acknowledged by each destination**: after the first

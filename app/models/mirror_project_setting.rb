@@ -23,7 +23,18 @@ class MirrorProjectSetting < ActiveRecord::Base
 
   def self.schema_current?
     (LATEST_COLUMNS - column_names).empty? && MirrorDefaultMapping.schema_current? &&
-      %w[stop_requested_at force_full].all? { |column| MirrorSyncRun.column_names.include?(column) } && MirrorSyncRetry.table_exists?
+      %w[stop_requested_at force_full].all? { |column| MirrorSyncRun.column_names.include?(column) } && MirrorSyncRetry.table_exists? &&
+      bigint_identifiers?
+  end
+
+  def self.bigint_identifiers?
+    { MirrorSourceChange => %w[source_id parent_id], MirrorSourceAcknowledgement => %w[source_id],
+      MirrorSyncRetry => %w[source_id parent_id] }.all? do |model, names|
+      names.all? do |name|
+        column = model.columns_hash[name]
+        column && (column.limit == 8 || column.sql_type.to_s.downcase.include?("bigint"))
+      end
+    end
   end
   validates :sync_interval_minutes, inclusion: { in: SYNC_INTERVALS }
   belongs_to :project

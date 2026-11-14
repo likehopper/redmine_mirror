@@ -18,9 +18,9 @@ class CreateMirrorSourceChanges < ActiveRecord::Migration[RedmineMirror.migratio
     create_table :mirror_source_changes do |t|
       t.integer :project_id, null: false
       t.string :module_key, null: false, limit: 64
-      t.integer :source_id, null: false
+      t.bigint :source_id, null: false
       t.string :action, null: false, limit: 10
-      t.integer :parent_id
+      t.bigint :parent_id
       t.datetime :created_at, null: false
     end
     add_index :mirror_source_changes, [:project_id, :id]
@@ -46,7 +46,7 @@ class CreateMirrorSourceChanges < ActiveRecord::Migration[RedmineMirror.migratio
       t.integer :project_id, null: false
       t.string :consumer_key, null: false, limit: 64
       t.string :module_key, null: false, limit: 64
-      t.integer :source_id, null: false
+      t.bigint :source_id, null: false
       t.bigint :change_id, null: false
       t.timestamps
     end
@@ -62,9 +62,9 @@ class CreateMirrorSourceChanges < ActiveRecord::Migration[RedmineMirror.migratio
       t.integer :project_id, null: false
       t.string :connection_key, null: false, limit: 64
       t.string :module_key, null: false, limit: 64
-      t.integer :source_id, null: false
+      t.bigint :source_id, null: false
       t.string :action, null: false, limit: 10, default: "upsert"
-      t.integer :parent_id
+      t.bigint :parent_id
       t.text :message
       t.timestamps
     end
