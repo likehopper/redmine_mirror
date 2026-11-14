@@ -293,6 +293,17 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     end
   end
 
+  class ConfigurationRunner
+    attr_reader :configs
+    def initialize; @configs = []; end
+    def run(config, apply: false, track_relation_blocks: false)
+      @configs << config
+      event = { module: "issue_tracking", source_id: 1, action: "unchanged" }
+      yield event if block_given?
+      [event]
+    end
+  end
+
   def execute_with(runner, on_error:, apply: true)
     @setting.update!(on_error: on_error)
     run = RedmineMirror::Synchronization.enqueue(@setting, apply: apply, trigger: "manual")
@@ -320,6 +331,20 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     assert_equal "partial", run.status
     assert_includes run.error_message, "Missing user mapping for source ID 7"
     assert_equal 100, run.progress_percentage
+  end
+
+  def test_source_without_change_protocol_uses_previous_applied_run_for_issue_filter
+    previous = @project.mirror_sync_runs.create!(apply: true, trigger: "automatic", status: "partial",
+      started_at: Time.utc(2026, 11, 14, 10), finished_at: Time.utc(2026, 11, 14, 11))
+    runner = ConfigurationRunner.new
+
+    run = execute_with(runner, on_error: "skip")
+
+    expected = (previous.started_at - 5.minutes).utc.iso8601
+    assert_equal [expected, expected], runner.configs.map { |config| config["issue_updated_on_since"] }
+    assert runner.configs.none? { |config| config["incremental"] }
+    assert @setting.reload.incremental_signature.present?
+    assert_equal "succeeded", run.status
   end
 
   # User 7 is missing from the references read before the run: they are read again so

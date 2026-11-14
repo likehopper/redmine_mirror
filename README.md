@@ -62,6 +62,10 @@ Version **1.0.0-beta.47** is a pre-release for testing before 1.0.0, not a stabl
 - Preview before writing, manual runs and automatic schedules.
 - Incremental runs after the first complete import: each destination acknowledges
   successful source changes; failed objects remain queued and proposed again.
+- Without Mirror source on the source instance, scheduled runs remain compatible:
+  issues are filtered by `updated_on` from the previous applied run, with a safety
+  overlap and explicit retries. Other selected modules keep their complete pass, and
+  issue deletions cannot be inferred until Mirror source is available.
 - Logs with remote and local IDs, links, filters and progress.
 - Local changes detected as conflicts, or overwritten in mirror mode, which also
   recreates local deletions and propagates source deletions, checked one by one and

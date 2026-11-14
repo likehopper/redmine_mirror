@@ -43,12 +43,21 @@ class MirrorCoreTest < Minitest::Test
   end
 
   class Api
-    attr_reader :writes, :records
+    attr_reader :writes, :records, :queries
     def initialize(records = {})
       @records = records
       @writes = []
+      @queries = []
     end
-    def each_record(collection, _params); @records.fetch(collection, []).each; end
+    def each_record(collection, params)
+      @queries << [collection, params]
+      records = @records.fetch(collection, [])
+      if (filter = params["updated_on"])
+        since = Time.iso8601(filter.delete_prefix(">="))
+        records = records.select { |record| record["updated_on"] && Time.iso8601(record["updated_on"]) >= since }
+      end
+      records.each
+    end
     def get(path, _params = {})
       return { "project" => { "id" => 1 } } if path.start_with?("projects/")
       collection, id = path.delete_suffix(".json").split("/")
@@ -219,6 +228,37 @@ class MirrorCoreTest < Minitest::Test
     assert_equal [["issue_tracking", 3, "update"], ["time_tracking", 9, "create"]],
       events.map { |event| event.values_at(:module, :source_id, :action) }
     assert_equal 3.0, @destination.records["time_entries"].find { |row| row["hours"] == 3.0 }["hours"]
+  end
+
+  def test_source_without_change_protocol_filters_issues_and_keeps_absent_ones
+    runner = mirror_runner(2)
+    runner.run(@config.merge("source_wins" => true), apply: true)
+    @source.records["issues"][0]["updated_on"] = "2026-10-01T10:00:00Z"
+    @source.records["issues"][1]["updated_on"] = "2026-10-03T10:00:00Z"
+
+    events = runner.run(@config.merge("source_wins" => true,
+      "issue_updated_on_since" => "2026-10-02T10:00:00Z"), apply: true)
+
+    assert_equal [2], events.map { |event| event[:source_id] }
+    assert_equal ">=2026-10-02T10:00:00Z", @source.queries.last.last.fetch("updated_on")
+    assert @store.find("issue_tracking", 1)
+    assert_empty @issues.deleted
+  end
+
+  def test_issue_timestamp_fallback_also_reads_failed_issue_retries
+    source = Api.new("issues" => [@issue])
+    store = RetryStore.new
+    store.record_retry("issue_tracking", 3, RedmineMirror::Error.new("Previous failure"))
+    registry = RedmineMirror::Registry.new
+    registry.register(RedmineMirror::Adapters::Users.new)
+    registry.register(RedmineMirror::Adapters::Issues.new)
+    runner = RedmineMirror::Runner.new(source: source, destination: @destination, store: store, registry: registry)
+
+    events = runner.run(@config.merge("modules" => ["issue_tracking"],
+      "issue_updated_on_since" => "2026-10-02T10:00:00Z"), apply: true)
+
+    assert_equal [3], events.map { |event| event[:source_id] }
+    assert_empty store.retries
   end
 
   def test_failed_incremental_object_is_retried_after_its_mapping_is_fixed
