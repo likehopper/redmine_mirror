@@ -85,3 +85,21 @@ runner installs test plugins of both styles (`test/compatibility/plugins/`).
 
 Record each tested Redmine/database combination in the validation record: the minimum
 version declared in `init.rb` is not a compatibility claim.
+
+## Issue detail cache
+
+Each REST client keeps a private cache for its run or catalog refresh; credentials
+and instances never share cached details. The cache retains at most 5,000 issues
+and 16 MiB of serialized JSON, evicting the least recently consulted issue first.
+An issue larger than the byte budget is returned normally without being cached.
+Callers receive independent values, so modifying a detail cannot alter later reads.
+
+Set `MIRROR_ISSUE_CACHE` (issue count) and `MIRROR_ISSUE_CACHE_BYTES` (bytes) in the
+worker environment to suit the destination instance. Zero or a negative value for
+either disables caching. Values must be integers and are read on the client's
+first detail lookup. For example, `MIRROR_ISSUE_CACHE=500` and
+`MIRROR_ISSUE_CACHE_BYTES=4194304` retain at most 500 issues and 4 MiB per client.
+Multiply the budget by concurrent clients when sizing an instance. This bounds
+retained JSON, not process RSS: HTTP responses, parsed objects and other import
+data still need memory. Evictions trade memory for additional source API reads;
+this cache does not impose a source request rate limit or persist across runs.

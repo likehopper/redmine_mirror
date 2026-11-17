@@ -53,17 +53,33 @@ module RedmineMirror
       request(:get, path, params: params)
     end
 
-    # Every issue association modules read, fetched once per issue for a whole run or
-    # catalog refresh. The cache is bounded to keep very large projects in memory limits.
+    # Cache serialized details so the byte budget bounds retained payloads, even
+    # when one issue contains a large history. Limits apply to each client/run.
     ISSUE_DETAIL_INCLUDES = "journals,attachments,relations,watchers,children"
 
     def issue_detail(id)
+      @issue_cache_limit ||= [Integer(ENV.fetch("MIRROR_ISSUE_CACHE", "5000")), 0].max
+      @issue_cache_bytes_limit ||= [Integer(ENV.fetch("MIRROR_ISSUE_CACHE_BYTES", "16777216")), 0].max
       @issue_details ||= {}
+      @issue_details_bytes ||= 0
       id = Integer(id)
-      return @issue_details[id] if @issue_details.key?(id)
+      if (cached = @issue_details.delete(id))
+        @issue_details[id] = cached
+        return JSON.parse(cached)
+      end
+
       detail = get("issues/#{id}.json", "include" => ISSUE_DETAIL_INCLUDES).fetch("issue")
-      @issue_details.shift if @issue_details.size >= Integer(ENV.fetch("MIRROR_ISSUE_CACHE", "5000"))
-      @issue_details[id] = detail
+      return detail if @issue_cache_limit.zero? || @issue_cache_bytes_limit.zero?
+
+      serialized = JSON.generate(detail)
+      return detail if serialized.bytesize > @issue_cache_bytes_limit
+
+      while @issue_details.size >= @issue_cache_limit || @issue_details_bytes + serialized.bytesize > @issue_cache_bytes_limit
+        @issue_details_bytes -= @issue_details.shift.last.bytesize
+      end
+      @issue_details[id] = serialized
+      @issue_details_bytes += serialized.bytesize
+      detail
     end
 
     def create(path, payload)

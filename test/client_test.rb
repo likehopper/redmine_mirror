@@ -43,6 +43,52 @@ class MirrorClientTest < Minitest::Test
     thread&.kill
   end
 
+  def with_issue_cache(count:, bytes:)
+    names = %w[MIRROR_ISSUE_CACHE MIRROR_ISSUE_CACHE_BYTES]
+    previous = names.map { |name| ENV[name] }
+    ENV[names[0]] = count.to_s
+    ENV[names[1]] = bytes.to_s
+    yield
+  ensure
+    names.zip(previous).each { |name, value| value ? ENV[name] = value : ENV.delete(name) }
+  end
+
+  def test_issue_cache_evicts_least_recently_used_detail
+    with_issue_cache(count: 2, bytes: 1024) do
+      responses = [1, 2, 3, 2].map { |id| ["200 OK", JSON.generate("issue" => { "id" => id })] }
+      serve(responses) do |client, requests|
+        [1, 2, 1, 3, 1, 2].each { |id| assert_equal id, client.issue_detail(id)["id"] }
+        assert_equal 4, requests.size
+      end
+    end
+  end
+
+  def test_issue_cache_byte_budget_and_caller_mutation
+    detail = { "id" => 1, "description" => "é" * 20 }
+    with_issue_cache(count: 10, bytes: JSON.generate(detail).bytesize) do
+      responses = [detail, detail.merge("id" => 2), detail].map { |issue| ["200 OK", JSON.generate("issue" => issue)] }
+      serve(responses) do |client, requests|
+        client.issue_detail(1)["description"].clear
+        assert_equal detail, client.issue_detail(1)
+        client.issue_detail(2)
+        assert_equal detail, client.issue_detail(1)
+        assert_equal 3, requests.size
+      end
+    end
+  end
+
+  def test_disabled_and_oversized_issue_details_are_not_retained
+    [[0, 1024], [-1, 1024], [10, 0], [10, -1], [10, 1]].each do |count, bytes|
+      with_issue_cache(count: count, bytes: bytes) do
+        responses = 2.times.map { ["200 OK", JSON.generate("issue" => { "id" => 1 })] }
+        serve(responses) do |client, requests|
+          2.times { assert_equal 1, client.issue_detail(1)["id"] }
+          assert_equal 2, requests.size
+        end
+      end
+    end
+  end
+
   def test_pagination_and_subdirectory_and_authentication
     responses = [
       ["200 OK", JSON.generate("issues" => [{ "id" => 1 }], "total_count" => 2)],

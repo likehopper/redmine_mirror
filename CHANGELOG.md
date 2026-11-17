@@ -16,6 +16,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.49 — 2026-11-17
+
+- Bound the per-client issue detail cache by both count and serialized bytes
+  (16 MiB by default), retain recently consulted issues, and allow disabling it
+  for memory-constrained workers. Oversized issues remain importable.
+
 ## 1.0.0-beta.48 — 2026-11-14
 
 - **Issue timestamp fallback without Mirror source**: when the source does not expose
