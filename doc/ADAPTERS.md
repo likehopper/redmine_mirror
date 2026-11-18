@@ -285,6 +285,11 @@ progress and log events. `Synchronization` prevalidates the planned records befo
 applying, holds the project lease and handles schedules. Registered adapters get all of
 this for free.
 
+An adapter may implement `prepare_records(records, mappings:, source_project_id:)`
+to prepare a complete batch before individual records are synchronized. The Members
+adapter uses it to combine roles of source memberships mapped to the same local member;
+it filters to the requested source project before grouping.
+
 External adapters are complete-pass adapters by default. To opt into incremental reads,
 return `true` from `incremental?`, implement `records_for(client, project_id, source_ids)`,
 and make the source-side model callbacks call `RedmineMirror::SourceChanges.record` with

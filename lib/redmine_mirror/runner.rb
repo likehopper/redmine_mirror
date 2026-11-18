@@ -230,6 +230,9 @@ module RedmineMirror
           records = adapter.records(@source_client, source_project_id)
           retry_ids = []
         end
+        if adapter.respond_to?(:prepare_records)
+          records = adapter.prepare_records(records, mappings: config.fetch("mappings", {}), source_project_id: source_project_id)
+        end
         records.each do |record|
           # APIs may include descendants; never import another project's records.
           next unless record.fetch("project").fetch("id").to_i == source_project_id
@@ -301,8 +304,7 @@ module RedmineMirror
         begin
           if apply
             transaction do
-              adapter.delete_local(mapping.fetch("destination_id"), project_id)
-              @mapping_store.delete(adapter.key, change.fetch("source_id"))
+              delete_mapping(adapter, change.fetch("source_id"), mapping.fetch("destination_id"), project_id)
               if adapter.is_a?(Adapters::Issues)
                 %w[issue_hierarchy issue_watchers issue_custom_fields issue_tags agile_issues].each do |module_key|
                   @mapping_store.delete(module_key, change.fetch("source_id"))
@@ -355,8 +357,7 @@ module RedmineMirror
           begin
             if apply
               transaction do
-                adapter.delete_local(destination_id, project_id)
-                @mapping_store.delete(adapter.key, source_id)
+                delete_mapping(adapter, source_id, destination_id, project_id)
               end
             end
             yield event
@@ -369,6 +370,14 @@ module RedmineMirror
     end
 
     private
+
+    def delete_mapping(adapter, source_id, destination_id, project_id)
+      shared_member = adapter.is_a?(Adapters::Members) && @mapping_store.mappings(adapter.key).any? do |other_source_id, other_destination_id|
+        other_source_id != source_id && other_destination_id == destination_id
+      end
+      adapter.delete_local(destination_id, project_id) unless shared_member
+      @mapping_store.delete(adapter.key, source_id)
+    end
 
     # The reason, and the details the run log uses to explain the fix. A version that the
     # project does not own is looked up once per run: its owner tells which project to

@@ -18,7 +18,49 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Minimum declared Redmine version: **5.0** as a destination, **4.0** as a source with
 Mirror source (source only). This is not a compatibility certification.
-Current plugin version: **1.0.0-beta.49**.
+Current plugin version: **1.0.0-beta.50**.
+
+## Member aliases candidate validation — 2026-11-18
+
+Unreleased working tree on `fix/member-aliases`, based on
+`58db213e28150d55ee6aabb91212a7c3b5c11890` (beta.49). The behavior changes are the
+Members batch preparation, scoped mapping uniqueness and migration 23, and shared
+membership deletion handling. SHA-256 of the sorted relative path, NUL, content,
+NUL concatenation of `app/models/mirror_mapping.rb`,
+`db/migrate/023_allow_shared_member_destinations.rb`,
+`lib/redmine_mirror/adapters/members.rb`, and `lib/redmine_mirror/runner.rb`:
+`c66832938ecef249ea19d3aafe29913f5477442c2364fe4e31e64488c6a582f6`.
+
+- `bash test/compatibility/run.sh`: Redmine 6.1.4 / Ruby 3.4.11 / Rails 7.2.3.2 /
+  SQLite; 357 Redmine tests, 2,106 assertions, plus 87 standalone tests and 383
+  assertions. Includes Chromium and fresh installation/uninstall/reinstallation.
+  An additional incremental-alias regression was added afterwards and passed with
+  the targeted suites below; executable plugin source was unchanged.
+- Redmine 5.1.13 / Ruby 3.2.11 / Rails 6.1.7.10, isolated databases: the Members
+  suite passed 14 tests / 48 assertions and the Mirror mode suite passed 6 tests /
+  15 assertions on each of PostgreSQL 15.19, MySQL 8.0.46, MariaDB 10.11.19 and
+  SQLite 3.44.2. Both MySQL and MariaDB sessions had `ONLY_FULL_GROUP_BY`,
+  `STRICT_TRANS_TABLES` and `STRICT_ALL_TABLES` enabled.
+- The populated upgrade smoke below passed separately on all four engines: original
+  rows are retained, other modules keep their destination uniqueness, downgrading
+  with shared members is refused before schema changes, and a downgrade/reupgrade
+  without aliases retains the original rows.
+- PostgreSQL regression control: the alias import test fails with
+  `ActiveRecord::RecordNotUnique` when the three beta.49 runtime files are restored,
+  and passes with the candidate. No test failures, errors or skips in corrected runs.
+
+From an initialized, empty, disposable Redmine test database, the targeted commands
+are run from the Redmine root:
+
+```sh
+RAILS_ENV=test bundle exec ruby -Itest plugins/redmine_mirror/test/unit/members_test.rb
+RAILS_ENV=test bundle exec ruby -Itest plugins/redmine_mirror/test/unit/mirror_mode_test.rb
+RAILS_ENV=test MIRROR_TEST_ENVIRONMENT=disposable bundle exec rails runner plugins/redmine_mirror/test/compatibility/member_mapping_upgrade.rb
+```
+
+These are local tests, not a new release matrix. This candidate has not been
+published, deployed, or verified through a real two-instance synchronization.
+PostgreSQL 13 and source-only Redmine 4/MySQL 5.7 were not rerun.
 
 ## 1.0.0-beta.49 validation — 2026-11-17
 

@@ -88,6 +88,13 @@ the source permission *View members* (public by default).
 - Additive: missing members and roles are added, local members and roles are kept,
   nothing is removed. A role Mirror gave and that was removed locally while the source
   still lists it is a conflict.
+- Several source users or groups may map to one local member. Their own mapped roles
+  are combined; each source membership keeps its correspondence. In source-wins mode,
+  removing one source membership removes only its contribution: the local member stays
+  while another source membership still maps to it.
+- Memberships are read as a complete list, including during incremental runs, so an
+  unchanged alias can retain its roles when another changes. Other modules keep their
+  incremental reads.
 - Locked accounts can be added. Anonymized users are not added.
 - Roles inherited from a group or a parent project are not copied: they come with that
   group or project.

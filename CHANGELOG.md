@@ -16,6 +16,16 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.50 — 2026-11-18
+
+- Allow several source memberships to map to one destination member without an
+  internal uniqueness error. Combine their roles, preserve local-change conflicts,
+  and keep the member when only one source alias is deleted. Memberships use a
+  complete pass to preserve the roles of unchanged aliases.
+- Migration 23 preserves destination uniqueness for other modules. Run plugin
+  migrations before restarting workers; do not mix old and new workers. Downgrading
+  requires resolving shared member correspondences first, without discarding them.
+
 ## 1.0.0-beta.49 — 2026-11-17
 
 - Bound the per-client issue detail cache by both count and serialized bytes
