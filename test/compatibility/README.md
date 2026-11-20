@@ -18,7 +18,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Minimum declared Redmine version: **5.0** as a destination, **4.0** as a source with
 Mirror source (source only). This is not a compatibility certification.
-Current plugin version: **1.0.0-beta.51**.
+Current plugin version: **1.0.0-beta.52**.
+
+## 1.0.0-beta.52 validation — 2026-11-21
+
+One destination change on beta.51: an HTTP 422 from a source's change journal (a source
+up to beta.50 asking for its consumer key) selects the compatible mode, like a 404. The
+standalone change-set test covers both statuses; the CI runner results are below.
 
 ## 1.0.0-beta.51 validation — 2026-11-21
 

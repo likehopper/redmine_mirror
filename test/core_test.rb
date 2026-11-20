@@ -288,14 +288,17 @@ class MirrorCoreTest < Minitest::Test
     assert RedmineMirror::Synchronization.mapping_rewrite?(previous, {})
   end
 
+  # 404: no journal. 422: a source up to beta.50 asking for its consumer key.
   def test_source_without_the_change_protocol_keeps_complete_runs
-    client = Object.new
-    client.define_singleton_method(:get) do |path, _params|
-      raise RedmineMirror::Error, "Redmine API returned HTTP 404 for GET #{path}"
+    [404, 422].each do |status|
+      client = Object.new
+      client.define_singleton_method(:get) do |path, _params|
+        raise RedmineMirror::Error, "Redmine API returned HTTP #{status} for GET #{path}"
+      end
+      change_set = RedmineMirror::ChangeSet.read(client, 1, after: 5)
+      assert change_set.full_required?, status
+      refute change_set.supported?, status
     end
-    change_set = RedmineMirror::ChangeSet.read(client, 1, after: 5)
-    assert change_set.full_required?
-    refute change_set.supported?
   end
 
   def test_ignored_tracker_leaves_its_issues_and_their_records_out_without_errors

@@ -34,8 +34,11 @@ module RedmineMirror
         return new(cursor: cursor, changes: changes, full_required: false, journaled_modules: journaled_modules) if cursor >= Integer(page.fetch("high_water"))
         params = { "after" => cursor }
       end
+    # 404: a source without the journal, or with it suspended. 422: a source up to
+    # 1.0.0-beta.50, which requires the consumer key it no longer gets. Both leave the
+    # destination in its compatible mode until the source is upgraded.
     rescue Error => error
-      raise unless error.message.include?("HTTP 404") && error.message.include?("mirror/source/changes")
+      raise unless error.message.match?(/HTTP (404|422)/) && error.message.include?("mirror/source/changes")
       new(cursor: 0, changes: [], full_required: true, supported: false)
     end
 

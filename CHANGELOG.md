@@ -16,11 +16,19 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.52 — 2026-11-21
+
+- **Upgrade order fixed**: a destination meeting a Mirror source up to 1.0.0-beta.50
+  that keeps the change journal used to fail its runs (HTTP 422: that source requires a
+  consumer key). It now uses its compatible mode, so sources and destinations can be
+  upgraded in either order. With beta.51 destinations, upgrade the sources first.
+
 ## 1.0.0-beta.51 — 2026-11-20
 
-Security release for Mirror source. Upgrade the destinations first, then give the
-source a dedicated non-administrator account and its allowed addresses, then upgrade
-the source and run its migrations before restarting Redmine.
+Security release for Mirror source. Give the source a dedicated non-administrator
+account and its allowed addresses, then upgrade the source and run its migrations
+before restarting Redmine, then the destinations: a beta.51 destination fails against a
+beta.46 to beta.50 source with the change journal (fixed in beta.52).
 
 - **Change journal limited to Mirror source projects**: model callbacks now read
   nothing else for projects without Mirror source settings, and a journal error is
@@ -58,7 +66,7 @@ the source and run its migrations before restarting Redmine.
   so a caller can no longer add rows or entries there. A gap in the journal (suspension,
   journal error) records a marker that sends every destination behind it to a complete
   pass. Destinations up to 1.0.0-beta.50 get the answer of a source without the journal
-  and use their compatible mode: upgrade destinations first.
+  and use their compatible mode.
 - **Journal limited to visible objects**: modifications of objects the API account
   cannot see (private issues, private notes, time entries) are left out of the change
   journal it reads; a deletion still gives the number of the object deleted.
