@@ -226,6 +226,10 @@ module RedmineMirror
           scoped_object_ids = (adapter_changes + adapter_retries).select do |change|
             change["parent_id"] && change.fetch("source_id") != change["parent_id"]
           end.map { |change| change.fetch("source_id") }
+        elsif config["incremental"] && Array(config["journaled_modules"]).include?(adapter.key) && adapter.respond_to?(:listed_records)
+          changed = (adapter_changes + adapter_retries).map { |change| change.fetch("source_id") }
+          records = adapter.listed_records(@source_client, source_project_id, store: @mapping_store, changed: changed)
+          retry_ids = []
         else
           records = adapter.records(@source_client, source_project_id)
           retry_ids = []

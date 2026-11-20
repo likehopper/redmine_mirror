@@ -63,7 +63,7 @@ module RedmineMirror
         end
       end
 
-      # A source without Mirror's acknowledged journal can still limit ordinary issue
+      # A source without Mirror's change journal can still limit ordinary issue
       # reads by Redmine's native timestamp filter. Failed issues are read explicitly so
       # fixing a mapping retries them even when their source timestamp did not change.
       def records_updated_since(client, project_id, since, retry_ids = [])

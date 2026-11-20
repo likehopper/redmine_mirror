@@ -22,7 +22,14 @@ api.array :users, api_meta(total_count: @users.size) do
       api.login user.login
       api.firstname user.firstname
       api.lastname user.lastname
-      api.mail user.mail
+      # Hidden by its owner (My account): a destination recognizes the account with
+      # user_matches instead.
+      if user.pref.hide_mail
+        api.mail nil
+        api.mail_hidden true
+      else
+        api.mail user.mail
+      end
       api.company(@company_field ? user.custom_field_value(@company_field).to_s.presence : nil)
       api.status user.status
     end

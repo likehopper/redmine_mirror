@@ -17,12 +17,12 @@
 # administrator, the project and its sharing allow it, and logged request by request.
 
 class MirrorSourceApiController < ApplicationController
-  accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :scrum, :queries, :users, :custom_fields, :issue_categories,
-    :project_enumerations, :project_enumeration, :repositories, :repository_links, :download, :localized_names, :subprojects, :changes, :acknowledge_changes
+  accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :scrum, :queries, :users, :user_matches, :custom_fields, :issue_categories,
+    :project_enumerations, :project_enumeration, :repositories, :repository_links, :download, :localized_names, :subprojects, :changes
   # Once Redmine knows the user, before anything else, the project lookup included: the
   # caller's address and API key.
   before_action :check_caller
-  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users custom_fields issue_categories project_enumerations repositories localized_names subprojects changes acknowledge_changes]
+  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users user_matches custom_fields issue_categories project_enumerations repositories localized_names subprojects changes]
   before_action :find_document, only: :document
   before_action :find_news, only: :news_item
   before_action :find_attachment, only: :download
@@ -31,6 +31,7 @@ class MirrorSourceApiController < ApplicationController
   before_action :find_project_enumeration, only: :project_enumeration
   before_action :find_repository, only: :repository_links
   before_action :check_access
+  before_action :require_change_journal, only: %i[changes]
 
   helper :attachments
   helper :custom_fields
@@ -69,36 +70,19 @@ class MirrorSourceApiController < ApplicationController
     respond_to { |format| format.api }
   end
 
+  # Destinations up to 1.0.0-beta.50 identify themselves (+consumer+) and expect the
+  # source to keep their acknowledgements: they get the answer of a source without the
+  # journal, and keep synchronizing in their compatible mode until they are upgraded.
   def changes
-    after = Integer(params[:after].presence || 0)
-    consumer = consumer_key
-    raise ArgumentError if after.negative?
-    result = RedmineMirror::SourceChanges.page(@project, consumer_key: consumer, after: after)
+    return render_404 if params.key?(:consumer)
+    after = params[:after].presence && Integer(params[:after])
+    raise ArgumentError if after&.negative?
+    result = RedmineMirror::SourceChanges.page(@project, after: after)
     RedmineMirror::Source.log(@project, request, User.current, "list", object_count: result.fetch(:changes).size,
       details: { "changes" => result.fetch(:changes).size, "cursor" => result.fetch(:cursor) })
     render json: result
   rescue ArgumentError, TypeError
     render json: { error: "Invalid change cursor" }, status: :unprocessable_entity
-  end
-
-  def acknowledge_changes
-    consumer = consumer_key
-    changes = Array(params[:changes]).map do |change|
-      value = change.respond_to?(:to_unsafe_h) ? change.to_unsafe_h : change.to_h
-      value.slice("id", "module_key", "source_id")
-    end
-    pending = Array(params[:pending]).map do |change|
-      value = change.respond_to?(:to_unsafe_h) ? change.to_unsafe_h : change.to_h
-      value.slice("module_key", "source_id", "parent_id")
-    end
-    RedmineMirror::SourceChanges.acknowledge(@project, consumer_key: consumer, changes: changes,
-      baseline: params[:baseline].presence, pending: pending)
-    RedmineMirror::Source.log(@project, request, User.current, "acknowledge", object_count: changes.size,
-      details: { "changes" => changes.size, "pending" => pending.size, "baseline" => params[:baseline].present? })
-    render json: { acknowledged: changes.size }
-  rescue ArgumentError, KeyError, TypeError, ActiveRecord::RecordInvalid => error
-    logger&.warn("Mirror source rejected a change acknowledgement: #{error.class}: #{error.message}")
-    render json: { error: "Invalid change acknowledgement" }, status: :unprocessable_entity
   end
 
   def news_item
@@ -143,7 +127,10 @@ class MirrorSourceApiController < ApplicationController
   # included: sharing them is the project's explicit choice, and every list is logged.
   def queries
     types = RedmineMirror::Source::QUERY_TYPES.select { |type| Object.const_defined?(type) }
-    @queries = Query.where(project_id: @project.id, type: types).preload(:user, :roles).order(:id).to_a
+    # Never other users' private queries, nor the account's own: public ones, and those
+    # limited to roles, as far as the account can see them.
+    @queries = Query.where(project_id: @project.id, type: types).where.not(visibility: Query::VISIBILITY_PRIVATE)
+      .preload(:user, :roles).order(:id).to_a.select { |query| query.visible?(User.current) }
     RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @queries.size,
       details: { "queries" => @queries.map { |query| { "id" => query.id, "title" => "#{query.name} (#{query.type})" } } })
     respond_to { |format| format.api }
@@ -151,16 +138,34 @@ class MirrorSourceApiController < ApplicationController
 
   # Login, names, email and company of the requested users (?ids=1,2) who are members of
   # the project or appear in its data; the others are left out without a word. Redmine's
-  # users API gives logins and emails to administrators only.
+  # users API gives logins and emails to administrators only. An email its owner hides
+  # is left out too (user_matches).
   def users
-    ids = params[:ids].to_s.split(",").map { |id| Integer(id, exception: false) }.compact.uniq
-      .first(RedmineMirror::Source::USERS_PER_REQUEST)
-    @users = User.where(type: "User", id: RedmineMirror::Source.project_user_ids(@project, ids))
-      .preload(:email_address, :custom_values).order(:id).to_a
+    @users = User.where(type: "User", id: RedmineMirror::Source.project_user_ids(@project, requested_user_ids, User.current))
+      .preload(:email_address, :custom_values, :preference).order(:id).to_a
     @company_field = RedmineMirror.user_company_field
     RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @users.size,
       details: { "users" => @users.map { |user| { "id" => user.id, "title" => user.name } } })
     respond_to { |format| format.api }
+  end
+
+  # Which of the requested users (ids, those users() lists) own one of the given email
+  # digests (digests: SHA-256 of a lowercased address). A destination sends the digests of
+  # its own users' addresses to recognize the accounts whose email is hidden: it learns
+  # only addresses it already knows, and never sends them in clear.
+  def user_matches
+    digests = Array(params[:digests]).map(&:to_s).select { |digest| digest.match?(/\A[0-9a-f]{64}\z/) }.uniq
+    return render(json: { error: "Too many digests" }, status: :unprocessable_entity) if digests.size > RedmineMirror::Source::DIGESTS_PER_REQUEST
+    wanted = digests.to_set
+    users = User.where(type: "User", id: RedmineMirror::Source.project_user_ids(@project, requested_user_ids, User.current))
+      .preload(:email_addresses).order(:id).to_a
+    matches = users.each_with_object([]) do |user, result|
+      digest = user.email_addresses.map { |email| Digest::SHA256.hexdigest(email.address.to_s.downcase) }.find { |value| wanted.include?(value) }
+      result << { "id" => user.id, "digest" => digest } if digest
+    end
+    RedmineMirror::Source.log(@project, request, User.current, "match", object_count: matches.size,
+      details: { "users" => users.size, "digests" => digests.size })
+    render json: { matches: matches }
   end
 
   # Definitions of the issue fields this project can use and this account may see.
@@ -306,10 +311,10 @@ class MirrorSourceApiController < ApplicationController
     when "issue_tags" then "issue_tags"
     when "scrum" then "scrum"
     when "queries" then "queries"
-    when "users" then "users"
+    when "users", "user_matches" then "users"
     when "custom_fields" then "issue_custom_fields"
     when "localized_names" then "localized_names"
-    when "changes", "acknowledge_changes" then "changes"
+    when "changes" then "changes"
     when "subprojects" then "subprojects"
     when "issue_categories" then "issue_categories"
     when "project_enumerations", "project_enumeration" then "project_enumerations"
@@ -319,15 +324,22 @@ class MirrorSourceApiController < ApplicationController
     end
   end
 
-  # An address outside the administrator's list, or a request not authenticated by its API
-  # key header, is refused without naming any project. Logged by Rails only: the access log
-  # belongs to a project.
+  # A source switched off, an address outside the administrator's list, or a request not
+  # authenticated by its API key header, is refused without naming any project. Logged by
+  # Rails only: the access log belongs to a project.
   def check_caller
     address = RedmineMirror::Source.caller_address(request)
-    if !RedmineMirror::Source.address_allowed?(address)
+    # Switched off, or kept off without any allowed address: refused before anything else.
+    if !RedmineMirror::Source.enabled?
+      reason = "disabled"
+    elsif !RedmineMirror::Source.address_allowed?(address)
       reason = "address"
     elsif !RedmineMirror::Source.api_key_request?(request, User.current)
       reason = "api_key"
+    elsif User.current.admin?
+      # An administrator bypasses every permission: private issues and notes, all projects.
+      # Destinations use a dedicated account given what it may see in the shared projects.
+      reason = "admin_account"
     else
       return
     end
@@ -336,10 +348,15 @@ class MirrorSourceApiController < ApplicationController
     render_403
   end
 
-  def consumer_key
-    value = params[:consumer].to_s
-    raise ArgumentError unless value.match?(/\A[0-9a-f]{64}\z/)
-    value
+  # A suspended journal answers like a source without it: destinations fall back to their
+  # compatible mode (ChangeSet.read), and resuming it asks them for a complete pass.
+  def require_change_journal
+    render_404 unless RedmineMirror::Source.changes_enabled?
+  end
+
+  def requested_user_ids
+    params[:ids].to_s.split(",").map { |id| Integer(id, exception: false) }.compact.uniq
+      .first(RedmineMirror::Source::USERS_PER_REQUEST)
   end
 
   # An account is required, even on public projects. Projects it cannot see are

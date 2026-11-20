@@ -172,12 +172,42 @@ module RedmineMirror
       tables.fetch("user").keys.each_slice(100) do |ids|
         users = @client.get("projects/#{Integer(@project_id)}/mirror/source/users.json", "ids" => ids.join(",")).fetch("users")
         users.each do |user|
-          details[Integer(user.fetch("id")).to_s] = user.slice("login", "firstname", "lastname", "mail", "company", "status")
+          details[Integer(user.fetch("id")).to_s] = user.slice("login", "firstname", "lastname", "mail", "mail_hidden", "company", "status")
         end
       end
+      match_hidden_mails(details)
       tables["user_details"] = details
     rescue Error => error
       tables["user_details_refusal"] = error.message[/\(Mirror source: ([a-z_]+)\)/, 1] || (error.message.include?("HTTP 404") ? "unavailable" : "error")
+    end
+
+    # Source accounts whose owner hides the email: the source says which of this Redmine's
+    # addresses they own, from SHA-256 digests, so that matching by email still works and
+    # neither side sends an address in clear. A source without user_matches leaves them out.
+    def match_hidden_mails(details)
+      hidden = details.select { |_, info| info["mail_hidden"] }.keys
+      return if hidden.empty?
+      addresses = local_addresses.map { |address| address.to_s.downcase }.uniq
+      by_digest = addresses.to_h { |address| [Digest::SHA256.hexdigest(address), address] }
+      hidden.each_slice(100) do |ids|
+        by_digest.keys.each_slice(1_000) do |digests|
+          remaining = ids.select { |id| details[id]["mail"].to_s.empty? }
+          break if remaining.empty?
+          body = @client.create("projects/#{Integer(@project_id)}/mirror/source/users/matches.json",
+            "ids" => remaining.join(","), "digests" => digests)
+          Array(body["matches"]).each do |match|
+            id = match["id"].to_s
+            address = by_digest[match["digest"].to_s]
+            details[id]["mail"] = address if address && details.key?(id)
+          end
+        end
+      end
+    rescue Error
+      nil
+    end
+
+    def local_addresses
+      EmailAddress.pluck(:address)
     end
   end
 end

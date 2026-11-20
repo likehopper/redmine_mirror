@@ -53,7 +53,7 @@ Redmine::Plugin.register :redmine_mirror do
   end
   # Administrators list the source Redmine URLs that project managers may connect to,
   # and allow Mirror source globally (off by default).
-  settings default: { "allowed_source_urls" => "", "user_company_field_id" => "", "source_enabled" => "", "source_log_days" => "180" },
+  settings default: { "allowed_source_urls" => "", "user_company_field_id" => "", "source_enabled" => "", "source_changes_enabled" => "1", "source_log_days" => "180" },
     partial: "settings/redmine_mirror"
   unless RedmineMirror.source_only?
     menu :project_menu, :mirror, { controller: "mirror", action: "index" },
@@ -75,6 +75,7 @@ Attachment.include(RedmineMirror::SourceChanges::AttachmentPatch) unless Attachm
 IssueRelation.include(RedmineMirror::SourceChanges::IssueRelationPatch) unless IssueRelation < RedmineMirror::SourceChanges::IssueRelationPatch
 Watcher.include(RedmineMirror::SourceChanges::IssueAssociationPatch) unless Watcher < RedmineMirror::SourceChanges::IssueAssociationPatch
 CustomValue.include(RedmineMirror::SourceChanges::IssueAssociationPatch) unless CustomValue < RedmineMirror::SourceChanges::IssueAssociationPatch
+SettingsController.include(RedmineMirror::SettingsControllerPatch) unless SettingsController < RedmineMirror::SettingsControllerPatch
 # The settings tab is added by a helper of ProjectsController, not by patching
 # ProjectsHelper: plugins that chain project_settings_tabs with alias_method would
 # capture a prepended method and break its call to super.

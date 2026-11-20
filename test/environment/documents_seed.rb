@@ -25,7 +25,8 @@ project = Project.find_or_create_by!(identifier: "mirror-documents-demo") do |ro
   row.enabled_module_names = %w[documents mirror_source]
 end
 # Mirror source: allowed by the administrator, module enabled, documents shared.
-Setting.plugin_redmine_mirror = Setting.plugin_redmine_mirror.to_h.merge("source_enabled" => "1")
+Setting.plugin_redmine_mirror = Setting.plugin_redmine_mirror.to_h.merge("source_enabled" => "1",
+  "source_allowed_addresses" => "127.0.0.0/8\n10.0.0.0/8\n172.16.0.0/12\n192.168.0.0/16")
 project.enable_module!(:mirror_source)
 (project.mirror_source_setting || project.build_mirror_source_setting).update!(shared_modules: %w[documents])
 Member.find_or_create_by!(project: project, user: alice) { |row| row.roles = [Role.find_by!(name: "Manager")] }

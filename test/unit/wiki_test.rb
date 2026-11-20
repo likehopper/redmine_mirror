@@ -39,17 +39,21 @@ class MirrorWikiTest < ActiveSupport::TestCase
 
     # Redmine 4.0 answers a deleted version with the current one, Redmine 5 with 404.
     # The start page is Mirror_home; without one, the wiki's URL answers 404.
+    attr_reader :paths
+
     def initialize(deleted_as_current: false, start_page: true)
       @deleted_as_current = deleted_as_current
       @start_page = start_page
+      @paths = []
     end
 
     def get(path, _params = {})
+      @paths << path
       case path
       when "projects/9/wiki.json"
         raise RedmineMirror::Error, "Redmine API returned HTTP 404 for GET #{path}" unless @start_page
         { "wiki_page" => PAGES.fetch("Mirror_home") }
-      when "projects/9/wiki/index.json" then { "wiki_pages" => PAGES.values.reverse.map { |page| page.slice("title", "parent", "version") } }
+      when "projects/9/wiki/index.json" then { "wiki_pages" => PAGES.values.reverse.map { |page| page.slice("title", "parent", "version", "updated_on") } }
       when "projects/9/wiki/Mirror_home/1.json" then { "wiki_page" => PAGES.fetch("Mirror_home").merge(OLD) }
       when "projects/9/wiki/Mirror_home/2.json"
         raise RedmineMirror::Error, "Redmine API returned HTTP 404 for GET #{path}" unless @deleted_as_current
@@ -57,6 +61,15 @@ class MirrorWikiTest < ActiveSupport::TestCase
       when %r{\Aprojects/9/wiki/(\w+)\.json\z} then { "wiki_page" => PAGES.fetch(Regexp.last_match(1)) }
       else raise "Unexpected #{path}"
       end
+    end
+  end
+
+  # The same wiki after Mirror_child was moved to the top level on the source.
+  class MovedSource < Source
+    def get(path, params = {})
+      top_level = ->(page) { page["title"] == "Mirror_child" ? page.except("parent") : page }
+      result = super
+      result.merge("wiki_pages" => result["wiki_pages"]&.map(&top_level), "wiki_page" => result["wiki_page"] && top_level.call(result["wiki_page"])).compact
     end
   end
 
@@ -72,6 +85,44 @@ class MirrorWikiTest < ActiveSupport::TestCase
     @adapter.records(source, 9).map do |record|
       @adapter.synchronize(record, project_id: @project.id, mappings: @mappings, lookup: @lookup, store: @store, source: source, apply: apply)
     end
+  end
+
+  def listed_sync(source, changed: [])
+    @adapter.listed_records(source, 9, store: @store, changed: changed).map do |record|
+      @adapter.synchronize(record, project_id: @project.id, mappings: @mappings, lookup: @lookup, store: @store, source: source, apply: true)
+    end
+  end
+
+  def test_unchanged_pages_are_listed_from_the_index_without_their_detail
+    sync
+    source = Source.new
+    assert_equal %w[unchanged unchanged], listed_sync(source).map { |event| event[:action] }
+    assert_equal %w[projects/9/wiki/index.json projects/9/wiki.json], source.paths
+  end
+
+  # Journaled files, a local edit or a page moved under another parent need the detail.
+  def test_changed_moved_or_locally_edited_pages_read_their_detail
+    sync
+    home = @project.wiki.find_page("Mirror_home")
+    child = @project.wiki.find_page("Mirror_child")
+    source = Source.new
+    listed_sync(source, changed: [RedmineMirror::Adapters::Wiki.source_id("Mirror_child")])
+    assert_includes source.paths, "projects/9/wiki/Mirror_child.json"
+    assert_not_includes source.paths, "projects/9/wiki/Mirror_home.json"
+
+    source = MovedSource.new
+    events = listed_sync(source).to_h { |event| [event[:source_id], event[:action]] }
+    assert_equal "update", events.fetch(RedmineMirror::Adapters::Wiki.source_id("Mirror_child"))
+    assert_equal "unchanged", events.fetch(RedmineMirror::Adapters::Wiki.source_id("Mirror_home"))
+    assert_includes source.paths, "projects/9/wiki/Mirror_child.json"
+    assert_nil child.reload.parent_id
+
+    home.content.text = "Local edit"
+    home.content.save!
+    source = MovedSource.new
+    error = assert_raises(RedmineMirror::Error) { listed_sync(source) }
+    assert_match(/Local modification detected for wiki page "Mirror_home"/, error.message)
+    assert_includes source.paths, "projects/9/wiki/Mirror_home.json"
   end
 
   def test_deleted_version_answered_as_the_current_one_stays_a_gap

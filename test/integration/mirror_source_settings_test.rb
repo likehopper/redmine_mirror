@@ -123,7 +123,11 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
     get "/settings/plugin/redmine_mirror"
     assert_select "#settings_source_enabled:not([checked])"
     assert_select "#mirror-source-settings a[href='/admin/mirror/source']"
+    # Switched on without any allowed address: kept off.
     post "/settings/plugin/redmine_mirror", params: { settings: { allowed_source_urls: "", user_company_field_id: "", source_enabled: "1", source_log_days: "30" } }
+    assert_not RedmineMirror::Source.enabled?
+    post "/settings/plugin/redmine_mirror", params: { settings: { allowed_source_urls: "", user_company_field_id: "", source_enabled: "1",
+      source_allowed_addresses: "10.0.0.12", source_log_days: "30" } }
     assert RedmineMirror::Source.enabled?
     assert_equal 30, RedmineMirror::Source.retention_days
     post "/settings/plugin/redmine_mirror", params: { settings: { allowed_source_urls: "", user_company_field_id: "", source_enabled: "", source_log_days: "30" } }
@@ -136,10 +140,10 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
     log_user("admin", "admin")
     get "/settings/plugin/redmine_mirror"
     (RedmineMirror::Source.available_kinds - RedmineMirror::Source::EXPLICIT_KINDS).each { |kind| assert_select "#settings_source_kind_#{kind}[checked]" }
-    # Field definitions and repository credentials are never allowed until the
-    # administrator checks them explicitly.
-    assert_select "#settings_source_kind_issue_custom_fields:not([checked])"
-    assert_select "#settings_source_kind_repository_credentials:not([checked])"
+    # Personal data, field definitions and repository access are never allowed until
+    # the administrator checks them explicitly.
+    RedmineMirror::Source::EXPLICIT_KINDS.each { |kind| assert_select "#settings_source_kind_#{kind}:not([checked])" }
+    assert_includes RedmineMirror::Source::EXPLICIT_KINDS, "users"
     assert_select "#settings_source_kind_scrum", count: RedmineMirror::Source.scrum_available? ? 1 : 0
     post "/settings/plugin/redmine_mirror", params: { settings: { source_enabled: "1", source_kinds: ["", "news", "queries"] } }
     assert_equal %w[news queries], RedmineMirror::Source.allowed_kinds
@@ -189,9 +193,17 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
     end
     get "/admin/mirror/source", params: { project_id: @project.id, session: SESSION }
     assert_select "table.mirror-source-accesses tbody tr", count: 1
+    assert_select "#mirror-source-no-address", count: 0
     with_settings(plugin_redmine_mirror: { "source_enabled" => "1" }) do
       get "/admin/mirror/source"
+      # Switched on without any allowed address: kept off, and the administrator is told why.
+      assert_select "#mirror-admin-source-status.warning"
+      assert_select "#mirror-source-no-address.warning"
+    end
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_allowed_addresses" => "10.0.0.12" }) do
+      get "/admin/mirror/source"
       assert_select "#mirror-admin-source-status.mirror-source-on"
+      assert_select "#mirror-source-no-address", count: 0
     end
   end
 

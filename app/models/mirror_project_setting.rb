@@ -18,7 +18,7 @@
 class MirrorProjectSetting < ActiveRecord::Base
   SYNC_INTERVALS = [5, 15, 30, 60, 360, 1440].freeze
   # Columns of the latest migrations; extend this list with each new migration.
-  LATEST_COLUMNS = %w[source_project_identifier source_text_format on_error catalog_status source_wins ai_status use_default_mappings parent_setting_id source_change_cursor incremental_signature source_consumer_key incremental_mapping_state].freeze
+  LATEST_COLUMNS = %w[source_project_identifier source_text_format on_error catalog_status source_wins ai_status use_default_mappings parent_setting_id source_change_cursor incremental_signature incremental_mapping_state].freeze
   ON_ERROR = %w[skip stop].freeze
 
   def self.schema_current?
@@ -28,8 +28,7 @@ class MirrorProjectSetting < ActiveRecord::Base
   end
 
   def self.bigint_identifiers?
-    { MirrorSourceChange => %w[source_id parent_id], MirrorSourceAcknowledgement => %w[source_id],
-      MirrorSyncRetry => %w[source_id parent_id] }.all? do |model, names|
+    { MirrorSourceChange => %w[source_id parent_id], MirrorSyncRetry => %w[source_id parent_id] }.all? do |model, names|
       names.all? do |name|
         column = model.columns_hash[name]
         column && (column.limit == 8 || column.sql_type.to_s.downcase.include?("bigint"))
@@ -120,15 +119,6 @@ class MirrorProjectSetting < ActiveRecord::Base
   def source_client(purpose: nil)
     RedmineMirror::Client.new(url: source_url, api_key: api_key,
       allow_http: ENV["MIRROR_TEST_ENVIRONMENT"] == "disposable", purpose: purpose)
-  end
-
-  def source_consumer_key!
-    return source_consumer_key if source_consumer_key.to_s.match?(/\A[0-9a-f]{64}\z/)
-    with_lock do
-      reload
-      update_column(:source_consumer_key, SecureRandom.hex(32)) unless source_consumer_key.to_s.match?(/\A[0-9a-f]{64}\z/)
-      source_consumer_key
-    end
   end
 
   def adapters

@@ -13,37 +13,35 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 #
-# Read source proposals without consuming them and acknowledge applied changes.
+# Read the source changes after this destination's position. The destination keeps that
+# position and its failures (mirror_sync_retries): the source stores nothing for it.
 
 module RedmineMirror
   class ChangeSet
-    attr_reader :cursor, :changes
+    attr_reader :cursor, :changes, :journaled_modules
 
-    def self.read(client, project_id, consumer_key:)
-      cursor = 0
+    # Without a position, the source answers with the one to keep after a complete pass.
+    def self.read(client, project_id, after:)
+      params = after.nil? ? {} : { "after" => Integer(after) }
       changes = []
+      journaled_modules = []
       loop do
-        page = client.get("projects/#{Integer(project_id)}/mirror/source/changes.json", "consumer" => consumer_key, "after" => cursor)
+        page = client.get("projects/#{Integer(project_id)}/mirror/source/changes.json", params)
         return new(cursor: page.fetch("cursor"), changes: [], full_required: true) if page.fetch("full_required")
         changes.concat(page.fetch("changes"))
+        journaled_modules = Array(page["journaled_modules"]).map(&:to_s)
         cursor = Integer(page.fetch("cursor"))
-        break if cursor >= Integer(page.fetch("high_water"))
+        return new(cursor: cursor, changes: changes, full_required: false, journaled_modules: journaled_modules) if cursor >= Integer(page.fetch("high_water"))
+        params = { "after" => cursor }
       end
-      new(cursor: cursor, changes: changes, full_required: false)
     rescue Error => error
       raise unless error.message.include?("HTTP 404") && error.message.include?("mirror/source/changes")
       new(cursor: 0, changes: [], full_required: true, supported: false)
     end
 
-    def acknowledge(client, project_id, consumer_key:, changes: [], baseline: nil, pending: [])
-      payload = { "consumer" => consumer_key, "changes" => changes.map { |change| change.slice("id", "module_key", "source_id") } }
-      payload["baseline"] = baseline if baseline
-      payload["pending"] = pending.map { |change| change.slice("module_key", "source_id", "parent_id") }
-      client.create("projects/#{Integer(project_id)}/mirror/source/changes/acknowledgements.json", payload)
-    end
-
-    def initialize(cursor:, changes:, full_required:, supported: true)
+    def initialize(cursor:, changes:, full_required:, supported: true, journaled_modules: [])
       @cursor = Integer(cursor)
+      @journaled_modules = journaled_modules
       @changes = changes
       @full_required = full_required
       @supported = supported

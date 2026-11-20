@@ -53,7 +53,8 @@ API.
 
 The source API key determines what can be imported: data it cannot see is skipped.
 Use the key of a dedicated, non-administrator source account, member of the source
-projects with a read-only role:
+projects with a read-only role. Mirror source refuses administrators' keys: an
+administrator sees every project, private issue and note.
 
 | Source permission | Needed for |
 | --- | --- |
@@ -65,7 +66,7 @@ projects with a read-only role:
 | View members (public by default) | Members |
 | View documents | Documents ([Mirror source](#mirror-source-on-the-source-redmine) on the source) |
 | View files | Files |
-| View issues | Saved queries ([Mirror source](#mirror-source-on-the-source-redmine) on the source; private queries included) |
+| View issues | Saved queries ([Mirror source](#mirror-source-on-the-source-redmine) on the source; public queries and those shown to the account's roles, never private ones) |
 | View sprint board (Scrum plugin) | Agile sprints and issue data ([Mirror source](#mirror-source-on-the-source-redmine) on the source, redmine_agile PRO on the destination) |
 | View issues | Tags ([Mirror source](#mirror-source-on-the-source-redmine) on the source, Redmine Tags plugin on both sides) |
 | View news | News ([Mirror source](#mirror-source-on-the-source-redmine) on the source) |
@@ -75,8 +76,9 @@ Projects the account is not a member of are not visible. **Issue custom fields**
 work without an administrator key: Redmine then hides the field definitions, so the
 fields and their values come from the source issues, each value takes the format of
 the destination field you map it to and is checked in the preview, and list choices
-are the values found in the issues and their history. An administrator key adds
-format compatibility checks and the complete lists of possible values.
+are the values found in the issues and their history. Sharing **Custom fields** through
+Mirror source adds format compatibility checks and the complete lists of possible
+values without an administrator key.
 
 ## 3. Allow the source Redmine
 
@@ -222,7 +224,11 @@ the missing members to the project first, or create their accounts from the sour
 When the source project shares **Users** ([Mirror source](#mirror-source-on-the-source-redmine)),
 each source user shows its login, email and company, and a local account with the same
 email is preselected before one with the same name. Redmine's users API gives emails to
-administrators only; Mirror source lets a project manager use them.
+administrators only; Mirror source lets a project manager use them. An email its owner
+hides (*My account → Hide my email address*) is never sent: the destination sends the
+SHA-256 digests of its own addresses, and the source answers which of them the account
+owns, so the matching local account is still preselected. Without a match, **Accounts to
+create** asks for the email of such a user, and the account keeps it hidden.
 
 **Accounts to create**, below the table, lists the unmapped source users whose email has
 no account here. Check them, optionally check roles to add them as members, and click
@@ -340,10 +346,10 @@ to list the objects concerned, each with its local and source links. The preview
 them too, before anything is written.
 
 The first successful import is complete. Later runs ask Mirror source only for additions,
-modifications and explicit deletions not yet acknowledged by this destination. A preview
-never acknowledges them. An object in error stays proposed and is also retained in the
-destination retry queue; adding its missing correspondence retries it without rereading
-the whole project. Use **Full synchronization** when you intentionally want to reconcile
+modifications and explicit deletions recorded after the position this destination keeps;
+the source stores nothing for the destination. A preview leaves the position unchanged.
+An object in error is retained in the destination retry queue; adding its missing
+correspondence retries it without rereading the whole project. Use **Full synchronization** when you intentionally want to reconcile
 every selected object again.
 
 ![Import log](screenshots/configuration/16-import-log.png)
@@ -479,15 +485,25 @@ only, and categories to their managers only, without sharing. On the source Redm
    shared, whatever the projects check. Only the data this Redmine can provide is listed
    (Tags need the Redmine Tags plugin, Scrum sprints the Scrum plugin); projects do not
    see the rest, which is refused to destinations.
+   **Users**, **Saved queries**, **Custom fields**, **Repositories** and **Repository
+   credentials** stay unchecked until the administrator checks them: they carry personal
+   data (emails, saved queries) or repository access. Private queries are never shared.
    **Allowed addresses** restricts Mirror source to the addresses or networks (CIDR) of
-   the destination Redmines, one per line; empty, any address may call it. A list with no
-   valid entry refuses every address. Whatever the list, Mirror source answers only
+   the destination Redmines, one per line. It is required: while it is empty, Mirror
+   source stays disabled even when switched on, and the settings and Mirror source page
+   say why. A list with no valid entry refuses every address. Whatever the list, Mirror source answers only
    requests authenticated by the API key in the `X-Redmine-API-Key` header, as Mirror
    destinations send it: a browser session, a login and password or a key in the URL are
-   refused. These refusals (*address*, *api_key*) are written to Redmine's log, not to the
+   refused. These refusals (*disabled*, *address*, *api_key*) are written to Redmine's log, not to the
    project access log. Behind a reverse proxy on the same host, the address is the one
-   that proxy adds last to `X-Forwarded-For` (Apache and nginx proxies add it); with
-   another proxy in front, list that proxy's address, or filter at the firewall.
+   that proxy adds last to `X-Forwarded-For` (Apache and nginx proxies add it). With a
+   proxy on another host, list it in **Trusted proxies**: the address it adds is then
+   checked, back through every trusted proxy. The header of any other caller is ignored,
+   since anyone can write it.
+   **Record the change journal** (on by default) lets destinations read only what
+   changed since their last run. Uncheck it to suspend it, for example during a
+   maintenance: nothing is recorded, destinations fall back to complete passes, and
+   switching it asks each destination for a complete pass at its next run.
 
    ![Mirror source allowed](screenshots/configuration/27-source-allowed.png)
 3. In the project: `Settings → Modules`, enable **Mirror source** (the **Mirror** module

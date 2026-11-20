@@ -295,6 +295,7 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
   def test_17_mirror_source
     visit "/settings/plugin/redmine_mirror"
     check "settings_source_enabled"
+    fill_in "settings_source_allowed_addresses", with: "203.0.113.10"
     screenshot "27-source-allowed", "#mirror-source-settings"
     click_button "Apply"
     assert_selector "#flash_notice"

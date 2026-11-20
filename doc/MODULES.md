@@ -326,6 +326,10 @@ local models and send no notification.
   references** lists the authors of every version in *Users*.
 - Local versions keep the source numbers; a version deleted on the source leaves the
   same gap. New source versions are added on later runs.
+- Incremental runs read the page index, then only the pages whose version, date or
+  parent changed, that the source journal reports (files attached or removed), or that
+  need work on the destination. A complete pass, or a source before 1.0.0-beta.51, reads
+  every page.
 - Texts follow the destination format and issue references are rewritten, as for issues.
   Wiki links (`[[Page]]`) keep their titles, which are the same on both sides.
 - The source start page becomes the destination's when the destination start page does
@@ -432,7 +436,9 @@ the destination. Enable the Agile module on the destination project.
 
 Recreates the project's saved queries of issues, time entries and agile boards (the
 latter with redmine_agile on both sides), through **Mirror source**: Redmine's API lists
-only their names. The source API key needs *View issues*; private queries are included.
+only their names. The source API key needs *View issues*. Only public queries and those
+shown to roles the account can see are shared; private queries never, the account's own
+included.
 
 - Filters, columns, sorts, grouping and board options (status columns, work-in-progress
   limits, sprint) are translated through the mappings of the other tabs (statuses,
@@ -443,8 +449,8 @@ only their names. The source API key needs *View issues*; private queries are in
   user, project filter with values, filter of a plugin missing here) is **not created**
   and is logged as ignored, with the reason: it would show other issues than its name
   says. Columns, sorts and groups that do not exist here are left out.
-- A private query goes to its mapped owner, locked or not, and is ignored when the owner
-  is anonymized. A query shown to roles gets the roles mapped in Members, or else the
+- A private query (from an older source) goes to its mapped owner, locked or
+  not, and is ignored when the owner is anonymized. A query shown to roles gets the roles mapped in Members, or else the
   roles of the project that can edit it.
 - A local edit or deletion of an imported query is a conflict, except in mirror mode.
 
@@ -472,16 +478,25 @@ send no notification.
 
 **Run preview** and **Synchronize now** queue a run; the worker processes it. The first
 run, a configuration rewrite and **Full synchronization** validate all records. Ordinary
-later runs validate only source changes not acknowledged by this destination and retained
-failures; adapters without incremental source events keep their complete pass. The
+later runs validate only source changes recorded after this destination's position and
+retained failures; adapters without incremental source events keep their complete pass. The
 preflight lists every failing object, not only the first one. Progress counts processed
 objects, unchanged ones included, and reaches 100% when the run ends.
 
-Mirror source records a monotonic change journal with explicit deletion tombstones. A
-preview never acknowledges it. An applying destination acknowledges each successful
-object; a failed one is proposed again. When *The source wins* is off, a source deletion
-is acknowledged but deliberately kept locally. When it is on, deletion safety limits and
+Mirror source records a monotonic change journal with explicit deletion tombstones. Each
+destination keeps its own position in it: an applying run moves past the changes it read,
+a preview does not, and a failed object waits in the destination retry queue. The journal
+leaves out modifications of objects the source API account cannot see (private issues,
+private notes, time entries); a deletion only gives the number of an object that no
+longer exists. When *The source wins* is off, a source deletion is deliberately kept
+locally. When it is on, deletion safety limits and
 their explicit confirmation still apply.
+
+The source keeps this journal only for projects with Mirror source settings. Its
+administrator can suspend it (**Record the change journal** in the plugin settings):
+destinations then receive a 404 and use their compatible mode, as without Mirror source.
+Switching it, or a journal error on the source, asks the destinations concerned for a
+complete pass at their next run, since the changes of that period were not recorded.
 
 **When an object fails** (Settings → Mirror → Automatic synchronization):
 

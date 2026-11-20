@@ -340,6 +340,28 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     end
   end
 
+  # An email hidden on the source is never received: the members manager types it, and
+  # the account keeps it hidden.
+  def test_accounts_of_source_users_with_a_hidden_email_take_a_typed_email
+    Role.find(1).add_permission!(:manage_mirror)
+    details = { "7" => { "login" => "rhidden", "firstname" => "Hidden", "lastname" => "Remote", "mail" => nil, "mail_hidden" => true } }
+    @setting.update!(source_catalog: @setting.source_catalog.merge("user" => { "7" => "Remote Hidden" }, "user_details" => details))
+    log_user("jsmith", "jsmith")
+    with_settings(plugin_redmine_mirror: { "user_creation_enabled" => "1" }) do
+      settings("users")
+      assert_select "#mirror-create-user-7"
+      assert_select "input#mirror-create-user-mail-7[type=email]"
+      post "/projects/ecookbook/mirror/settings/users", params: { source_user_ids: %w[7], mails: { "7" => "" } }
+      assert_match(/Hidden Remote: email hidden on the source/, flash[:error])
+      assert_nil User.find_by(login: "rhidden")
+      post "/projects/ecookbook/mirror/settings/users", params: { source_user_ids: %w[7], mails: { "7" => " hidden@source.example " } }
+      user = User.find_by(login: "rhidden")
+      assert user, flash[:error]
+      assert_equal ["hidden@source.example", true], [user.mail, user.pref.hide_mail]
+      assert_equal user.id, @project.mirror_reference_mappings.find_by(reference_type: "user", source_id: 7).destination_id
+    end
+  end
+
   def test_settings_page_keeps_the_tabs_of_other_plugins
     installed = COMPAT_PLUGINS.select { |name| Redmine::Plugin.installed?(name) }
     assert_equal COMPAT_PLUGINS, installed, "compatibility plugins missing" if ENV["MIRROR_COMPAT_PLUGINS"] == "1"

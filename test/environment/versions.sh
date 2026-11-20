@@ -54,8 +54,11 @@ for seed in "${seeds[@]}"; do
     "${compose[@]}" exec -T source timeout 300 bundle exec rails runner "/mirror-environment/$seed.rb" > /dev/null
 done
 # MIRROR_SOURCE_ACCOUNT=reader configures the connection with a non-administrator key.
+# Mirror source refuses administrators' keys: with the source plugin, reader by default.
+default_account=admin
+[ "${MIRROR_SOURCE_PLUGIN:-}" = 1 ] && default_account=reader
 key_args=()
-if [ "${MIRROR_SOURCE_ACCOUNT:-admin}" = reader ]; then
+if [ "${MIRROR_SOURCE_ACCOUNT:-$default_account}" = reader ]; then
   "${compose[@]}" exec -T source bundle exec rails runner /mirror-environment/reader_account.rb
   key_args=(-e "MIRROR_SOURCE_API_KEY=$(printf '3%.0s' $(seq 40))")
 fi

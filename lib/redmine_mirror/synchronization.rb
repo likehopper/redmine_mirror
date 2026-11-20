@@ -196,7 +196,6 @@ module RedmineMirror
         destination_key = ENV.fetch("MIRROR_DESTINATION_API_KEY") { raise Error, "MIRROR_DESTINATION_API_KEY is not configured for the worker" }
         destination = Client.new(url: destination_url, api_key: destination_key, allow_http: config.fetch("allow_http"))
         source = setting.source_client(purpose: run.apply? ? "synchronization" : "preview")
-        consumer_key = setting.source_consumer_key!
         signature = Digest::SHA256.hexdigest(JSON.generate(config.slice("source_url", "source_project_id", "destination_project_id",
           "modules", "module_options", "source_wins", "text_format")))
         previous_mappings = JSON.parse(setting.incremental_mapping_state.presence || "{}")
@@ -204,10 +203,11 @@ module RedmineMirror
         configuration_full = run.force_full? ||
           (setting.incremental_signature.present? && setting.incremental_signature != signature) ||
           mapping_rewrite?(previous_mappings, current_mappings)
-        change_set = ChangeSet.read(source, setting.source_project_id, consumer_key: consumer_key)
+        change_set = ChangeSet.read(source, setting.source_project_id, after: setting.source_change_cursor)
         full = configuration_full || setting.source_change_cursor.nil? || change_set.full_required?
         issue_updated_on = fallback_issue_updated_on(run) unless change_set.supported? || configuration_full
         config = config.merge("incremental" => change_set.supported? && !full, "changes" => change_set.changes,
+          "journaled_modules" => change_set.journaled_modules,
           "track_retries" => run.apply?, "issue_updated_on_since" => issue_updated_on)
         runner = Runner.new(source: source, destination: destination, store: DatabaseStore.new(key, project_id: setting.project_id))
         stop_check = stop_checker(run)
@@ -232,9 +232,8 @@ module RedmineMirror
           preview_errors = preview.count { |event| event[:action] == "error" }
           # "skip" writes everything else; "stop" writes nothing while an object fails.
           applied = false
-          applied_events = []
           if run.apply? && (preview_errors.zero? || setting.on_error == "skip")
-            applied_events = runner.run(config.merge("on_error" => setting.on_error), apply: true) do |event|
+            runner.run(config.merge("on_error" => setting.on_error), apply: true) do |event|
               run.append_event(event)
               stop_check.call
             end
@@ -245,31 +244,13 @@ module RedmineMirror
               stop_check.call
             end
           end
+          # The position moves past every change read: objects in error are retried from
+          # mirror_sync_retries, and a complete pass that read no journal keeps none.
           if applied
-            successful = applied_events.reject { |event| event[:action] == "error" }
-              .to_h { |event| [[event.fetch(:module), event.fetch(:source_id)], true] }
-            selected = setting.selected_modules
-            acknowledgements = change_set.changes.select do |change|
-              !selected.include?(change.fetch("module_key")) ||
-                (!config["source_wins"] && change.fetch("action") == "delete") ||
-                successful[[change.fetch("module_key"), change.fetch("source_id")]]
-            end
-            if full && change_set.supported?
-              pending = applied_events.select { |event| event[:action] == "error" }.map do |event|
-                { "module_key" => event.fetch(:module), "source_id" => event.fetch(:source_id), "parent_id" => event[:parent_id] }.compact
-              end
-              change_set.acknowledge(source, setting.source_project_id, consumer_key: consumer_key,
-                baseline: change_set.cursor, pending: pending)
-              setting.update_columns(source_change_cursor: change_set.cursor, incremental_signature: signature,
-                incremental_mapping_state: JSON.generate(current_mappings))
-            elsif !full
-              change_set.acknowledge(source, setting.source_project_id, consumer_key: consumer_key, changes: acknowledgements) if acknowledgements.any?
-              setting.update_columns(source_change_cursor: change_set.cursor,
-                incremental_mapping_state: JSON.generate(current_mappings))
-            elsif !change_set.supported?
-              setting.update_columns(incremental_signature: signature,
-                incremental_mapping_state: JSON.generate(current_mappings))
-            end
+            columns = { incremental_mapping_state: JSON.generate(current_mappings) }
+            columns[:source_change_cursor] = change_set.cursor if change_set.supported?
+            columns[:incremental_signature] = signature if full
+            setting.update_columns(columns)
           end
         end
         errors = run.log_events.select { |event| event["action"] == "error" }

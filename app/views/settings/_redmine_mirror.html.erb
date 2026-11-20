@@ -57,6 +57,12 @@ Below Redmine 5 (source only), only Mirror source is shown.
     <%= hidden_field_tag "settings[source_enabled]", "" %>
     <%= check_box_tag "settings[source_enabled]", "1", @settings["source_enabled"].to_s == "1", id: "settings_source_enabled" %>
   </p>
+  <p>
+    <%= label_tag "settings_source_changes_enabled", l(:label_mirror_source_changes_enabled) %>
+    <%= hidden_field_tag "settings[source_changes_enabled]", "0", id: nil %>
+    <%= check_box_tag "settings[source_changes_enabled]", "1", RedmineMirror::Source.changes_enabled?, id: "settings_source_changes_enabled" %>
+    <em class="info"><%= l(:text_mirror_source_changes_enabled) %></em>
+  </p>
   <%# Only the data this Redmine can serve: tags and sprints need their plugin. %>
   <p id="mirror-source-kinds"><label><%= l(:label_mirror_source_kinds) %></label>
     <%= hidden_field_tag "settings[source_kinds][]", "", id: nil %>
@@ -70,6 +76,14 @@ Below Redmine 5 (source only), only Mirror source is shown.
     <%= label_tag "settings_source_allowed_addresses", l(:label_mirror_source_allowed_addresses) %>
     <%= text_area_tag "settings[source_allowed_addresses]", @settings["source_allowed_addresses"], rows: 3, cols: 40, id: "settings_source_allowed_addresses", placeholder: "10.0.0.12\n192.168.10.0/24" %>
     <em class="info"><%= l(:text_mirror_source_allowed_addresses) %></em>
+    <% if RedmineMirror::Source.address_missing? %>
+      <em class="warning" id="mirror-source-no-address"><%= l(:text_mirror_source_no_address) %></em>
+    <% end %>
+  </p>
+  <p>
+    <%= label_tag "settings_source_trusted_proxies", l(:label_mirror_source_trusted_proxies) %>
+    <%= text_area_tag "settings[source_trusted_proxies]", @settings["source_trusted_proxies"], rows: 2, cols: 40, id: "settings_source_trusted_proxies", placeholder: "10.0.0.2" %>
+    <em class="info"><%= l(:text_mirror_source_trusted_proxies) %></em>
   </p>
   <p>
     <%= label_tag "settings_source_log_days", l(:label_mirror_source_log_days) %>

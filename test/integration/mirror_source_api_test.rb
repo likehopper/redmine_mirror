@@ -20,10 +20,14 @@ require_relative "../test_helper"
 class MirrorSourceApiTest < Redmine::ApiTest::Base
   fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules,
     :documents, :enumerations, :attachments, :news, :comments, :queries, :issue_categories, :repositories, :changesets, :issues,
-    :trackers, :projects_trackers, :custom_fields, :custom_fields_projects, :custom_fields_trackers, :time_entries
+    :trackers, :projects_trackers, :custom_fields, :custom_fields_projects, :custom_fields_trackers, :time_entries, :issue_statuses,
+    :wikis, :wiki_pages, :wiki_contents
 
   SESSION = "0123456789abcdef0123456789abcdef"
+  # Destinations up to 1.0.0-beta.50 send a consumer key.
   CONSUMER = "a" * 64
+  # Integration requests come from the loopback; Mirror source needs an allowed address.
+  LOOPBACK = "127.0.0.1"
 
   def setup
     super
@@ -67,6 +71,29 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
       get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers.merge("X-Forwarded-For" => "10.1.2.3, 192.168.9.9")
       assert_equal "address", response.headers["X-Mirror-Source-Refusal"]
     end
+    # Without any allowed address, Mirror source stays off: an API key alone never opens it.
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_allowed_addresses" => "" }) do
+      assert_not RedmineMirror::Source.enabled?
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
+      assert_response :forbidden
+      assert_equal "disabled", response.headers["X-Mirror-Source-Refusal"]
+    end
+    # A proxy on another host: its header counts only once it is trusted.
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_allowed_addresses" => "10.1.2.3" }) do
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers.merge("X-Forwarded-For" => "10.1.2.3"), env: { "REMOTE_ADDR" => "10.9.9.9" }
+      assert_equal "address", response.headers["X-Mirror-Source-Refusal"]
+    end
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_allowed_addresses" => "10.1.2.3", "source_trusted_proxies" => "10.9.9.0/24" }) do
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers.merge("X-Forwarded-For" => "192.168.9.9, 10.1.2.3"), env: { "REMOTE_ADDR" => "10.9.9.9" }
+      assert_response :success
+      assert_equal "10.1.2.3", MirrorSourceAccess.order(:id).last.remote_ip
+      # Through this host's proxy, then the trusted one.
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers.merge("X-Forwarded-For" => "10.1.2.3, 10.9.9.9")
+      assert_response :success
+      # A spoofed header from an untrusted caller is ignored.
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers.merge("X-Forwarded-For" => "10.1.2.3"), env: { "REMOTE_ADDR" => "10.8.8.8" }
+      assert_equal "address", response.headers["X-Mirror-Source-Refusal"]
+    end
     # A typo never opens the source: no valid entry, no address.
     with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_allowed_addresses" => "127.0.0.x" }) do
       get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
@@ -74,92 +101,113 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     end
   end
 
-  def test_changes_are_proposed_until_this_destination_acknowledges_them
+  # The destination keeps its position: reading the journal writes nothing on the source.
+  def test_changes_are_read_after_the_position_the_destination_keeps
     issue = @project.issues.first
-    issue.update!(subject: "Changed for incremental Mirror")
-
     enabled do
-      get "/projects/ecookbook/mirror/source/changes.json", params: { consumer: CONSUMER }, headers: mirror_headers
-      assert_response :success
-      first = JSON.parse(response.body)
-      issue_change = first.fetch("changes").find { |change| change["module_key"] == "issue_tracking" }
-      assert_equal [issue.id, "upsert"], issue_change.values_at("source_id", "action")
+      get "/projects/ecookbook/mirror/source/changes.json", headers: mirror_headers
+      start = JSON.parse(response.body)
+      assert start.fetch("full_required")
+      issue.update!(subject: "Changed for incremental Mirror")
+      assert_no_difference -> { MirrorSourceChange.count + MirrorSourceChangeState.count } do
+        get "/projects/ecookbook/mirror/source/changes.json", params: { after: start.fetch("cursor") }, headers: mirror_headers
+        assert_response :success
+        page = JSON.parse(response.body)
+        assert_not page.fetch("full_required")
+        issue_change = page.fetch("changes").find { |change| change["module_key"] == "issue_tracking" }
+        assert_equal [issue.id, "upsert"], issue_change.values_at("source_id", "action")
+        assert_equal page.fetch("high_water"), page.fetch("cursor")
 
-      get "/projects/ecookbook/mirror/source/changes.json", params: { consumer: CONSUMER }, headers: mirror_headers
-      assert JSON.parse(response.body).fetch("changes").any? { |change| change["id"] == issue_change["id"] }
-
-      post "/projects/ecookbook/mirror/source/changes/acknowledgements.json",
-        params: { consumer: CONSUMER, changes: [issue_change.slice("id", "module_key", "source_id")] },
-        headers: mirror_headers, as: :json
-      assert_response :success
-      get "/projects/ecookbook/mirror/source/changes.json", params: { consumer: CONSUMER }, headers: mirror_headers
-      remaining = JSON.parse(response.body).fetch("changes")
-      refute remaining.any? { |change| change["module_key"] == "issue_tracking" && change["source_id"] == issue.id }
-      assert remaining.any? { |change| change["module_key"] == "issue_hierarchy" && change["source_id"] == issue.id }
-    end
-  end
-
-  def test_a_full_baseline_acknowledgement_hides_older_changes
-    @project.issues.first.update!(subject: "Baseline change")
-    enabled do
-      get "/projects/ecookbook/mirror/source/changes.json", params: { consumer: CONSUMER }, headers: mirror_headers
-      cursor = JSON.parse(response.body).fetch("high_water")
-      post "/projects/ecookbook/mirror/source/changes/acknowledgements.json",
-        params: { consumer: CONSUMER, baseline: cursor, changes: [] }, headers: mirror_headers, as: :json
-      assert_response :success
-      get "/projects/ecookbook/mirror/source/changes.json", params: { consumer: CONSUMER }, headers: mirror_headers
-      assert_empty JSON.parse(response.body).fetch("changes")
-    end
-  end
-
-  def test_failed_object_reported_with_a_baseline_is_proposed_after_it
-    issue = @project.issues.first
-    issue.update!(subject: "Will be retried")
-    enabled do
-      get "/projects/ecookbook/mirror/source/changes.json", params: { consumer: CONSUMER }, headers: mirror_headers
-      cursor = JSON.parse(response.body).fetch("high_water")
-      post "/projects/ecookbook/mirror/source/changes/acknowledgements.json",
-        params: { consumer: CONSUMER, baseline: cursor, changes: [],
-          pending: [{ module_key: "issue_tracking", source_id: issue.id }] }, headers: mirror_headers, as: :json
-      assert_response :success
-      get "/projects/ecookbook/mirror/source/changes.json", params: { consumer: CONSUMER }, headers: mirror_headers
-      retry_change = JSON.parse(response.body).fetch("changes").find do |change|
-        change["module_key"] == "issue_tracking" && change["source_id"] == issue.id
+        get "/projects/ecookbook/mirror/source/changes.json", params: { after: page.fetch("cursor") }, headers: mirror_headers
+        assert_empty JSON.parse(response.body).fetch("changes")
       end
-      assert retry_change
-      assert_operator retry_change.fetch("id"), :>, cursor
     end
   end
 
-  def test_time_and_membership_changes_include_updates_and_tombstones
-    time_entry = TimeEntry.where(project_id: @project.id).first!
-    time_entry.update!(hours: time_entry.hours + 1)
-    time_entry.destroy!
-    time_changes = MirrorSourceChange.where(project_id: @project.id, module_key: "time_tracking", source_id: time_entry.id).order(:id)
-    assert_equal %w[upsert delete], time_changes.pluck(:action).last(2)
+  # Before the kept journal, or after its end (a restored source database), a destination
+  # cannot trust its position.
+  def test_positions_outside_the_kept_journal_ask_for_a_complete_pass
+    @project.issues.first.update!(subject: "Journaled")
+    high_water = MirrorSourceChange.where(project_id: @project.id).maximum(:id)
+    MirrorSourceChangeState.create!(project: @project, discarded_before_id: high_water)
+    enabled do
+      [high_water - 1, high_water + 1].each do |after|
+        get "/projects/ecookbook/mirror/source/changes.json", params: { after: after }, headers: mirror_headers
+        assert JSON.parse(response.body).fetch("full_required"), "position #{after}"
+      end
+      get "/projects/ecookbook/mirror/source/changes.json", params: { after: high_water }, headers: mirror_headers
+      assert_not JSON.parse(response.body).fetch("full_required")
+      get "/projects/ecookbook/mirror/source/changes.json", params: { after: -1 }, headers: mirror_headers
+      assert_response :unprocessable_entity
+    end
+  end
 
-    member = @project.memberships.first
-    role = Role.where.not(id: member.roles.select(:id)).first!
-    member_role = MemberRole.create!(member: member, role: role)
-    member_change = MirrorSourceChange.where(project_id: @project.id, module_key: "project_members",
-      source_id: member_role.member_id).order(:id).last
-    assert_equal "upsert", member_change.action
+  # Destinations up to 1.0.0-beta.50 expect the source to keep their acknowledgements:
+  # they get the answer of a source without the journal and use their compatible mode.
+  def test_destinations_sending_a_consumer_key_get_the_compatible_answer
+    enabled do
+      get "/projects/ecookbook/mirror/source/changes.json", params: { consumer: CONSUMER }, headers: mirror_headers
+      assert_response :not_found
+    end
+  end
+
+  # dlopper's role sees public issues only, no private notes, and no time entry of a
+  # project where he is not a member (time entries follow project permissions in Redmine).
+  def test_changes_of_objects_the_api_account_cannot_see_are_left_out
+    private_issue = @project.issues.where(is_private: false).where.not(author_id: 3).where("assigned_to_id IS NULL OR assigned_to_id <> 3").first!
+    private_issue.update_columns(is_private: true)
+    public_issue = @project.issues.where(is_private: false).first!
+    private_note = public_issue.journals.create!(user: User.find(2), notes: "Hidden", private_notes: true)
+    public_note = public_issue.journals.create!(user: User.find(2), notes: "Shown")
+    after = MirrorSourceChange.where(project_id: @project.id).maximum(:id).to_i
+    private_issue.update_columns(subject: "Still private")
+    RedmineMirror::SourceChanges.record(@project.id, "issue_tracking", private_issue.id)
+    RedmineMirror::SourceChanges.record(@project.id, "issue_watchers", private_issue.id, parent_id: private_issue.id)
+    RedmineMirror::SourceChanges.record(@project.id, "issue_tracking", 999_999, action: "delete")
+    [private_note, public_note].each do |journal|
+      RedmineMirror::SourceChanges.record(@project.id, "issue_journals", journal.id, parent_id: public_issue.id)
+    end
+    hidden_time = TimeEntry.new(project: Project.find(5), user: User.find(2), hours: 1,
+      activity: TimeEntryActivity.first, spent_on: Date.today)
+    hidden_time.save!(validate: false)
+    RedmineMirror::SourceChanges.record(@project.id, "time_tracking", hidden_time.id)
+
+    changes = RedmineMirror::SourceChanges.page(@project, after: after, user: User.find(3)).fetch(:changes)
+    seen = changes.map { |change| change.values_at("module_key", "source_id", "action") }
+    assert_includes seen, ["issue_tracking", 999_999, "delete"]
+    assert_includes seen, ["issue_journals", public_note.id, "upsert"]
+    refute seen.any? { |key, id, _| [["issue_tracking", private_issue.id], ["issue_watchers", private_issue.id],
+      ["issue_journals", private_note.id], ["time_tracking", hidden_time.id]].include?([key, id]) }, seen.inspect
+    jsmith = RedmineMirror::SourceChanges.page(@project, after: after, user: User.find(2)).fetch(:changes)
+    assert jsmith.any? { |change| change.values_at("module_key", "source_id") == ["issue_tracking", private_issue.id] }
+  end
+
+  # A file attached to a wiki page keeps the page version: the journal names the page
+  # by its title key, so that destinations read that page's detail again.
+  def test_files_attached_to_wiki_pages_are_journaled_for_their_page
+    page = @project.wiki.pages.first!
+    file = Attachment.create!(container: page, file: uploaded_test_file("testfile.txt", "text/plain"), author: User.find(2))
+    file.destroy!
+    changes = MirrorSourceChange.where(project_id: @project.id, module_key: "wiki",
+      source_id: RedmineMirror::Adapters::Wiki.source_id(page.title))
+    assert_equal 2, changes.count
+    enabled do
+      get "/projects/ecookbook/mirror/source/changes.json", params: { after: 0 }, headers: mirror_headers
+      assert_response :success
+      assert_equal %w[wiki], JSON.parse(response.body).fetch("journaled_modules")
+    end
   end
 
   def test_destroying_a_project_removes_its_incremental_protocol_state
     project = Project.create!(name: "Disposable Mirror source", identifier: "disposable-mirror-source")
     MirrorSourceChange.create!(project: project, module_key: "issue_tracking", source_id: 1, action: "upsert", created_at: Time.current)
     MirrorSourceChangeState.create!(project: project)
-    MirrorSourceConsumer.create!(project: project, consumer_key: CONSUMER)
-    MirrorSourceAcknowledgement.create!(project: project, consumer_key: CONSUMER,
-      module_key: "issue_tracking", source_id: 1, change_id: 1)
     MirrorSyncRetry.create!(project: project, connection_key: "b" * 64,
       module_key: "issue_tracking", source_id: 1)
 
     project.destroy!
 
-    [MirrorSourceChange, MirrorSourceChangeState, MirrorSourceConsumer,
-      MirrorSourceAcknowledgement, MirrorSyncRetry].each do |model|
+    [MirrorSourceChange, MirrorSourceChangeState, MirrorSyncRetry].each do |model|
       assert_not model.exists?(project_id: project.id), "#{model.name} kept an orphan row"
     end
   end
@@ -170,14 +218,77 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
 
     change = MirrorSourceChange.create!(project: @project, module_key: "wiki", source_id: synthetic_id,
       parent_id: synthetic_id, action: "upsert", created_at: Time.current)
-    acknowledgement = MirrorSourceAcknowledgement.create!(project: @project, consumer_key: CONSUMER,
-      module_key: "wiki", source_id: synthetic_id, change_id: change.id)
     retry_record = MirrorSyncRetry.create!(project: @project, connection_key: "c" * 64,
       module_key: "wiki", source_id: synthetic_id, parent_id: synthetic_id)
 
     assert_equal synthetic_id, change.reload.source_id
-    assert_equal synthetic_id, acknowledgement.reload.source_id
     assert_equal synthetic_id, retry_record.reload.source_id
+  end
+
+  def test_projects_without_mirror_source_settings_keep_no_journal
+    issue = Issue.where.not(project_id: @project.id).first!
+    assert_not MirrorSourceSetting.exists?(project_id: issue.project_id)
+    assert_no_difference -> { MirrorSourceChange.count } do
+      issue.update!(subject: "Not journaled outside Mirror source")
+      issue.journals.create!(user: User.find(2), notes: "Not journaled either")
+    end
+  end
+
+  def test_a_suspended_journal_records_nothing_and_answers_like_a_source_without_it
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_allowed_addresses" => LOOPBACK, "source_changes_enabled" => "0" }) do
+      assert_no_difference -> { MirrorSourceChange.count } do
+        @project.issues.first.update!(subject: "Changed while the journal is suspended")
+      end
+      # A 404 on this path is the destination's signal to use its compatible mode.
+      get "/projects/ecookbook/mirror/source/changes.json", params: { after: 0 }, headers: mirror_headers
+      assert_response :not_found
+    end
+  end
+
+  # The marker of a gap is newer than every position a destination holds.
+  def test_switching_the_journal_asks_every_destination_for_a_complete_pass
+    @project.issues.first.update!(subject: "Recorded before the suspension")
+    position = MirrorSourceChange.where(project_id: @project.id).maximum(:id)
+    # with_settings restores the settings (and their cache) that the form saves.
+    enabled do
+      log_user("admin", "admin")
+      post "/settings/plugin/redmine_mirror", params: { settings: { "source_enabled" => "1", "source_allowed_addresses" => LOOPBACK, "source_changes_enabled" => "0" } }
+      post "/settings/plugin/redmine_mirror", params: { settings: { "source_enabled" => "1", "source_allowed_addresses" => LOOPBACK, "source_changes_enabled" => "1" } }
+      reset!
+
+      get "/projects/ecookbook/mirror/source/changes.json", params: { after: position }, headers: mirror_headers
+      page = JSON.parse(response.body)
+      assert page.fetch("full_required")
+      # The complete pass keeps the position given with the request.
+      get "/projects/ecookbook/mirror/source/changes.json", params: { after: page.fetch("cursor") }, headers: mirror_headers
+      page = JSON.parse(response.body)
+      assert_not page.fetch("full_required")
+      refute page.fetch("changes").any? { |change| change["module_key"] == RedmineMirror::SourceChanges::RESYNC_KEY }
+    end
+  end
+
+  def test_saving_the_settings_without_switching_the_journal_keeps_destinations_incremental
+    enabled do
+      log_user("admin", "admin")
+      assert_no_difference -> { MirrorSourceChange.count } do
+        post "/settings/plugin/redmine_mirror", params: { settings: { "source_enabled" => "1", "source_allowed_addresses" => LOOPBACK, "source_changes_enabled" => "1" } }
+      end
+    end
+  end
+
+  # The journal itself fails: the gap still moves past its last entry.
+  def test_a_journal_failure_neither_fails_the_save_nor_hides_the_gap
+    issue = @project.issues.first
+    issue.update!(subject: "Journaled before the failure")
+    position = MirrorSourceChange.where(project_id: @project.id).maximum(:id)
+    MirrorSourceChange.stub(:create!, ->(*) { raise ActiveRecord::StatementInvalid, "journal unavailable" }) do
+      issue.update!(subject: "Saved despite the journal")
+      issue.destroy
+    end
+    assert issue.destroyed?
+    assert_not Issue.exists?(issue.id)
+    page = RedmineMirror::SourceChanges.page(@project, after: position, user: User.find(2))
+    assert page.fetch(:full_required)
   end
 
   def test_a_browser_session_is_refused
@@ -194,7 +305,7 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     # Keep both a project tracker and an unrelated configured ID: only usable references
     # may leave the source.
     RedmineMirror::LocalizedNames.stub(:localizable_settings, settings) do
-      with_settings(plugin_redmine_mirror: { "source_enabled" => "1" }) do
+      with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_allowed_addresses" => LOOPBACK }) do
         get "/projects/ecookbook/mirror/source/localized_names.json", headers: mirror_headers
         assert_response :success
         names = JSON.parse(response.body).fetch("localized_names")
@@ -207,8 +318,11 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     assert_equal ["list", { "tracker" => 1, "status" => 1 }], [access.action, access.details.fetch("localized_names")]
   end
 
-  def enabled(&block)
-    with_settings(plugin_redmine_mirror: { "source_enabled" => "1" }, &block)
+  # Explicit kinds (Source::EXPLICIT_KINDS) need the administrator's choice.
+  def enabled(*explicit_kinds, &block)
+    settings = { "source_enabled" => "1", "source_allowed_addresses" => LOOPBACK }
+    settings["source_kinds"] = RedmineMirror::Source.available_kinds - RedmineMirror::Source::EXPLICIT_KINDS + explicit_kinds if explicit_kinds.any?
+    with_settings(plugin_redmine_mirror: settings, &block)
   end
 
   def test_lists_shows_and_downloads_shared_documents_and_logs_each_access
@@ -306,17 +420,25 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     end
   end
 
-  # Saved queries: every query of the project, private ones of other users included,
-  # with plain JSON definitions; queries of other projects never.
+  # Saved queries: public ones and those limited to roles the account can see, with plain
+  # JSON definitions; private queries never, the account's own included, nor queries of
+  # other projects.
   def test_lists_the_project_saved_queries
-    enabled do
+    own = IssueQuery.create!(project: @project, user: User.find(2), name: "Own private", visibility: Query::VISIBILITY_PRIVATE)
+    hidden = IssueQuery.create!(project: @project, user: User.find(1), name: "Other roles", visibility: Query::VISIBILITY_ROLES,
+      roles: [Role.find(3)])
+    enabled("queries") do
       @project.mirror_source_setting.update!(shared_modules: %w[queries])
       get "/projects/ecookbook/mirror/source/queries.json", headers: mirror_headers
       assert_response :success
       listed = JSON.parse(response.body).fetch("queries")
-      expected = Query.where(project_id: @project.id, type: %w[IssueQuery TimeEntryQuery]).order(:id)
-      assert_equal expected.pluck(:id), listed.map { |row| row.fetch("id") }
-      assert listed.any? { |row| row["visibility"] == Query::VISIBILITY_PRIVATE && row.dig("user", "id") != 2 }
+      expected = Query.where(project_id: @project.id, type: %w[IssueQuery TimeEntryQuery]).where.not(visibility: Query::VISIBILITY_PRIVATE)
+        .order(:id).select { |query| query.visible?(User.find(2)) }
+      assert expected.any?
+      assert_equal expected.map(&:id), listed.map { |row| row.fetch("id") }
+      assert listed.none? { |row| row["visibility"] == Query::VISIBILITY_PRIVATE }
+      assert_not_includes listed.map { |row| row["id"] }, own.id
+      assert_not_includes listed.map { |row| row["id"] }, hidden.id
       first = listed.find { |row| row.fetch("filters").any? }
       assert_equal %w[operator values], first.fetch("filters").values.first.keys.sort
     end
@@ -330,7 +452,9 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     ids = "2,3,#{stranger.id},999,x"
     company = UserCustomField.create!(name: "Company", field_format: "string")
     User.find(2).update!(custom_field_values: { company.id.to_s => "ACME" })
-    enabled do
+    # Redmine hides new users' emails by default (default_users_hide_mail).
+    User.find(2).pref.update!(hide_mail: false)
+    enabled("users") do
       get "/projects/ecookbook/mirror/source/users.json", params: { ids: ids }, headers: mirror_headers
       assert_equal "not_shared", response.headers["X-Mirror-Source-Refusal"]
       @project.mirror_source_setting.update!(shared_modules: %w[users])
@@ -347,6 +471,77 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     assert_equal [2, 3], access.details.fetch("users").map { |row| row["id"] }
   end
 
+  # An email its owner hides is never sent; a destination recognizes the account only from
+  # the digest of an address it already knows.
+  def test_hidden_emails_are_matched_from_digests_only
+    dlopper = User.find(3)
+    dlopper.pref.update!(hide_mail: true)
+    User.find(2).pref.update!(hide_mail: false)
+    digest = ->(address) { Digest::SHA256.hexdigest(address.downcase) }
+    @project.mirror_source_setting.update!(shared_modules: %w[users])
+    enabled("users") do
+      get "/projects/ecookbook/mirror/source/users.json", params: { ids: "2,3" }, headers: mirror_headers
+      listed = JSON.parse(response.body).fetch("users").index_by { |row| row["id"] }
+      assert_equal "jsmith@somenet.foo", listed[2]["mail"]
+      assert_nil listed[3]["mail"]
+      assert listed[3]["mail_hidden"]
+      assert_not_includes response.body, dlopper.mail
+
+      digests = [digest.call(dlopper.mail.upcase), digest.call("someone@example.invalid"), "not-a-digest"]
+      post "/projects/ecookbook/mirror/source/users/matches.json", params: { ids: "3,999", digests: digests },
+        headers: mirror_headers, as: :json
+      assert_response :success
+      assert_equal [{ "id" => 3, "digest" => digest.call(dlopper.mail) }], JSON.parse(response.body).fetch("matches")
+      assert_not_includes response.body, dlopper.mail
+      assert_equal ["match", 1], MirrorSourceAccess.order(:id).last.then { |access| [access.action, access.object_count] }
+
+      post "/projects/ecookbook/mirror/source/users/matches.json",
+        params: { ids: "3", digests: Array.new(1_001) { |index| digest.call("user#{index}@example.invalid") } },
+        headers: mirror_headers, as: :json
+      assert_response :unprocessable_entity
+      @project.mirror_source_setting.update!(shared_modules: [])
+      post "/projects/ecookbook/mirror/source/users/matches.json", params: { ids: "3", digests: digests },
+        headers: mirror_headers, as: :json
+      assert_equal "not_shared", response.headers["X-Mirror-Source-Refusal"]
+    end
+  end
+
+  # An administrator bypasses every permission: Mirror source requires a dedicated account.
+  def test_administrators_api_keys_are_refused
+    enabled do
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers("admin")
+      assert_response :forbidden
+      assert_equal "admin_account", response.headers["X-Mirror-Source-Refusal"]
+    end
+  end
+
+  # Before the administrator saves a choice, personal data and repositories stay refused
+  # even when the project shares them.
+  def test_personal_data_and_repositories_need_the_administrators_explicit_choice
+    @project.mirror_source_setting.update!(shared_modules: %w[queries users repositories])
+    enabled do
+      %w[queries users repositories].each do |path|
+        get "/projects/ecookbook/mirror/source/#{path}.json", params: { ids: "2" }, headers: mirror_headers
+        assert_response :forbidden
+        assert_equal "disabled", response.headers["X-Mirror-Source-Refusal"], path
+      end
+    end
+  end
+
+  # A participant of a private issue the API account cannot see is not revealed.
+  def test_users_are_found_only_in_data_the_api_account_can_see
+    stranger = User.generate!
+    Issue.generate!(project: @project, author: stranger, is_private: true)
+    @project.mirror_source_setting.update!(shared_modules: %w[users])
+    enabled("users") do
+      get "/projects/ecookbook/mirror/source/users.json", params: { ids: stranger.id.to_s }, headers: mirror_headers("dlopper")
+      assert_response :success
+      assert_empty JSON.parse(response.body).fetch("users")
+      get "/projects/ecookbook/mirror/source/users.json", params: { ids: stranger.id.to_s }, headers: mirror_headers("jsmith")
+      assert_equal [stranger.id], JSON.parse(response.body).fetch("users").map { |row| row.fetch("id") }
+    end
+  end
+
   # Field definitions need an explicit administrator choice, then the project's choice.
   # A regular project API account receives only fields it can use and see.
   def test_lists_project_visible_custom_field_definitions_with_both_consents
@@ -361,7 +556,7 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
       assert_response :forbidden
       assert_equal "disabled", response.headers["X-Mirror-Source-Refusal"]
     end
-    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_kinds" => %w[issue_custom_fields] }) do
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_allowed_addresses" => LOOPBACK, "source_kinds" => %w[issue_custom_fields] }) do
       get "/projects/ecookbook/mirror/source/custom_fields.json", headers: mirror_headers
       assert_response :success
       fields = JSON.parse(response.body).fetch("custom_fields")
@@ -443,15 +638,15 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     repository.update!(password: "secret")
     setting = MirrorSourceSetting.find_by!(project: @project)
     setting.update!(shared_modules: %w[repositories repository_credentials])
-    enabled do
+    enabled("repositories") do
       get "/projects/ecookbook/mirror/source/repositories.json", headers: mirror_headers
       assert_response :success
       row = JSON.parse(response.body).fetch("repositories").find { |entry| entry["id"] == 10 }
       assert_equal ["Subversion", repository.url], row.values_at("scm", "url")
-      # Not allowed by default, even shared by the project.
+      # Credentials stay refused unless allowed explicitly, even shared by the project.
       refute row.key?("password")
     end
-    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_kinds" => %w[repositories repository_credentials] }) do
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_allowed_addresses" => LOOPBACK, "source_kinds" => %w[repositories repository_credentials] }) do
       # Allowed and shared, they are still sent only when asked for.
       get "/projects/ecookbook/mirror/source/repositories.json", headers: mirror_headers
       refute JSON.parse(response.body).fetch("repositories").find { |entry| entry["id"] == 10 }.key?("password")
@@ -512,18 +707,19 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
       assert_response :forbidden
       assert_equal "permission", response.headers["X-Mirror-Source-Refusal"]
     end
-    assert_equal %w[disabled not_shared module permission], MirrorSourceAccess.where(action: "refused").order(:id).pluck(:reason)
+    # A source switched off refuses before reading any project: Redmine's log only.
+    assert_equal %w[not_shared module permission], MirrorSourceAccess.where(action: "refused").order(:id).pluck(:reason)
   end
 
   # Data the administrator does not allow is refused like a disabled Mirror source,
   # even when the project shares it.
   def test_data_the_administrator_does_not_allow_is_refused
-    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_kinds" => ["", "news"] }) do
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_allowed_addresses" => LOOPBACK, "source_kinds" => ["", "news"] }) do
       get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
       assert_response :forbidden
       assert_equal "disabled", response.headers["X-Mirror-Source-Refusal"]
     end
-    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_kinds" => ["documents"] }) do
+    with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_allowed_addresses" => LOOPBACK, "source_kinds" => ["documents"] }) do
       get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
       assert_response :success
     end

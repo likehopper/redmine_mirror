@@ -301,10 +301,16 @@ class MirrorSettingsController < ApplicationController
     roles = User.current.managed_roles(@project).select { |role| role_ids.include?(role.id) }
     raise RedmineMirror::Error, l(:text_mirror_invalid_mapping) unless roles.size == role_ids.size
     details = @setting.source_catalog.fetch("user_details", {})
+    typed = params[:mails].respond_to?(:to_unsafe_h) ? params[:mails].to_unsafe_h : {}
     created = []
     errors = []
     Array(params[:source_user_ids]).map(&:to_s).uniq.each do |source_id|
       info = details[source_id]
+      # The source never sends an email its owner hides: the members manager types it.
+      if info && info["mail"].blank? && info["mail_hidden"]
+        info = info.merge("mail" => typed[source_id].to_s.strip)
+        next errors << "#{info['firstname']} #{info['lastname']}: #{l(:text_mirror_user_creation_mail_required)}" if info["mail"].empty?
+      end
       next errors << source_id unless info && info["mail"].present?
       user = create_registered_user(Integer(source_id), info, roles)
       user.persisted? ? created << user : errors << "#{info['firstname']} #{info['lastname']}: #{user.errors.full_messages.to_sentence}"
@@ -325,6 +331,8 @@ class MirrorSettingsController < ApplicationController
     user = User.new(firstname: info["firstname"], lastname: info["lastname"], mail: info["mail"], language: Setting.default_language)
     user.login = info["login"]
     user.status = User::STATUS_REGISTERED
+    # Hidden on the source, hidden here too.
+    user.pref.hide_mail = true if info["mail_hidden"]
     company = RedmineMirror.user_company_field
     user.custom_field_values = { company.id.to_s => info["company"] } if company && info["company"].present?
     mapping = @project.mirror_reference_mappings.where(reference_type: "user", source_id: source_id)

@@ -28,8 +28,6 @@ module RedmineMirror
       base.has_many :mirror_source_accesses, dependent: :delete_all
       base.has_many :mirror_source_changes, dependent: :delete_all
       base.has_one :mirror_source_change_state, dependent: :destroy
-      base.has_many :mirror_source_consumers, dependent: :delete_all
-      base.has_many :mirror_source_acknowledgements, dependent: :delete_all
       base.has_many :mirror_sync_retries, dependent: :delete_all
     end
   end

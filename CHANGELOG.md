@@ -16,6 +16,66 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.51 — 2026-11-20
+
+Security release for Mirror source. Upgrade the destinations first, then give the
+source a dedicated non-administrator account and its allowed addresses, then upgrade
+the source and run its migrations before restarting Redmine.
+
+- **Change journal limited to Mirror source projects**: model callbacks now read
+  nothing else for projects without Mirror source settings, and a journal error is
+  logged instead of failing the save that already succeeded. The destinations of the
+  project concerned are then asked for a complete pass.
+- **Suspending the change journal**: `Administration → Plugins → Redmine Mirror →
+  Configure → Record the change journal`. Off, callbacks read and write nothing, and
+  the change endpoints answer 404 so that destinations use their compatible mode.
+  Switching it either way asks every destination for a complete pass at its next run.
+- **Personal data and repositories need an explicit choice**: Users, Saved queries and
+  Repositories join Custom fields and Repository credentials among the data an
+  administrator must check. A source that never saved its choice of data (installed
+  up to 1.0.0-beta.31) now refuses them until the administrator checks them.
+- **Users only from visible data**: Mirror source lists a requested user only when the
+  API account can see where that user appears (private issues, private notes, time
+  entries, news, documents, wiki, files follow their native permissions).
+- **Allowed addresses required**: Mirror source stays disabled while no allowed
+  address is listed, even when switched on; the Mirror source page and plugin settings
+  say why. Before upgrading a source whose list is empty, list the destinations'
+  addresses, or their runs are refused. A source switched off now refuses before
+  reading any project: these refusals go to Redmine's log, not to the access log.
+- **Administrators' keys refused**: Mirror source refuses an administrator's API key
+  (`admin_account`), who would see every project, private issue and note. Destinations
+  use a dedicated account with a read-only role in the shared projects; replace an
+  administrator key before upgrading the source.
+- **Hidden emails respected**: Mirror source no longer sends an email its owner hides.
+  A destination recognizes the account from SHA-256 digests of its own addresses
+  (`POST /projects/:id/mirror/source/users/matches.json`), so no address travels in clear.
+- **Private saved queries never shared**: only public queries and those shown to roles
+  the API account can see. Private queries a destination already imported stay there:
+  delete them on the destination if they must go.
+- **Source without destination state**: each destination keeps its position in the
+  change journal and its failed objects; reading the journal writes nothing on the
+  source. Consumers, acknowledgements and pending entries are removed (migration 25),
+  so a caller can no longer add rows or entries there. A gap in the journal (suspension,
+  journal error) records a marker that sends every destination behind it to a complete
+  pass. Destinations up to 1.0.0-beta.50 get the answer of a source without the journal
+  and use their compatible mode: upgrade destinations first.
+- **Journal limited to visible objects**: modifications of objects the API account
+  cannot see (private issues, private notes, time entries) are left out of the change
+  journal it reads; a deletion still gives the number of the object deleted.
+- **Trusted proxies**: a reverse proxy on another host can be listed in the plugin
+  settings; the address it adds to `X-Forwarded-For` is then checked against the
+  allowed addresses. Without it, only a proxy on the same host is trusted, as before.
+- **Accounts for hidden emails**: in **Accounts to create**, a source user whose email
+  is hidden asks for the email to use; the account keeps it hidden.
+- **Wiki pages read only when changed**: incremental runs compare the page index with
+  the last import and read only new, edited or moved pages. The source journal reports
+  files attached to or removed from a page, which keep its version. Requires this
+  version on both sides; otherwise every page is read, as before.
+- Migration 24 indexes the Mirror source access log by session; migration 25 drops the
+  consumer tables and the destination consumer key. Run plugin migrations before
+  restarting Redmine.
+- An invalid saved source URL no longer breaks the native issue page of a destination.
+
 ## 1.0.0-beta.50 — 2026-11-18
 
 - Allow several source memberships to map to one destination member without an

@@ -294,8 +294,8 @@ External adapters are complete-pass adapters by default. To opt into incremental
 return `true` from `incremental?`, implement `records_for(client, project_id, source_ids)`,
 and make the source-side model callbacks call `RedmineMirror::SourceChanges.record` with
 the adapter key, numeric source ID and `action: "delete"` for a tombstone. If the record
-is a child fetched through its parent, include `parent_id`. Mirror handles per-destination
-acknowledgements and retries; do not infer a deletion from absence in an incremental list.
+is a child fetched through its parent, include `parent_id`. Destinations keep their journal
+position and retries; do not infer a deletion from absence in an incremental list.
 
 There is no transaction across HTTP writes and mapping storage, no propagated deletion
 and no forced overwrite. Your endpoints must not leak private data in notifications or logs.

@@ -14,7 +14,8 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 abort "Disposable test environment only" unless ENV["MIRROR_TEST_ENVIRONMENT"] == "disposable"
-Setting.plugin_redmine_mirror = Setting.plugin_redmine_mirror.to_h.merge("source_enabled" => "1")
+Setting.plugin_redmine_mirror = Setting.plugin_redmine_mirror.to_h.merge("source_enabled" => "1",
+  "source_allowed_addresses" => "127.0.0.0/8\n10.0.0.0/8\n172.16.0.0/12\n192.168.0.0/16")
 project = Project.find_by!(identifier: "mirror-demo")
 project.enable_module!(:mirror_source)
 MirrorSourceSetting.find_or_create_by!(project: project) { |row| row.shared_modules = [] }

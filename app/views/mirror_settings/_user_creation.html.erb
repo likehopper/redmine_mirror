@@ -33,9 +33,11 @@ accounts see why.
 <% else %>
   <h3 id="mirror-user-creation"><%= l(:label_mirror_user_creation) %></h3>
   <% mapped = @project.mirror_reference_mappings.where(reference_type: "user").pluck(:source_id).map(&:to_s).to_set %>
-  <% candidates = catalog.fetch("user_details").select { |id, info| !mapped.include?(id) && info["mail"].present? } %>
-  <% taken = candidates.empty? ? Set.new : EmailAddress.where("LOWER(address) IN (?)", candidates.values.map { |info| info["mail"].downcase }).pluck(:address).map(&:downcase).to_set %>
-  <% candidates = candidates.reject { |_, info| taken.include?(info["mail"].downcase) }.sort_by { |id, _| [catalog.fetch("user", {})[id].to_s.downcase, id.to_i] } %>
+  <%# An email hidden on the source and matching no local address: typed here. %>
+  <% candidates = catalog.fetch("user_details").select { |id, info| !mapped.include?(id) && (info["mail"].present? || info["mail_hidden"]) } %>
+  <% shared = candidates.values.map { |info| info["mail"].to_s.downcase }.reject(&:empty?) %>
+  <% taken = shared.empty? ? Set.new : EmailAddress.where("LOWER(address) IN (?)", shared).pluck(:address).map(&:downcase).to_set %>
+  <% candidates = candidates.reject { |_, info| taken.include?(info["mail"].to_s.downcase) }.sort_by { |id, _| [catalog.fetch("user", {})[id].to_s.downcase, id.to_i] } %>
   <% if candidates.empty? %>
     <p class="nodata" id="mirror-user-creation-none"><%= l(:text_mirror_user_creation_none) %></p>
   <% elsif !creation %>
@@ -51,7 +53,9 @@ accounts see why.
               <td><%= check_box_tag "source_user_ids[]", id, false, id: "mirror-create-user-#{id}" %></td>
               <td><%= label_tag "mirror-create-user-#{id}", "#{info['firstname']} #{info['lastname']} (##{id})" %></td>
               <td><%= info["login"] %></td>
-              <td><%= info["mail"] %></td>
+              <td><% if info["mail"].present? %><%= info["mail"] %><% else %>
+                <%= email_field_tag "mails[#{id}]", "", id: "mirror-create-user-mail-#{id}", size: 30, placeholder: l(:text_mirror_user_creation_hidden_mail) %>
+              <% end %></td>
               <td><%= info["company"] %></td>
             </tr>
           <% end %>

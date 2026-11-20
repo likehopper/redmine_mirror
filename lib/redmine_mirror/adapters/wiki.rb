@@ -63,6 +63,14 @@ module RedmineMirror
 
       # Parents come before their children, so a child finds its parent's correspondence.
       def records(client, project_id)
+        listed_records(client, project_id)
+      end
+
+      # Incremental runs: a page whose title, version and date are those of its last
+      # import is listed from the index alone (+listed_only+), without reading its detail.
+      # synchronize reads it when the page still needs work. Files attached without a
+      # text edit keep the version: the source journal reports them as +changed+.
+      def listed_records(client, project_id, store: nil, changed: [])
         index = begin
           client.get("projects/#{Integer(project_id)}/wiki/index.json").fetch("wiki_pages")
         rescue Error => error
@@ -83,11 +91,22 @@ module RedmineMirror
         end
         Enumerator.new do |output|
           index.sort_by { |page| [depth.call(page.fetch("title"), []), page.fetch("title")] }.each do |page|
-            detail = client.get("#{page_path(project_id, page.fetch('title'))}.json", "include" => "attachments").fetch("wiki_page")
-            output << detail.merge("id" => self.class.source_id(detail.fetch("title")), "project" => { "id" => Integer(project_id) },
-              "start_page" => detail.fetch("title").casecmp?(start_page.to_s))
+            id = self.class.source_id(page.fetch("title"))
+            mapping = store && !changed.include?(id) && store.find(key, id)
+            output << if mapping && mapping["source_fingerprint"] == source_fingerprint(page)
+              page.merge("id" => id, "project" => { "id" => Integer(project_id) }, "listed_only" => true,
+                "start_page" => page.fetch("title").casecmp?(start_page.to_s))
+            else
+              detail(client, project_id, page.fetch("title"), start_page.to_s)
+            end
           end
         end
+      end
+
+      def detail(client, project_id, title, start_page)
+        detail = client.get("#{page_path(project_id, title)}.json", "include" => "attachments").fetch("wiki_page")
+        detail.merge("id" => self.class.source_id(detail.fetch("title")), "project" => { "id" => Integer(project_id) },
+          "start_page" => detail.fetch("title").casecmp?(start_page))
       end
 
       # Authors of earlier versions, so that the Users tab lists every one of them.
@@ -131,6 +150,15 @@ module RedmineMirror
         title = record.fetch("title")
         mapping = store.find(key, record.fetch("id"))
         page = mapping && wiki.pages.find_by(id: mapping.fetch("destination_id"))
+        if record["listed_only"]
+          parent_title = record.dig("parent", "title")
+          start = record["start_page"] && !wiki.start_page.casecmp?(title) && (Policy.source_wins? || !wiki.find_page(wiki.start_page))
+          if page && !start && digest(local_state(page)) == mapping.fetch("destination_fingerprint") &&
+             page.parent&.title.to_s.casecmp?(parent_title.to_s)
+            return { module: key, source_id: record.fetch("id"), destination_id: page.id, action: "unchanged" }
+          end
+          record = detail(source, record.dig("project", "id"), title, record["start_page"] ? title : "")
+        end
         reset = false
         if mapping && (!page || digest(local_state(page)) != mapping.fetch("destination_fingerprint"))
           Policy.local_change!("Local modification detected for wiki page \"#{title}\"#{page ? '' : ': the page was deleted'}")
@@ -191,7 +219,7 @@ module RedmineMirror
               end
               page.reload
               store.save(key, record.fetch("id"), "destination_id" => page.id,
-                "source_fingerprint" => digest(record.slice("title", "version", "updated_on")), "destination_fingerprint" => digest(local_state(page)))
+                "source_fingerprint" => source_fingerprint(record), "destination_fingerprint" => digest(local_state(page)))
             end
           end
         end
@@ -218,6 +246,9 @@ module RedmineMirror
       private
 
       def digest(value); Digest::SHA256.hexdigest(JSON.generate(value)); end
+
+      # The index and the detail of a page both give these values.
+      def source_fingerprint(page); digest(page.slice("title", "version", "updated_on")); end
 
       def author_id(version, mappings)
         reference = version["author"]

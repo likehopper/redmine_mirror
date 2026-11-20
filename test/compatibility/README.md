@@ -18,7 +18,40 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Minimum declared Redmine version: **5.0** as a destination, **4.0** as a source with
 Mirror source (source only). This is not a compatibility certification.
-Current plugin version: **1.0.0-beta.50**.
+Current plugin version: **1.0.0-beta.51**.
+
+## 1.0.0-beta.51 validation — 2026-11-21
+
+Candidate based on `494b53f4b8a9ae20b55310f1abf9ca237e0a1cf1` (beta.50): Mirror source
+security review, source without destination state (migration 25), visibility-filtered
+change journal, wiki pages read from their index, session index (migration 24).
+
+- `bash test/compatibility/run.sh`: Redmine 6.1.4 / Ruby 3.4.11 / Rails 7.2.3.2 /
+  SQLite; 371 Redmine tests, 2,205 assertions, no failures, errors or skips, plus the
+  standalone suites, Chromium, fresh installation and uninstall/reinstallation.
+- Redmine 6.1.4, isolated databases, unit, functional and integration suites:
+  PostgreSQL 15.19, 359 tests, one failure also present in beta.50 (an administration
+  total shown as `4.0` instead of `4`); MySQL 8.0.46 and MariaDB 10.11.19, 349 tests,
+  no failures. MySQL and MariaDB sessions used `ONLY_FULL_GROUP_BY`,
+  `STRICT_TRANS_TABLES` and `STRICT_ALL_TABLES`; their runs leave out the three tests
+  that alter tables inside a transaction (`categories_test`, `project_enumerations_test`
+  and the categories case of the source API test), which MySQL commits implicitly.
+- Migrations 24 and 25 down to 23 and up again on the three Redmine 6.1.4 engines
+  above and on Redmine 4.0.3 / Ruby 2.6.3 / MySQL 5.7.44 (SQLite: all plugin
+  migrations down and up in the CI runner): consumer tables and the destination
+  consumer key removed, session index present.
+- Redmine 4.0.3 / Ruby 2.6.3, source-only API and settings suites: on SQLite, 35 and
+  10 tests with the four failures already present in beta.50; on MySQL 5.7.44, 32 and
+  10 tests with three of those failures.
+- Two Redmine 6.1.4 instances (`compose.yml`, isolated project name): the incremental
+  smoke passed with the source's dedicated read-only account: partial complete pass,
+  targeted retry from the destination queue, one source change read once. The source
+  kept no consumer data and refused no administrator key.
+- Not passing, unchanged from beta.50: the configuration guide steps 7 to 12, 14 and
+  15 (`test/documentation/run.sh`), and `versions.sh`, whose UI smoke still selects a
+  module before saving the connection. Its cross-version incremental smoke assumes
+  identical IDs and fails on mapped assignees. The source settings screenshot was
+  regenerated; other screenshots are unchanged.
 
 ## Member aliases candidate validation — 2026-11-18
 
@@ -146,7 +179,8 @@ Destination (Redmine running Mirror):
 | 6.1.4 | SQLite 3 | Official-image CI runner, locally and on GitHub: Ruby 3.4.11 / Rails 7.2.3.2, 195 Redmine tests / 1033 assertions, symlinked install, `zeitwerk:check`, fresh install and uninstall/reinstall. All two-instance smokes in production mode. |
 | 5.1.13 | SQLite 3 | Two-instance write smokes in production mode (`versions.sh`). Full Redmine plugin suite run once locally on the `reporting-compat-ready:5.1.13` image (1.0.0-beta.18); not part of the CI runner. |
 | 5.0 / 6.0 / 7.x | Not validated | No compatibility claim |
-| Any version | PostgreSQL / MariaDB / MySQL | Not validated |
+| 6.1.4 | PostgreSQL 15 / MySQL 8.0 / MariaDB 10.11 | Unit, functional and integration suites for 1.0.0-beta.51, isolated databases; no two-instance run |
+| Other versions | PostgreSQL / MariaDB / MySQL | Not validated |
 
 Source (read through its REST API; the Documents module needs Mirror on the source,
 validated on 6.1.4 and, source only, on 4.0.3):

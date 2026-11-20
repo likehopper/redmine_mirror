@@ -30,8 +30,9 @@ module RedmineMirror
     # Project enumerations (plugin) have an API for their managers only. Repositories
     # have no API at all; their credentials are a kind of their own, never allowed by default.
     KINDS = %w[documents news issue_tags scrum queries users issue_custom_fields issue_categories project_enumerations repositories repository_credentials].freeze
-    # Kinds an administrator must check explicitly, even before saving a choice.
-    EXPLICIT_KINDS = %w[issue_custom_fields repository_credentials].freeze
+    # Kinds an administrator must check explicitly, even before saving a choice: personal
+    # data (users' emails, other users' saved queries) and repository access.
+    EXPLICIT_KINDS = %w[queries users issue_custom_fields repositories repository_credentials].freeze
     # Redmine project module a kind's data lives in: without it, there is nothing to share.
     KIND_MODULES = { "documents" => "documents", "news" => "news", "issue_tags" => "issue_tracking", "scrum" => "scrum",
       "issue_custom_fields" => "issue_tracking", "issue_categories" => "issue_tracking",
@@ -51,6 +52,8 @@ module RedmineMirror
     LINKS_PER_PAGE = 500
     # Users a destination may ask for in one request.
     USERS_PER_REQUEST = 100
+    # Email digests a destination may send in one user_matches request.
+    DIGESTS_PER_REQUEST = 1_000
     # Saved queries a project shares: issues, time entries and agile boards.
     QUERY_TYPES = %w[IssueQuery TimeEntryQuery AgileQuery].freeze
     # The kind a shared file belongs to, by its container.
@@ -64,16 +67,51 @@ module RedmineMirror
       (Setting.plugin_redmine_mirror rescue {}).to_h
     end
 
+    # Switched on by the administrator and restricted to listed addresses: without any
+    # address, Mirror source stays off, so that an API key alone never opens it.
     def enabled?
+      switched_on? && allowed_address_entries.any?
+    end
+
+    def switched_on?
       settings["source_enabled"].to_s == "1"
     end
 
+    # Switched on but kept off for lack of an allowed address: the administrator is warned.
+    def address_missing?
+      switched_on? && allowed_address_entries.empty?
+    end
+
+    # The change journal behind incremental runs (SourceChanges). On unless the
+    # administrator suspends it: settings saved before this option lack the key.
+    def changes_enabled?
+      settings["source_changes_enabled"].to_s != "0"
+    end
+
     # The addresses an administrator allows to call Mirror source: IPs or networks (CIDR),
-    # one per line. None listed: any address. Listed but none valid: no address, so that a
-    # typo never opens the source.
+    # one per line. None listed, or none valid: no address, so that an empty list or a typo
+    # never opens the source.
     def address_allowed?(ip)
-      entries = settings["source_allowed_addresses"].to_s.split(/[\s,;]+/).reject(&:empty?)
-      return true if entries.empty?
+      entries = allowed_address_entries
+      return false if entries.empty?
+      in_entries?(ip, entries)
+    end
+
+    def allowed_address_entries
+      address_entries("source_allowed_addresses")
+    end
+
+    # Reverse proxies in front of Redmine whose X-Forwarded-For is trusted, besides a proxy
+    # on this host (loopback). An invalid entry trusts nothing.
+    def trusted_proxy_entries
+      address_entries("source_trusted_proxies")
+    end
+
+    def address_entries(name)
+      settings[name].to_s.split(/[\s,;]+/).reject(&:empty?)
+    end
+
+    def in_entries?(ip, entries)
       address = IPAddr.new(ip.to_s)
       entries.any? do |entry|
         begin
@@ -86,22 +124,23 @@ module RedmineMirror
       false
     end
 
-    LOOPBACK = [IPAddr.new("127.0.0.0/8"), IPAddr.new("::1")].freeze
+    LOOPBACK = %w[127.0.0.0/8 ::1].freeze
 
-    # The caller's address. Behind a reverse proxy on this host (the request comes from the
-    # loopback), the address that proxy appended last to X-Forwarded-For: Rails' remote_ip
-    # skips private addresses, so a destination on the same network would read as the
-    # proxy itself. With another proxy in front, that is the address of the first one.
+    def trusted_proxy?(ip)
+      in_entries?(ip, LOOPBACK + trusted_proxy_entries)
+    end
+
+    # The caller's address: the connection's, unless it comes from a trusted proxy (on this
+    # host, or listed): then the address that proxy appended to X-Forwarded-For, and so on
+    # back through trusted proxies. A header sent by anyone else is ignored: it could name
+    # any address. Rails' remote_ip skips private addresses, so a destination on the same
+    # network would read as the proxy itself.
     def caller_address(request)
-      remote = request.remote_addr.to_s
       forwarded = request.headers["X-Forwarded-For"].to_s.split(",").map(&:strip).reject(&:empty?)
-      loopback = begin
-        address = IPAddr.new(remote)
-        LOOPBACK.any? { |range| range.include?(address) }
-      rescue IPAddr::Error
-        false
-      end
-      loopback && !forwarded.empty? ? forwarded.last : remote
+      hops = forwarded + [request.remote_addr.to_s]
+      index = hops.size - 1
+      index -= 1 while index.positive? && trusted_proxy?(hops[index])
+      hops[index]
     end
 
     # Mirror source answers only requests authenticated by the API key header that Mirror
@@ -170,24 +209,36 @@ module RedmineMirror
     end
 
     # Among the requested IDs, the users who are members of the project or appear in its
-    # data: issues, notes, time entries, watchers, user fields, news, wiki pages and files.
+    # data that the API account can see: visible issues, notes (private ones only with
+    # their permission), time entries, watchers, user fields, news, wiki pages and files.
+    # Otherwise an invisible private issue would still reveal its participants' emails.
     # Ruby 2.6 (Redmine 4): no filter_map on the source side.
-    def project_user_ids(project, ids)
+    def project_user_ids(project, ids, user = User.current)
       ids = ids.uniq
       return [] if ids.empty?
-      issues = Issue.where(project_id: project.id).select(:id)
+      issues = Issue.visible(user).where(project_id: project.id)
+      issue_ids = issues.select(:id)
       found = Member.where(project_id: project.id, user_id: ids).pluck(:user_id)
-      found |= Issue.where(project_id: project.id, author_id: ids).pluck(:author_id)
-      found |= Issue.where(project_id: project.id, assigned_to_id: ids).pluck(:assigned_to_id)
-      found |= Journal.where(journalized_type: "Issue", journalized_id: issues, user_id: ids).pluck(:user_id)
-      found |= TimeEntry.where(project_id: project.id, user_id: ids).pluck(:user_id)
-      found |= Watcher.where(watchable_type: "Issue", watchable_id: issues, user_id: ids).pluck(:user_id)
+      found |= issues.where(author_id: ids).pluck(:author_id)
+      found |= issues.where(assigned_to_id: ids).pluck(:assigned_to_id)
+      journals = Journal.where(journalized_type: "Issue", journalized_id: issue_ids, user_id: ids)
+      journals = journals.where(private_notes: false) unless user.allowed_to?(:view_private_notes, project)
+      found |= journals.pluck(:user_id)
+      found |= TimeEntry.visible(user).where(project_id: project.id, user_id: ids).pluck(:user_id)
+      found |= Watcher.where(watchable_type: "Issue", watchable_id: issue_ids, user_id: ids).pluck(:user_id)
       found |= CustomValue.joins(:custom_field).where(custom_fields: { field_format: "user" }, customized_type: "Issue",
-        customized_id: issues, value: ids.map(&:to_s)).pluck(:value).map(&:to_i)
-      found |= News.where(project_id: project.id, author_id: ids).pluck(:author_id)
-      found |= WikiContent.joins(page: :wiki).where(wikis: { project_id: project.id }, author_id: ids).pluck(:author_id)
-      containers = { "Issue" => issues, "Project" => [project.id], "Version" => project.versions.select(:id),
-        "Document" => Document.where(project_id: project.id).select(:id), "News" => News.where(project_id: project.id).select(:id) }
+        customized_id: issue_ids, value: ids.map(&:to_s)).pluck(:value).map(&:to_i)
+      news = News.visible(user).where(project_id: project.id)
+      found |= news.where(author_id: ids).pluck(:author_id)
+      if user.allowed_to?(:view_wiki_pages, project)
+        found |= WikiContent.joins(page: :wiki).where(wikis: { project_id: project.id }, author_id: ids).pluck(:author_id)
+      end
+      containers = { "Issue" => issue_ids, "Document" => Document.visible(user).where(project_id: project.id).select(:id),
+        "News" => news.select(:id) }
+      if user.allowed_to?(:view_files, project)
+        containers["Project"] = [project.id]
+        containers["Version"] = project.versions.select(:id)
+      end
       containers.each do |type, scope|
         found |= Attachment.where(container_type: type, container_id: scope, author_id: ids).pluck(:author_id)
       end

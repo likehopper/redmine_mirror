@@ -175,7 +175,8 @@ module RedmineMirror
     # modules do not read it as a missing permission on their data.
     CALLER_REFUSALS = {
       "address" => "The source Redmine refuses this Redmine's address: its administrator must add it to Mirror source's allowed addresses",
-      "api_key" => "The source Redmine accepts only the API key header for Mirror source"
+      "api_key" => "The source Redmine accepts only the API key header for Mirror source",
+      "admin_account" => "The source Redmine refuses an administrator's API key for Mirror source: use a dedicated account that can view the shared projects"
     }.freeze
 
     def caller_refusal(response)
