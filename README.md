@@ -18,7 +18,7 @@ Document Mirror setup, operation, extension points or validation evidence.
 
 # <img src="assets/images/synchronisation-des-donnees-64.png" width="64" height="64" alt=""> Redmine Mirror
 
-![Version](https://img.shields.io/badge/Version-1.0.0--beta.52-orange)
+![Version](https://img.shields.io/badge/Version-1.0.0--beta.53-orange)
 ![Destination tested](https://img.shields.io/badge/Destination_tested-5.1_%7C_6.1-blue)
 ![Source tested](https://img.shields.io/badge/Source_tested-4.0_%7C_4.2_%7C_5.0_%7C_6.1-blue)
 ![Database tested](https://img.shields.io/badge/Database_tested-SQLite_3-blue)
@@ -32,7 +32,7 @@ existing destination project, through the destination REST API and native models
 
 Use it to migrate projects to a new instance, or to keep a regularly updated secondary
 copy. Each project has its own connection, mappings, schedule, history and conflicts.
-Version **1.0.0-beta.52** is a pre-release for testing before 1.0.0, not a stable release.
+Version **1.0.0-beta.53** is a pre-release for testing before 1.0.0, not a stable release.
 
 ## Features
 
@@ -59,7 +59,7 @@ Version **1.0.0-beta.52** is a pre-release for testing before 1.0.0, not a stabl
 | Repositories | Git and Subversion repositories (definition, optionally credentials) and the links between revisions and issues; the content is copied beforehand (Mirror source) |
 | Project enumerations | Values of issue fields of the Project Enumerations plugin (both sides), with status, sharing and position; issue values follow (Mirror source) |
 
-- Preview before writing, manual runs and automatic schedules.
+- Manual runs followed live (phase, modules, objects, log) and automatic schedules.
 - Incremental runs after the first complete import: each destination reads the source
   changes after the position it keeps; failed objects remain in its retry queue.
 - Without Mirror source on the source instance, scheduled runs remain compatible:
@@ -81,7 +81,7 @@ Version **1.0.0-beta.52** is a pre-release for testing before 1.0.0, not a stabl
 - A failing object is skipped and the rest synchronized, or the run stops: your choice.
 - Mapping proposals: same name (ignoring case, accents, punctuation and word order) and,
   on request, AI (see below).
-- Guidance: a checklist before the preview, and errors grouped by cause, largest first,
+- Guidance: a checklist before the first synchronization, and errors grouped by cause, largest first,
   each explained with links to its fix: a reference that only needs enabling in the
   project, a version inherited from a parent project to synchronize first, a source
   permission to grant.
@@ -162,13 +162,13 @@ Without the worker, runs stay queued. Then follow the illustrated
    the next steps.
 4. In **Settings → Mirror**, set the source connection and modules.
 5. Map users and references.
-6. On the **Mirror** page, run a preview, then synchronize.
+6. On the **Mirror** page, check the list of what remains to settle, then synchronize.
 
 ### Upgrading
 
 Back up the database, attachment storage and plugin directory. Stop web and worker
 processes, replace the plugin, run the migration above, restart both, then check the
-mappings and run a preview. To revert a schema change, restore the database, files and
+mappings and synchronize. To revert a schema change, restore the database, files and
 plugin together.
 
 ### Uninstalling

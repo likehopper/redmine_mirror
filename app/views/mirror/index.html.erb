@@ -39,6 +39,12 @@ The project's Mirror page: overview, history, items requiring attention and sync
       <li><%= link_to label, mirror_page_path(@project, key == "overview" ? nil : key), class: (@tab == key ? "selected" : nil) %></li>
     <% end %>
   </ul></div></div>
+  <%# The overview shows the execution itself; the other tabs point to its page. %>
+  <% running = @tab != "overview" && @project.mirror_sync_runs.where(status: %w[queued running]).order(id: :desc).first %>
+  <% if running %>
+    <p class="info" id="mirror-follow-run"><%= l("label_mirror_run_#{running.status}") %> —
+      <%= link_to l(:label_mirror_follow_run), project_mirror_run_path(@project, running) %></p>
+  <% end %>
   <%= render "mirror/#{@tab}" %>
 <% end %>
 <% html_title(l(:label_mirror)) %>

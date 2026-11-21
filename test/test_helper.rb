@@ -50,3 +50,13 @@ module MirrorFakeProjectEnumerations
     IssueCustomField.find(field.id)
   end
 end
+
+# Logs events into an execution's journal the way the worker does, without touching its counters.
+module MirrorRunJournal
+  def log_mirror_events(run, events)
+    events.each { |event| MirrorSyncRunEvent.create!(MirrorSyncRunEvent.attributes_for(run.id, event)) }
+    run
+  end
+end
+ActiveSupport::TestCase.include(MirrorRunJournal)
+ActionDispatch::IntegrationTest.include(MirrorRunJournal) if defined?(ActionDispatch::IntegrationTest)

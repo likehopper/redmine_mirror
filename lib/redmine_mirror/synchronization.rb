@@ -215,30 +215,45 @@ module RedmineMirror
         FileUtils.mkdir_p(Rails.root.join("tmp"))
         File.open(Rails.root.join("tmp", "mirror-#{key}.lock"), "a", 0600) do |lock|
           raise Error, "Synchronization already running" unless lock.flock(File::LOCK_EX | File::LOCK_NB)
-          # Complete prevalidation before the first import write. An apply request
-          # also records blocked secondary links so managers can diagnose the failure.
-          # The preview reports every object error at once instead of the first one.
-          checked = 0
-          preview = runner.run(config.merge("on_error" => "collect"), track_relation_blocks: run.apply?) do
-            stop_check.call
-            # Without a total yet, processed_records counts the objects checked so far.
-            checked += 1
-            # updated_at doubles as the heartbeat read by end_abandoned_stops.
-            run.update_columns(processed_records: checked, updated_at: Time.current) if (checked % 25).zero?
-          end
-          totals = setting.selected_modules.to_h { |key| [key, 0] }
-          preview.each { |event| totals[event.fetch(:module)] += 1 }
-          run.update!(total_records: preview.size, processed_records: 0, module_totals: JSON.generate(totals))
-          preview_errors = preview.count { |event| event[:action] == "error" }
-          # "skip" writes everything else; "stop" writes nothing while an object fails.
+          progress = RunProgress.new(run)
           applied = false
-          if run.apply? && (preview_errors.zero? || setting.on_error == "skip")
-            runner.run(config.merge("on_error" => setting.on_error), apply: true) do |event|
+          if run.apply? && setting.on_error == "skip"
+            # A failing object never holds the others back in "skip": write in one pass,
+            # each object logged as soon as it is handled, without reading the source twice.
+            progress.phase!("writing")
+            runner.run(config.merge("on_error" => "skip"), apply: true, track_relation_blocks: true, progress: progress) do |event|
+              run.append_event(event)
+              stop_check.call
+            end
+            run.update!(total_records: run.processed_records, module_totals: JSON.generate(run.module_event_counts(setting.selected_modules)))
+            applied = true
+          else
+            # "stop" (and a preview) validates every object before the first import write,
+            # and reports every object error at once instead of the first one. An apply
+            # request also records blocked secondary links so managers can diagnose them.
+            progress.phase!("checking")
+            checked = 0
+            preview = runner.run(config.merge("on_error" => "collect"), track_relation_blocks: run.apply?, progress: progress) do
+              stop_check.call
+              # Without a total yet, processed_records counts the objects checked so far.
+              checked += 1
+              # updated_at doubles as the heartbeat read by end_abandoned_stops.
+              run.update_columns(processed_records: checked, updated_at: Time.current) if (checked % 25).zero?
+            end
+            totals = setting.selected_modules.to_h { |key| [key, 0] }
+            preview.each { |event| totals[event.fetch(:module)] += 1 }
+            run.update!(total_records: preview.size, processed_records: 0, module_totals: JSON.generate(totals))
+            preview_errors = preview.count { |event| event[:action] == "error" }
+          end
+          # "stop" writes nothing while an object fails.
+          if !applied && run.apply? && preview_errors.zero?
+            progress.phase!("writing")
+            runner.run(config.merge("on_error" => setting.on_error), apply: true, progress: progress) do |event|
               run.append_event(event)
               stop_check.call
             end
             applied = true
-          else
+          elsif !applied
             preview.each do |event|
               run.append_event(event)
               stop_check.call
@@ -253,7 +268,7 @@ module RedmineMirror
             setting.update_columns(columns)
           end
         end
-        errors = run.log_events.select { |event| event["action"] == "error" }
+        errors = run.log_entries.where(action: "error").order(:id).map(&:to_event)
         # A value first used on the source after the last reference refresh is missing from
         # the mapping tabs: read the references again, so that they list it.
         catalog = setting.source_catalog

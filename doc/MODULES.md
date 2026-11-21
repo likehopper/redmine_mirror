@@ -106,7 +106,7 @@ version, author and dates (`created_on`, `updated_on`, `closed_on`, at the API's
 precision). Issues are created and updated through the destination REST API, so
 native workflows and validations apply. Author and dates are then restored through
 local models: the destination must be the Redmine the worker runs on
-(`MIRROR_DESTINATION_URL`). Invalid dates or unmapped authors are reported as errors in the preview; with *Skip it*,
+(`MIRROR_DESTINATION_URL`). Invalid dates or unmapped authors are reported as errors in the log; with *Skip it*,
 the other issues are still synchronized.
 
 A source tracker or status mapped to **Do not import its issues** leaves those issues
@@ -291,7 +291,7 @@ Discovery lists the fields used by the project's issues and their history.
   administrator and project explicitly share **Custom fields** through Mirror source.
 - Otherwise, Redmine hides the definitions. The fields and their values come from the
   issues and their history; each value takes the format of the mapped local field and is
-  validated in the preview; list choices are the values actually found. The module tab
+  validated before it is written; list choices are the values actually found. The module tab
   says which mode applies.
 
 1. Create the local fields in Redmine administration and enable them on the project and
@@ -476,16 +476,19 @@ send no notification.
 
 ## Synchronization and worker
 
-**Run preview** and **Synchronize now** queue a run; the worker processes it. The first
-run, a configuration rewrite and **Full synchronization** validate all records. Ordinary
-later runs validate only source changes recorded after this destination's position and
-retained failures; adapters without incremental source events keep their complete pass. The
-preflight lists every failing object, not only the first one. Progress counts processed
-objects, unchanged ones included, and reaches 100% when the run ends.
+**Synchronize now** queues a run; the worker processes it and the run's page shows its
+progress live: the phase, each module with its state, the source objects handled out of
+the total the source gives, and the log as it fills. The first run, a configuration
+rewrite and **Full synchronization** read all records. Ordinary later runs read only
+source changes recorded after this destination's position and retained failures; adapters
+without incremental source events keep their complete pass. With *Skip it*, each object is
+written as soon as it is checked, in a single pass. With *Stop*, every object is checked
+first and the preflight lists every failing object, not only the first one; nothing is
+written while one fails. The run log is stored one row per object.
 
 Mirror source records a monotonic change journal with explicit deletion tombstones. Each
-destination keeps its own position in it: an applying run moves past the changes it read,
-a preview does not, and a failed object waits in the destination retry queue. The journal
+destination keeps its own position in it: a synchronization moves past the changes it
+read, an operator preview does not, and a failed object waits in the destination retry queue. The journal
 leaves out modifications of objects the source API account cannot see (private issues,
 private notes, time entries); a deletion only gives the number of an object that no
 longer exists. When *The source wins* is off, a source deletion is deliberately kept
@@ -537,14 +540,14 @@ the module, remote and local IDs with links, the action (`create`, `update`, `un
 Logs never contain API keys or request bodies. They are kept without automatic purge.
 
 **Synchronized objects** lists the project's persisted source/local object links,
-filtered by module, source ID and local ID. Only imports create them; previews do not;
+filtered by module, source ID and local ID. Only imports create them, not operator previews;
 there is nothing to configure on this page. On an imported issue,
 users who can configure Mirror see a **Mirror source issue** link.
 
 ## Conflicts
 
 Mirror stores a fingerprint of the managed fields of every imported object. When a local
-value differs, the run stops at the first conflict, preview included, and records it in
+value differs, the run stops at the first conflict and records it in
 **Conflicts** (module, remote and local IDs, reason, status).
 
 - **Keep local object**: excludes this object, for this module and project only. The
@@ -574,7 +577,7 @@ copy of the source, for every selected module:
   source project, or that the source key can no longer see, is kept and logged.
 - Up to 10% of a module's objects (at least 2) are deleted in a run. Beyond that, nothing
   is deleted: the run ends with errors, and **Overview** offers to synchronize again and
-  confirm the deletions. The preview lists the deletions too.
+  confirm the deletions.
 - A version still used by local issues is not deleted; the log says so.
 
 Deleting an issue also deletes its history, files, time entries, relations and subtasks,
@@ -626,4 +629,5 @@ development environments.
   the destination before rerunning an uncertain write. No automatic HTTP retry.
 - A concurrent edit after preflight can still be overwritten: the APIs offer no atomic
   version check.
-- Preview checks mappings and conflicts but cannot guarantee that every write is accepted.
+- The checks before writing cover mappings and conflicts but cannot guarantee that every
+  write is accepted.

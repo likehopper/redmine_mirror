@@ -40,8 +40,9 @@ class MirrorSynchronizationsController < ApplicationController
   end
 
   def create
-    raise RedmineMirror::Error, "Invalid synchronization mode" unless %w[preview apply].include?(params[:mode])
-    run = RedmineMirror::Synchronization.enqueue(@setting, apply: params[:mode] == "apply", trigger: "manual", user: User.current,
+    # The simulation is withdrawn from the pages; operators keep it through rake.
+    raise RedmineMirror::Error, "Invalid synchronization mode" unless params[:mode] == "apply"
+    run = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual", user: User.current,
       confirm_deletions: params[:confirm_deletions] == "1", force_full: params[:force_full] == "1")
     flash[:notice] = l(:text_mirror_sync_queued)
     redirect_to project_mirror_run_path(@project, run)
@@ -68,24 +69,32 @@ class MirrorSynchronizationsController < ApplicationController
     @source_url = @run.source_url.presence || @setting.source_url
     key = @run.connection_key.presence || mirror_connection_key
     @object_mappings = key ? MirrorMapping.where(connection_key: key).to_a.to_h { |row| [[row.module_key, row.source_id], row.destination_id] } : {}
-    @events = @run.log_events
+    entries = @run.log_entries
     # Review summary: actions per module, and objects per special case to check.
-    @action_counts = @events.group_by { |event| event["module"] }.transform_values { |rows| rows.group_by { |event| event["action"] }.transform_values(&:size) }
-    @flag_counts = @events.flat_map { |event| Array(event["flags"]) }.tally
-    @warning_counts = @events.flat_map { |event| Array(event["warnings"]) }.tally.sort_by { |_, count| -count }
+    @action_counts = {}
+    entries.group(:module_key, :action).count.each { |(module_key, action), count| (@action_counts[module_key] ||= {})[action] = count }
+    @module_keys = @action_counts.keys
+    # Flags, warnings and error details live in data: only rows carrying some are read.
+    detailed = entries.where.not(data: nil).pluck(:id, :data).map { |id, data| [id, JSON.parse(data)] }
+    @flag_counts = detailed.flat_map { |_, data| Array(data["flags"]) }.tally
+    @warning_counts = detailed.flat_map { |_, data| Array(data["warnings"]) }.tally.sort_by { |_, count| -count }
     # Errors grouped by cause, the largest first, each explained with its fix (Diagnosis).
-    @error_groups = RedmineMirror::Diagnosis.groups(@events)
-    @events = @events.select { |event| event["module"] == params[:module_key] } if params[:module_key].present?
+    errors = entries.where(action: "error").order(:id).to_a
+    @error_groups = RedmineMirror::Diagnosis.groups(errors.map(&:to_event))
+    scope = entries
+    scope = scope.where(module_key: params[:module_key]) if params[:module_key].present?
+    scope = scope.where(action: params[:action_filter]) if params[:action_filter].present?
+    scope = scope.where(source_id: params[:source_id].to_s) if params[:source_id].present?
     if params[:flag].present?
-      @events = @events.select { |event| params[:flag] == "any" ? Array(event["flags"]).any? : Array(event["flags"]).include?(params[:flag]) }
+      scope = scope.where(id: detailed.select { |_, data| params[:flag] == "any" ? Array(data["flags"]).any? : Array(data["flags"]).include?(params[:flag]) }.map(&:first))
     end
-    @events = @events.select { |event| event["action"] == params[:action_filter] } if params[:action_filter].present?
-    @events = @events.select { |event| RedmineMirror::Diagnosis.group_key(event) == params[:reason] } if params[:reason].present?
-    @events = @events.select { |event| Array(event["warnings"]).include?(params[:warning]) } if params[:warning].present?
-    @events = @events.select { |event| event["source_id"].to_s == params[:source_id] } if params[:source_id].present?
-    @event_count = @events.size
+    scope = scope.where(id: detailed.select { |_, data| Array(data["warnings"]).include?(params[:warning]) }.map(&:first)) if params[:warning].present?
+    if params[:reason].present?
+      scope = scope.where(id: errors.select { |entry| RedmineMirror::Diagnosis.group_key(entry.to_event) == params[:reason] }.map(&:id))
+    end
+    @event_count = scope.count
     @event_pages = Paginator.new(@event_count, 50, params[:page])
-    @events = @events.slice(@event_pages.offset, 50) || []
+    @events = scope.order(:id).offset(@event_pages.offset).limit(50).map(&:to_event)
   end
 
   private

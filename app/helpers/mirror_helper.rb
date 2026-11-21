@@ -87,13 +87,11 @@ module MirrorHelper
     unmapped = mirror_unmapped_counts(project, setting)
     mappings = catalog != :done || setting.selected_modules.empty? || unmapped.any? ? :todo : :done
     synchronized = connected && runs.where(apply: true).exists?
-    previewed = synchronized || (connected && runs.where(apply: false).exists?)
     [
       [:connection, connected ? :done : :todo, nil, mirror_configuration_path(project)],
       [:references, catalog, (setting.catalog_error if catalog == :failed), mirror_configuration_path(project)],
       [:mappings, mappings, unmapped.map { |key, count| "#{mirror_module_label(key)} #{count}" }.join(", ").presence,
         mirror_configuration_path(project, "modules")],
-      [:preview, previewed ? :done : :todo, nil, mirror_page_path(project)],
       [:sync, synchronized ? :done : :todo, nil, mirror_page_path(project)],
       [:schedule, connected && setting.auto_sync_enabled? ? :done : :todo, nil, mirror_configuration_path(project, "schedule")]
     ]
@@ -101,7 +99,7 @@ module MirrorHelper
 
   # Getting started is shown until a first synchronization succeeded.
   def mirror_setup_complete?(steps)
-    steps.first(5).all? { |step| step[1] == :done }
+    steps.first(4).all? { |step| step[1] == :done }
   end
 
   # Local record with the same name as an unmapped source reference, preselected in the
@@ -145,6 +143,22 @@ module MirrorHelper
     else
       column_content(column, setting)
     end
+  end
+
+  # Live progress of a running execution (RunProgress): the module in progress, its
+  # position and the share of modules done, counting the current one by its objects.
+  def mirror_progress_summary(progress)
+    modules = Array(progress["modules"])
+    return nil if modules.empty?
+    current_index = modules.index { |entry| entry["state"] == "running" }
+    finished = modules.count { |entry| entry["state"] == "done" }
+    current = current_index && modules[current_index]
+    # A total exceeded by the objects handled is not that module's total (RunProgress).
+    total = current && current["total"] && current["done"] <= current["total"] ? current["total"] : nil
+    fraction = finished + (total && total.positive? ? current["done"].fdiv(total) : 0)
+    { phase: progress["phase"], modules: modules, current: current, total: total,
+      position: (current_index || finished.clamp(1, modules.size) - 1) + 1, count: modules.size,
+      percentage: [(fraction * 100 / modules.size).floor, 99].min }
   end
 
   def mirror_duration(seconds)
@@ -225,7 +239,7 @@ module MirrorHelper
       linked: linked.fetch(adapter.key, 0),
       parts: MODULE_PARTS.fetch(adapter.key, []).to_h { |key| [key, linked.fetch(key, 0)] },
       run: run,
-      actions: run ? run.log_events.select { |event| event["module"] == adapter.key }.map { |event| event["action"] }.tally : {},
+      actions: run ? run.log_entries.where(module_key: adapter.key).group(:action).count : {},
       conflicts: project.mirror_conflicts.where(module_key: adapter.key, status: "open").count,
       unmapped: unmapped[adapter.key].to_i,
       checks: adapter.overview_checks(project, setting, catalog.dig("module_statistics", adapter.key) || {}),

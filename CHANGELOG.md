@@ -16,6 +16,26 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.53 — 2026-11-21
+
+Run the plugin migrations (26) before restarting Redmine and the worker.
+
+- **Synchronizations followed live**: the execution page shows the phase, each module
+  with its state and the source objects handled out of the total the source gives, and
+  an overall bar. The log fills as objects are written, errors grouped by cause included.
+  The other Mirror tabs link to the running execution, and the overview shows its module.
+- **One pass with *Skip it***: each object is written as soon as it is checked, instead
+  of checking the whole project first and reading the source a second time to write.
+  *Stop: write nothing* still checks every object before the first write.
+- **Simulation withdrawn from the pages**: it read and checked everything without
+  writing, which took as long as a synchronization. The checklist of what remains to
+  settle and the connection check stay on the pages; operators keep the preview through
+  `rake redmine_mirror:sync` without `APPLY=1`. Getting started has five steps.
+- **Run log stored one row per object** (migration 26): appending an object no longer
+  rewrites the whole log, the log page filters and paginates in the database, and a
+  large log no longer exceeds a MySQL `TEXT` column. Existing logs are moved; migrating
+  down rebuilds them.
+
 ## 1.0.0-beta.52 — 2026-11-21
 
 - **Upgrade order fixed**: a destination meeting a Mirror source up to 1.0.0-beta.50

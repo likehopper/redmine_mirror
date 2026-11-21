@@ -18,7 +18,33 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Minimum declared Redmine version: **5.0** as a destination, **4.0** as a source with
 Mirror source (source only). This is not a compatibility certification.
-Current plugin version: **1.0.0-beta.52**.
+Current plugin version: **1.0.0-beta.53**.
+
+## 1.0.0-beta.53 validation — 2026-11-21
+
+Candidate based on `7893344` (beta.52): run log stored one row per object (migration
+26), live progress per module, single pass with *Skip it*, simulation withdrawn from
+the pages. Uncommitted working tree at the time of these runs.
+
+- `bash test/compatibility/run.sh`: Redmine 6.1.4 / Ruby 3.4.11 / Rails 7.2.3.2 /
+  SQLite; 373 Redmine tests, 2,215 assertions, no failures, errors or skips, plus the
+  standalone suites (core: 62 tests).
+- Redmine 6.1.4, isolated databases, unit, functional and integration suites:
+  PostgreSQL 15.19, 361 tests, one failure also present in beta.50 (the `4.0` total);
+  MySQL 8.0.46 and MariaDB 10.11.19, 351 tests, no failures, with the same strict SQL
+  modes and the same three table-altering tests left out as for beta.51.
+- Migration 26 on these three engines and on Redmine 4.0.3 / Ruby 2.6.3 / MySQL
+  5.7.44: a journal written before it (flags, error details, a textual wiki ID, a
+  null destination) is moved into rows and the column emptied; down rebuilds the same
+  JSON journal; up again keeps the rows.
+- Redmine 4.0.3 / MySQL 5.7.44 source-only API and settings suites: 32 and 10 tests
+  with three failures already present in beta.50.
+- Two Redmine 6.1.4 instances (`compose.yml`, isolated project name): the incremental
+  smoke passed (partial baseline, mapping-only retry, one source change read once),
+  its applying runs now in one pass.
+- Not run: the documentation guides (`test/documentation/run.sh`, already failing in
+  beta.50 on configuration steps 7 to 15; their simulation steps were rewritten) and
+  `versions.sh`. No screenshot of the live progress yet.
 
 ## 1.0.0-beta.52 validation — 2026-11-21
 
@@ -185,7 +211,7 @@ Destination (Redmine running Mirror):
 | 6.1.4 | SQLite 3 | Official-image CI runner, locally and on GitHub: Ruby 3.4.11 / Rails 7.2.3.2, 195 Redmine tests / 1033 assertions, symlinked install, `zeitwerk:check`, fresh install and uninstall/reinstall. All two-instance smokes in production mode. |
 | 5.1.13 | SQLite 3 | Two-instance write smokes in production mode (`versions.sh`). Full Redmine plugin suite run once locally on the `reporting-compat-ready:5.1.13` image (1.0.0-beta.18); not part of the CI runner. |
 | 5.0 / 6.0 / 7.x | Not validated | No compatibility claim |
-| 6.1.4 | PostgreSQL 15 / MySQL 8.0 / MariaDB 10.11 | Unit, functional and integration suites for 1.0.0-beta.51, isolated databases; no two-instance run |
+| 6.1.4 | PostgreSQL 15 / MySQL 8.0 / MariaDB 10.11 | Unit, functional and integration suites for 1.0.0-beta.53, isolated databases; no two-instance run |
 | Other versions | PostgreSQL / MariaDB / MySQL | Not validated |
 
 Source (read through its REST API; the Documents module needs Mirror on the source,

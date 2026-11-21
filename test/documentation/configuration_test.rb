@@ -184,17 +184,10 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     assert_no_selector "#mirror-settings-subtabs .mirror-badge"
   end
 
-  def test_10_preview
+  def test_10_overview
     visit "/projects/#{PROJECT}/mirror"
-    assert_selector "#mirror-step-preview.mirror-step-current"
+    assert_selector "#mirror-step-sync.mirror-step-current"
     screenshot "14-overview", "#content"
-    click_button "Run preview"
-    assert_text "Execution queued"
-    run = run_worker
-    assert_equal "succeeded", run.status, run.error_message
-    assert project.issues.none?
-    visit current_path
-    screenshot "15-preview-log", "#content", max_height: 760
   end
 
   def test_11_import
@@ -373,7 +366,7 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     visit "/projects/#{PROJECT}/mirror"
     assert_selector "#mirror-checklist li", text: /Statuses: \d+ without correspondence/
     screenshot "35-checklist", "#mirror-checklist"
-    click_button "Run preview"
+    accept_confirm { click_button "Synchronize now" }
     assert_text "Execution queued"
     run = run_worker
     assert_equal "partial", run.status, run.error_message

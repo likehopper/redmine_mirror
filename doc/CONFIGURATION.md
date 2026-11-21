@@ -75,7 +75,7 @@ administrator sees every project, private issue and note.
 Projects the account is not a member of are not visible. **Issue custom fields** also
 work without an administrator key: Redmine then hides the field definitions, so the
 fields and their values come from the source issues, each value takes the format of
-the destination field you map it to and is checked in the preview, and list choices
+the destination field you map it to and is checked before it is written, and list choices
 are the values found in the issues and their history. Sharing **Custom fields** through
 Mirror source adds format compatibility checks and the complete lists of possible
 values without an administrator key.
@@ -99,7 +99,7 @@ see [AI usage](AI.md).
 | Permission | Allows |
 | --- | --- |
 | **View Mirror** | Mirror menu: status, execution history and logs, items to review, synchronized objects |
-| **Run Mirror synchronizations and resolve conflicts** | The above, plus preview, synchronize now, cancel a queued run, keep or recheck a conflict |
+| **Run Mirror synchronizations and resolve conflicts** | The above, plus synchronize now, stop a run, keep or recheck a conflict |
 | **Configure Mirror** | The above, plus the **Settings → Mirror** tab: connection, schedule and mappings |
 
 Members who can enable the project's modules (*Select project modules*) can also
@@ -200,7 +200,7 @@ subproject has enabled.
   Mirror tab to override them; members follow its user and role correspondences.
 
 A subproject whose source parent is not configured is refused: check its parent too.
-After a successful preview or synchronization here, each configured subproject runs the
+After a successful synchronization here, each configured subproject runs the
 same way (launch origin *Parent project*). Nothing is ever unlinked or removed.
 
 ## 7. Map users
@@ -302,26 +302,29 @@ imported yet: log it, or add a private note with the remote link.
 
 ![Relation policy](screenshots/configuration/13-relations-policy.png)
 
-## 9. Run a preview
+## 9. Check before synchronizing
 
 On the **Mirror** page, **Overview** shows the source, the modules, the schedule, the
-current execution and what needs checking. Click **Run preview**.
+current execution and what needs checking.
 
 ![Overview](screenshots/configuration/14-overview.png)
 
-The run is queued, then processed by the worker (see [Run the worker](#run-the-worker));
-the page refreshes until it finishes. The log lists what an import would do, object by
-object, without writing anything.
+It lists what the configuration alone reveals: references without correspondence,
+disabled project modules, mapped fields the project does not use. A local reference that
+exists in Redmine under the same name but is not offered (a tracker not enabled in the
+project, a status no workflow uses, an inactive activity, a user who is not a member) is
+pointed out with the page that enables it. **Check** in the connection settings tests the
+API account, the source project and its rights.
 
-![Preview log](screenshots/configuration/15-preview-log.png)
+![Before synchronizing](screenshots/configuration/35-checklist.png)
 
-Before the first preview, the **Mirror** page lists what the configuration alone
-reveals: references without correspondence, disabled project modules, mapped fields the
-project does not use. A local reference that exists in Redmine under the same name but is
-not offered (a tracker not enabled in the project, a status no workflow uses, an inactive
-activity, a user who is not a member) is pointed out with the page that enables it.
+## 10. Synchronize
 
-![Before the preview](screenshots/configuration/35-checklist.png)
+Click **Synchronize now**. The run is queued, then processed by the worker (see
+[Run the worker](#run-the-worker)), and its page opens. While it runs, the page reloads
+itself and shows the phase, each module with its state and the source objects handled
+out of the total the source gives, and the log fills as objects are written. The other
+Mirror tabs link to it with **Follow the execution**.
 
 In the log, errors are grouped by cause, the largest first: fixing one unblocks all its
 objects. Each cause is explained, with links to where it is fixed when the current user
@@ -331,23 +334,21 @@ project that mirrors that parent: synchronize it first.
 
 ![Errors by cause](screenshots/configuration/36-guided-errors.png)
 
-Errors do not block the rest: with **Skip it and synchronize the rest** (the default), a
-preview with errors ends **Partial**, and a synchronization writes every other object.
-The failing ones are retried by the next synchronization. With **Stop: write nothing**,
-the preview ends **Failed** and nothing is written until every error is fixed.
+Errors do not block the rest: with **Skip it and synchronize the rest** (the default),
+each object is written as soon as it is checked, a failing one is logged and the run ends
+**Partial**. The failing ones are retried by the next synchronization once fixed. With
+**Stop: write nothing**, every object is checked first (phase **Checking**), and nothing
+is written until every error is fixed; the run then ends **Failed**.
 
-## 10. Synchronize
-
-Click **Synchronize now**. The log gives, for each object, its remote and local IDs with
-links, and the action taken. Its **Summary** counts the actions per module, groups the
-errors and warnings by cause, and lists the **special cases to check**: converted texts,
-issue numbers, links to the source Redmine, images and links to attachments. Click one
-to list the objects concerned, each with its local and source links. The preview shows
-them too, before anything is written.
+The log gives, for each object, its remote and local IDs with links, and the action
+taken. Its **Summary** counts the actions per module, groups the errors and warnings by
+cause, and lists the **special cases to check**: converted texts, issue numbers, links to
+the source Redmine, images and links to attachments. Click one to list the objects
+concerned, each with its local and source links.
 
 The first successful import is complete. Later runs ask Mirror source only for additions,
 modifications and explicit deletions recorded after the position this destination keeps;
-the source stores nothing for the destination. A preview leaves the position unchanged.
+the source stores nothing for the destination.
 An object in error is retained in the destination retry queue; adding its missing
 correspondence retries it without rereading the whole project. Use **Full synchronization** when you intentionally want to reconcile
 every selected object again.
@@ -601,7 +602,7 @@ not left blocked.
 | "Mirror source is disabled…", "Enable the Mirror source module…", "Share Documents…", "Share News…" | Open that lock on the source: [Mirror source](#mirror-source-on-the-source-redmine). |
 | "The source project does not list its files" | Enable the Files module on the source project and give the source account *View files*. |
 | "MIRROR_DESTINATION_URL is not configured" | Set both variables in the worker's environment. |
-| Preview ends Partial or Failed on a mapping | Complete the module tabs with a red counter (steps 7 and 8); with *Skip it*, the rest is synchronized meanwhile. |
+| Synchronization ends Partial or Failed on a mapping | Complete the module tabs with a red counter (steps 7 and 8); with *Skip it*, the rest is synchronized meanwhile. |
 | Run reports a conflict | Step 12. |
 | Relations or parents pending | Import the other project, then rerun this one. |
 

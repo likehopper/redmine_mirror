@@ -23,15 +23,19 @@ module RedmineMirror
 
     # Preview and apply use the same transformations and conflict guards. A preview
     # may persist a conflict diagnostic, but it never writes imported Redmine objects.
-    def run(config, apply: false, track_relation_blocks: false, &block)
+    # progress (RunProgress) receives the modules, each module's start and total, and
+    # every source object handled.
+    def run(config, apply: false, track_relation_blocks: false, progress: nil, &block)
       # Texts are converted to the destination format for the whole run (TextFormat).
       # The source wins in mirror mode (Policy), for every adapter of the run.
       Policy.with(source_wins: config["source_wins"]) do
-        TextFormat.with(config["text_format"]) { run_modules(config, apply: apply, track_relation_blocks: track_relation_blocks, &block) }
+        TextFormat.with(config["text_format"]) { run_modules(config, apply: apply, track_relation_blocks: track_relation_blocks, progress: progress, &block) }
       end
+    ensure
+      @source_client.list_total_listener = nil if @source_client.respond_to?(:list_total_listener=)
     end
 
-    def run_modules(config, apply: false, track_relation_blocks: false)
+    def run_modules(config, apply: false, track_relation_blocks: false, progress: nil)
       source_project_id = Integer(config.fetch("source_project_id"))
       destination_project_id = Integer(config.fetch("destination_project_id"))
       raise Error, "Project IDs must be positive" unless source_project_id.positive? && destination_project_id.positive?
@@ -208,8 +212,15 @@ module RedmineMirror
       seen = {}
       incremental_changes = Array(config["changes"])
       retries = @mapping_store.respond_to?(:retries) ? @mapping_store.retries : []
+      progress&.modules!(adapters.map(&:key))
       adapters.each do |adapter|
         seen_source_ids = seen[adapter.key] = []
+        if progress
+          progress.start(adapter.key)
+          # shortcut: the first list read in the module gives its total; an adapter that
+          # first lists another collection shows that count, hidden once exceeded.
+          @source_client.list_total_listener = ->(count) { progress.total(adapter.key, count) } if @source_client.respond_to?(:list_total_listener=)
+        end
         adapter_changes = incremental_changes.select { |change| [adapter.key, adapter.change_key].include?(change.fetch("module_key")) }
         adapter_retries = retries.select { |change| change.fetch("module_key") == adapter.key }
         adapter_incremental = config["incremental"] && adapter.incremental?
@@ -237,7 +248,9 @@ module RedmineMirror
         if adapter.respond_to?(:prepare_records)
           records = adapter.prepare_records(records, mappings: config.fetch("mappings", {}), source_project_id: source_project_id)
         end
+        progress&.total(adapter.key, records.size, exact: true) if records.is_a?(Array)
         records.each do |record|
+          progress&.record(adapter.key)
           # APIs may include descendants; never import another project's records.
           next unless record.fetch("project").fetch("id").to_i == source_project_id
           if adapter_incremental && adapter.key != adapter.change_key &&
@@ -255,6 +268,7 @@ module RedmineMirror
         @mapping_store.prune_pending_parents(seen_source_ids) if apply && !adapter_incremental && adapter.is_a?(Adapters::Hierarchy) && @mapping_store.respond_to?(:prune_pending_parents)
         @mapping_store.prune_pending_relations(seen_source_ids) if apply && !adapter_incremental && adapter.is_a?(Adapters::Relations)
       end
+      progress&.finish
       # The cited issues are imported now: rewrite those references to local numbers.
       deferred.each { |adapter, record| process.call(adapter, record) }
       if config["source_wins"] && config["incremental"]

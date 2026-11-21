@@ -44,6 +44,8 @@ class MirrorCoreTest < Minitest::Test
 
   class Api
     attr_reader :writes, :records, :queries
+    # Like Client: told the total of each list (run progress).
+    attr_accessor :list_total_listener
     def initialize(records = {})
       @records = records
       @writes = []
@@ -56,6 +58,7 @@ class MirrorCoreTest < Minitest::Test
         since = Time.iso8601(filter.delete_prefix(">="))
         records = records.select { |record| record["updated_on"] && Time.iso8601(record["updated_on"]) >= since }
       end
+      list_total_listener&.call(records.size)
       records.each
     end
     def get(path, _params = {})
@@ -201,6 +204,27 @@ class MirrorCoreTest < Minitest::Test
     assert_equal %w[create create], result.map { |item| item[:action] }
     assert_empty @destination.writes
     assert_empty @store.rows
+  end
+
+  # Execution double: keeps what RunProgress writes instead of a database row.
+  class ProgressRun
+    attr_reader :writes
+    def initialize; @writes = []; end
+    def has_attribute?(name); name == :progress; end
+    def update_columns(values); @writes << JSON.parse(values.fetch(:progress)); end
+  end
+
+  def test_progress_lists_modules_with_their_state_and_source_totals
+    run = ProgressRun.new
+    progress = RedmineMirror::RunProgress.new(run)
+    progress.phase!("writing")
+    @runner.run(@config, apply: true, progress: progress)
+    assert_equal [["users", "done", 0, 0], ["issue_tracking", "done", 1, 1], ["time_tracking", "done", 1, 1]],
+      run.writes.last.fetch("modules").map { |entry| entry.values_at("key", "state", "done", "total") }
+    assert_equal "writing", run.writes.last.fetch("phase")
+    # Each module was shown running before it was done.
+    assert run.writes.any? { |write| write.fetch("modules").find { |entry| entry["key"] == "issue_tracking" }&.values_at("state", "total") == ["running", nil] }
+    assert_nil @source.list_total_listener
   end
 
   def test_apply_is_repeatable_and_remaps_time_entry_issue

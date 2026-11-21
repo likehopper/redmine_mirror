@@ -34,6 +34,8 @@ module RedmineMirror
     # Sources running Mirror log their accesses by session: one per client (a run or a
     # reference refresh), with what it is for (Source::PURPOSES).
     attr_reader :session
+    # Called with the total_count of each paginated list's first page (run progress).
+    attr_accessor :list_total_listener
 
     def initialize(url:, api_key:, allow_http: false, purpose: nil)
       @base_uri = URI(url.to_s.end_with?("/") ? url : "#{url}/")
@@ -106,6 +108,7 @@ module RedmineMirror
         page = get("#{collection}.json", params.merge("offset" => offset, "limit" => 100))
         records = page.fetch(collection)
         raise Error, "Invalid API collection" unless records.is_a?(Array)
+        list_total_listener&.call(Integer(page.fetch("total_count"))) if offset.zero?
         records.each { |record| yield record }
         offset += records.length
         break if offset >= Integer(page.fetch("total_count"))
