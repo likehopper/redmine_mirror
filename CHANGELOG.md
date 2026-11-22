@@ -16,6 +16,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.56 — 2026-11-22
+
+- Fix the "Generate a key" button of the Mirror source settings: it answered "Page not
+  found" because the settings form sent it as PATCH. It now submits its own POST form.
+  No migration since beta.54.
+
 ## 1.0.0-beta.55 — 2026-11-22
 
 - Bound JSON responses as file downloads already were, so an unexpectedly large source

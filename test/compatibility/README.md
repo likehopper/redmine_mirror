@@ -18,7 +18,21 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Minimum declared Redmine version: **5.0** as a destination, **4.0** as a source with
 Mirror source (source only). This is not a compatibility certification.
-Current plugin version: **1.0.0-beta.55**.
+Current plugin version: **1.0.0-beta.56**.
+
+## 1.0.0-beta.56 validation — 2026-11-22
+
+Candidate based on `v1.0.0-beta.55`: the application key button of the Mirror source
+settings submits its own POST form instead of the PATCH settings form.
+
+- `bash test/compatibility/run.sh`: Redmine 6.1.4 / Ruby 3.4.11 / Rails 7.2.3.2 /
+  SQLite; 387 Redmine tests, 2,331 assertions, no failures, errors or skips.
+- Redmine 4.0.3 / Ruby 2.6.3 / MySQL 5.7 source-only suites (runner with `mysql2`
+  pinned to the image's 0.5.2): API 36 tests, 197 assertions; settings 17 tests, 174
+  assertions, including the new key-form checks. Only the two failures known since
+  beta.50 remain (document access log row count, administration session list).
+- Not rerun for this candidate: PostgreSQL, MySQL, MariaDB, interinstance smokes,
+  `versions.sh` and documentation guides.
 
 ## 1.0.0-beta.55 validation — 2026-11-22
 
