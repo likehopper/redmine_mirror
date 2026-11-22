@@ -20,6 +20,32 @@ Minimum declared Redmine version: **5.0** as a destination, **4.0** as a source 
 Mirror source (source only). This is not a compatibility certification.
 Current plugin version: **1.0.0-beta.54**.
 
+## 1.0.0-beta.54 validation — 2026-11-22
+
+Candidate based on `70ca7dc` (beta.53) with the source client authorization branch
+merged (per-project client addresses, accounts and application key, migration 27,
+metadata-only access logs, Mirror source project tab), the execution page in tabs with
+causes and consequences, the access status of a source project and non-member
+assignees restored locally. Runs on the committed candidate.
+
+- `bash test/compatibility/run.sh`: Redmine 6.1.4 / Ruby 3.4.11 / Rails 7.2.3.2 /
+  SQLite; 385 Redmine tests, 2,317 assertions, no failures, errors or skips, plus the
+  standalone suites (core: 64 tests).
+- Redmine 6.1.4, isolated databases, unit, functional and integration suites:
+  PostgreSQL 15, 373 tests, one failure also present in beta.50 (the `4.0` total);
+  MySQL 8.0 and MariaDB 10.11, 363 tests, no failures, same strict SQL modes and the
+  same three table-altering tests left out as for beta.51. These runs found two defects
+  SQLite did not show, fixed before release: the refusal reason column was too short
+  for `incremental_visibility` (widened by migration 27), and an administration sort
+  test relied on the order of two equal counts.
+- Migrations 26 and 27 down to 25 and up again on these three engines and on Redmine
+  4.0.3 / Ruby 2.6.3 / MySQL 5.7.44, with a run journal written before migration 26.
+- Redmine 4.0.3 / MySQL 5.7.44 source-only API and settings suites: 36 and 16 tests
+  with two failures already present in beta.50.
+- Not run: the documentation guides (`test/documentation/run.sh`, failing since beta.50
+  on configuration steps 7 to 15), the interinstance smokes and `versions.sh`; no new
+  screenshot of the execution page tabs or of the source access status.
+
 ## 1.0.0-beta.53 validation — 2026-11-21
 
 Candidate based on `7893344` (beta.52): run log stored one row per object (migration

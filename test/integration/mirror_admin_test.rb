@@ -86,6 +86,8 @@ class MirrorAdminTest < Redmine::IntegrationTest
     get "/admin/mirror", params: { set_filter: 1, f: %w[module], op: { module: "=" }, v: { module: %w[wiki] }, c: %w[project] }
     assert_select "td.project", text: "eCookbook"
     assert_select "table.mirror-admin-projects tbody tr", count: 1
+    # Both projects have two runs: a third one makes the order certain on every database.
+    MirrorSyncRun.create!(project_id: 1, trigger: "manual", apply: true, status: "succeeded")
     get "/admin/mirror", params: { set_filter: 1, sort: "runs_count:desc", c: %w[project runs_count] }
     assert_equal %w[eCookbook OnlineStore], css_select("td.project").map(&:text)
   end
