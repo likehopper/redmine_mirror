@@ -16,6 +16,14 @@
 # Associate one source object with its local ID and last imported fingerprints.
 
 class MirrorMapping < ActiveRecord::Base
+  before_validation :set_destination_scope
+
   validates :connection_key, :module_key, :source_id, :destination_id,
             :source_fingerprint, :destination_fingerprint, presence: true
+
+  private
+
+  def set_destination_scope
+    self.destination_scope = module_key == "project_members" ? source_id : 0
+  end
 end

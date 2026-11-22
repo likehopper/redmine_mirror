@@ -44,6 +44,8 @@ class MirrorCoreTest < Minitest::Test
 
   class Api
     attr_reader :writes, :records, :queries
+    # Like Client: told the total of each list (run progress).
+    attr_accessor :list_total_listener
     def initialize(records = {})
       @records = records
       @writes = []
@@ -56,6 +58,7 @@ class MirrorCoreTest < Minitest::Test
         since = Time.iso8601(filter.delete_prefix(">="))
         records = records.select { |record| record["updated_on"] && Time.iso8601(record["updated_on"]) >= since }
       end
+      list_total_listener&.call(records.size)
       records.each
     end
     def get(path, _params = {})
@@ -203,6 +206,27 @@ class MirrorCoreTest < Minitest::Test
     assert_empty @store.rows
   end
 
+  # Execution double: keeps what RunProgress writes instead of a database row.
+  class ProgressRun
+    attr_reader :writes
+    def initialize; @writes = []; end
+    def has_attribute?(name); name == :progress; end
+    def update_columns(values); @writes << JSON.parse(values.fetch(:progress)); end
+  end
+
+  def test_progress_lists_modules_with_their_state_and_source_totals
+    run = ProgressRun.new
+    progress = RedmineMirror::RunProgress.new(run)
+    progress.phase!("writing")
+    @runner.run(@config, apply: true, progress: progress)
+    assert_equal [["users", "done", 0, 0], ["issue_tracking", "done", 1, 1], ["time_tracking", "done", 1, 1]],
+      run.writes.last.fetch("modules").map { |entry| entry.values_at("key", "state", "done", "total") }
+    assert_equal "writing", run.writes.last.fetch("phase")
+    # Each module was shown running before it was done.
+    assert run.writes.any? { |write| write.fetch("modules").find { |entry| entry["key"] == "issue_tracking" }&.values_at("state", "total") == ["running", nil] }
+    assert_nil @source.list_total_listener
+  end
+
   def test_apply_is_repeatable_and_remaps_time_entry_issue
     @runner.run(@config, apply: true)
     assert_equal 100, @destination.records["time_entries"].first["issue"]["id"]
@@ -288,12 +312,35 @@ class MirrorCoreTest < Minitest::Test
     assert RedmineMirror::Synchronization.mapping_rewrite?(previous, {})
   end
 
+  # 404: no journal. 422: a source up to beta.50 asking for its consumer key.
   def test_source_without_the_change_protocol_keeps_complete_runs
-    client = Object.new
-    client.define_singleton_method(:get) do |path, _params|
-      raise RedmineMirror::Error, "Redmine API returned HTTP 404 for GET #{path}"
+    [404, 422].each do |status|
+      client = Object.new
+      client.define_singleton_method(:get) do |path, _params|
+        raise RedmineMirror::Error, "Redmine API returned HTTP #{status} for GET #{path}"
+      end
+      change_set = RedmineMirror::ChangeSet.read(client, 1, after: 5)
+      assert change_set.full_required?, status
+      refute change_set.supported?, status
     end
-    change_set = RedmineMirror::ChangeSet.read(client, 1, consumer_key: "a" * 64)
+  end
+
+  def test_restricted_incremental_feed_keeps_permission_filtered_complete_runs
+    client = Object.new
+    client.define_singleton_method(:get) do |_path, _params|
+      raise RedmineMirror::Error, "Redmine API returned HTTP 403 (Mirror source: incremental_visibility)"
+    end
+    change_set = RedmineMirror::ChangeSet.read(client, 1, after: nil)
+    assert change_set.full_required?
+    refute change_set.supported?
+  end
+
+  def test_project_without_mirror_source_keeps_permission_filtered_complete_runs
+    client = Object.new
+    client.define_singleton_method(:get) do |_path, _params|
+      raise RedmineMirror::Error, "Redmine API returned HTTP 403 (Mirror source: module)"
+    end
+    change_set = RedmineMirror::ChangeSet.read(client, 1, after: nil)
     assert change_set.full_required?
     refute change_set.supported?
   end
@@ -670,6 +717,61 @@ class MirrorCoreTest < Minitest::Test
 
     assert_equal({ "current" => 1 }, catalog.dig("tracker_usage", "7"))
     assert_equal({ "history" => 1 }, catalog.dig("status_usage", "9"))
+  end
+
+  # A hidden source email is recognized from the digests of this Redmine's addresses: the
+  # catalog gets the local address it matches, and no address travels in clear.
+  def test_module_catalog_matches_hidden_source_emails_from_local_digests
+    digest = Digest::SHA256.hexdigest("local@example.test")
+    client = Object.new
+    sent = []
+    client.define_singleton_method(:get) do |path, params = {}|
+      case path
+      when "projects/1.json" then { "project" => { "id" => 1, "trackers" => [] } }
+      when "projects/1/mirror/source/users.json"
+        { "users" => [{ "id" => 8, "login" => "ruser", "mail" => nil, "mail_hidden" => true, "status" => 1 },
+          { "id" => 9, "login" => "other", "mail" => nil, "mail_hidden" => true, "status" => 1 }] }
+      else { path.split("/").last.delete_suffix(".json") => [] }
+      end
+    end
+    client.define_singleton_method(:create) do |path, payload|
+      sent << [path, payload]
+      { "matches" => [{ "id" => 8, "digest" => digest }, { "id" => 9, "digest" => "0" * 64 }] }
+    end
+    records = [@issue.merge("assigned_to" => { "id" => 8, "name" => "Remote user" }), @issue.merge("id" => 2, "assigned_to" => { "id" => 9, "name" => "Other" })]
+    client.define_singleton_method(:each_record) { |_collection, _params| records.each }
+    source_catalog = RedmineMirror::SourceCatalog.new(client: client, project_id: 1, adapters: RedmineMirror::REGISTRY.resolve(["issue_tracking"]))
+    source_catalog.define_singleton_method(:local_addresses) { ["Local@Example.test", "other@example.test"] }
+    catalog = source_catalog.fetch
+    assert_equal "local@example.test", catalog.dig("user_details", "8", "mail")
+    assert_nil catalog.dig("user_details", "9", "mail")
+    assert_equal [["projects/1/mirror/source/users/matches.json", "8,9"]], sent.map { |path, payload| [path, payload["ids"]] }
+    assert_equal [digest, Digest::SHA256.hexdigest("other@example.test")].sort, sent.first.last["digests"].sort
+    refute_match(/@/, sent.to_s)
+  end
+
+  # The destination sends its position, then each page's cursor; without a position the
+  # source asks for a complete pass.
+  def test_change_reading_starts_after_the_kept_position
+    requests = []
+    client = Object.new
+    client.define_singleton_method(:get) do |_path, params|
+      requests << params
+      next { "cursor" => 9, "high_water" => 9, "full_required" => true, "changes" => [] } unless params.key?("after")
+      if params["after"] == 5
+        { "cursor" => 7, "high_water" => 9, "full_required" => false, "changes" => [{ "id" => 7 }] }
+      else
+        { "cursor" => 9, "high_water" => 9, "full_required" => false, "changes" => [{ "id" => 9 }], "journaled_modules" => ["wiki"] }
+      end
+    end
+    change_set = RedmineMirror::ChangeSet.read(client, 1, after: 5)
+    assert_equal [{ "after" => 5 }, { "after" => 7 }], requests
+    assert_equal [[7, 9], 9, ["wiki"]], [change_set.changes.map { |change| change["id"] }, change_set.cursor, change_set.journaled_modules]
+    refute change_set.full_required?
+    requests.clear
+    change_set = RedmineMirror::ChangeSet.read(client, 1, after: nil)
+    assert_equal [{}], requests
+    assert_equal [true, 9], [change_set.full_required?, change_set.cursor]
   end
 
   # A source that does not share its users still gives a catalog, with the reason.

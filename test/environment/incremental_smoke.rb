@@ -13,9 +13,9 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
-# End-to-end incremental protocol: a partial baseline reports failed objects to the
-# source, adding their missing mapping retries only them, then one issue change is
-# proposed and acknowledged exactly once.
+# End-to-end incremental protocol: a partial baseline keeps failed objects in the
+# destination retry queue, adding their missing mapping retries only them, then one issue
+# change is read exactly once.
 
 abort "Disposable test environment only" unless ENV["MIRROR_TEST_ENVIRONMENT"] == "disposable"
 config = JSON.parse(File.read(ENV.fetch("MIRROR_CONFIG")))
@@ -27,6 +27,7 @@ setting = MirrorProjectSetting.new(project: project, source_url: config.fetch("s
   source_project_id: config.fetch("source_project_id"), on_error: "skip")
 setting.selected_modules = config.fetch("modules")
 setting.api_key = ENV.fetch("MIRROR_SOURCE_API_KEY")
+setting.source_application_key = ENV.fetch("MIRROR_SOURCE_APPLICATION_KEY", "disposable-mirror-application-key")
 setting.source_catalog = {}
 setting.module_options = {}
 setting.save!
@@ -67,7 +68,9 @@ begin
   abort "Retry queue was not cleared" unless MirrorSyncRetry.where(project_id: project.id).none?
   abort "Time import stayed incomplete" unless project.time_entries.count == 13
 
-  source = setting.source_client(purpose: "synchronization")
+  # Mirror reads the source with a read-only account: the source edit uses its
+  # administrator key (api_token.rb), as a person working on the source would.
+  source = RedmineMirror::Client.new(url: setting.source_url, api_key: "1" * 40, allow_http: true)
   source_issue = source.each_record("issues", "project_id" => setting.source_project_id,
     "status_id" => "*", "sort" => "id:asc").first
   source.update("issues/#{source_issue.fetch('id')}.json",
@@ -79,9 +82,9 @@ begin
 
   acknowledged = run.call
   if acknowledged.log_events.any? { |event| %w[issue_tracking time_tracking].include?(event["module"]) }
-    abort "Acknowledged core object was proposed again"
+    abort "Core object read again after the position moved past it"
   end
-  puts "Incremental smoke passed: partial baseline, mapping-only retry, one issue change acknowledged once, unchanged core collections skipped"
+  puts "Incremental smoke passed: partial baseline, mapping-only retry, one issue change read once, unchanged core collections skipped"
 ensure
   project.destroy!
 end

@@ -23,15 +23,19 @@ module RedmineMirror
 
     # Preview and apply use the same transformations and conflict guards. A preview
     # may persist a conflict diagnostic, but it never writes imported Redmine objects.
-    def run(config, apply: false, track_relation_blocks: false, &block)
+    # progress (RunProgress) receives the modules, each module's start and total, and
+    # every source object handled.
+    def run(config, apply: false, track_relation_blocks: false, progress: nil, &block)
       # Texts are converted to the destination format for the whole run (TextFormat).
       # The source wins in mirror mode (Policy), for every adapter of the run.
       Policy.with(source_wins: config["source_wins"]) do
-        TextFormat.with(config["text_format"]) { run_modules(config, apply: apply, track_relation_blocks: track_relation_blocks, &block) }
+        TextFormat.with(config["text_format"]) { run_modules(config, apply: apply, track_relation_blocks: track_relation_blocks, progress: progress, &block) }
       end
+    ensure
+      @source_client.list_total_listener = nil if @source_client.respond_to?(:list_total_listener=)
     end
 
-    def run_modules(config, apply: false, track_relation_blocks: false)
+    def run_modules(config, apply: false, track_relation_blocks: false, progress: nil)
       source_project_id = Integer(config.fetch("source_project_id"))
       destination_project_id = Integer(config.fetch("destination_project_id"))
       raise Error, "Project IDs must be positive" unless source_project_id.positive? && destination_project_id.positive?
@@ -189,6 +193,8 @@ module RedmineMirror
         # Keep the first actionable divergence and stop; remaining records are
         # deliberately left unprocessed rather than reported as successful.
         rescue Error => error
+          # The adapter may name what a refusal is about (Issues: the assignee to add as a member).
+          error = adapter.explain_refusal(error, payload) if adapter.respond_to?(:explain_refusal)
           @mapping_store.record_conflict(adapter.key, record.fetch("id"), error) if @mapping_store.respond_to?(:record_conflict)
           if config["track_retries"] && @mapping_store.respond_to?(:record_retry)
             parent_id = adapter.is_a?(Adapters::IssueChildren) ? adapter.source_issue_ids(record).first : nil
@@ -208,8 +214,15 @@ module RedmineMirror
       seen = {}
       incremental_changes = Array(config["changes"])
       retries = @mapping_store.respond_to?(:retries) ? @mapping_store.retries : []
+      progress&.modules!(adapters.map(&:key))
       adapters.each do |adapter|
         seen_source_ids = seen[adapter.key] = []
+        if progress
+          progress.start(adapter.key)
+          # shortcut: the first list read in the module gives its total; an adapter that
+          # first lists another collection shows that count, hidden once exceeded.
+          @source_client.list_total_listener = ->(count) { progress.total(adapter.key, count) } if @source_client.respond_to?(:list_total_listener=)
+        end
         adapter_changes = incremental_changes.select { |change| [adapter.key, adapter.change_key].include?(change.fetch("module_key")) }
         adapter_retries = retries.select { |change| change.fetch("module_key") == adapter.key }
         adapter_incremental = config["incremental"] && adapter.incremental?
@@ -226,11 +239,20 @@ module RedmineMirror
           scoped_object_ids = (adapter_changes + adapter_retries).select do |change|
             change["parent_id"] && change.fetch("source_id") != change["parent_id"]
           end.map { |change| change.fetch("source_id") }
+        elsif config["incremental"] && Array(config["journaled_modules"]).include?(adapter.key) && adapter.respond_to?(:listed_records)
+          changed = (adapter_changes + adapter_retries).map { |change| change.fetch("source_id") }
+          records = adapter.listed_records(@source_client, source_project_id, store: @mapping_store, changed: changed)
+          retry_ids = []
         else
           records = adapter.records(@source_client, source_project_id)
           retry_ids = []
         end
+        if adapter.respond_to?(:prepare_records)
+          records = adapter.prepare_records(records, mappings: config.fetch("mappings", {}), source_project_id: source_project_id)
+        end
+        progress&.total(adapter.key, records.size, exact: true) if records.is_a?(Array)
         records.each do |record|
+          progress&.record(adapter.key)
           # APIs may include descendants; never import another project's records.
           next unless record.fetch("project").fetch("id").to_i == source_project_id
           if adapter_incremental && adapter.key != adapter.change_key &&
@@ -248,6 +270,7 @@ module RedmineMirror
         @mapping_store.prune_pending_parents(seen_source_ids) if apply && !adapter_incremental && adapter.is_a?(Adapters::Hierarchy) && @mapping_store.respond_to?(:prune_pending_parents)
         @mapping_store.prune_pending_relations(seen_source_ids) if apply && !adapter_incremental && adapter.is_a?(Adapters::Relations)
       end
+      progress&.finish
       # The cited issues are imported now: rewrite those references to local numbers.
       deferred.each { |adapter, record| process.call(adapter, record) }
       if config["source_wins"] && config["incremental"]
@@ -301,8 +324,7 @@ module RedmineMirror
         begin
           if apply
             transaction do
-              adapter.delete_local(mapping.fetch("destination_id"), project_id)
-              @mapping_store.delete(adapter.key, change.fetch("source_id"))
+              delete_mapping(adapter, change.fetch("source_id"), mapping.fetch("destination_id"), project_id)
               if adapter.is_a?(Adapters::Issues)
                 %w[issue_hierarchy issue_watchers issue_custom_fields issue_tags agile_issues].each do |module_key|
                   @mapping_store.delete(module_key, change.fetch("source_id"))
@@ -355,8 +377,7 @@ module RedmineMirror
           begin
             if apply
               transaction do
-                adapter.delete_local(destination_id, project_id)
-                @mapping_store.delete(adapter.key, source_id)
+                delete_mapping(adapter, source_id, destination_id, project_id)
               end
             end
             yield event
@@ -369,6 +390,14 @@ module RedmineMirror
     end
 
     private
+
+    def delete_mapping(adapter, source_id, destination_id, project_id)
+      shared_member = adapter.is_a?(Adapters::Members) && @mapping_store.mappings(adapter.key).any? do |other_source_id, other_destination_id|
+        other_source_id != source_id && other_destination_id == destination_id
+      end
+      adapter.delete_local(destination_id, project_id) unless shared_member
+      @mapping_store.delete(adapter.key, source_id)
+    end
 
     # The reason, and the details the run log uses to explain the fix. A version that the
     # project does not own is looked up once per run: its owner tells which project to

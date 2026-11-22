@@ -1,0 +1,31 @@
+<%#
+File: redmine_mirror/app/views/mirror_synchronizations/_run_summary.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Execution summary tab: progress and actions per module.
+%><% unless %w[queued running].include?(@run.status) %>
+  <p><%= l(:label_mirror_progress) %>: <%= @run.progress_percentage.nil? ? "—" : "#{@run.progress_percentage}%" %></p>
+<% end %>
+<% if @action_counts.any? %>
+<div class="box" id="mirror-run-summary">
+  <table class="list"><thead><tr><th><%= l(:label_mirror_modules) %></th><% %w[create update delete unchanged ignored note error].each do |action| %><th><%= action %></th><% end %></tr></thead><tbody>
+  <% @action_counts.each do |module_key, counts| %>
+    <tr><td><%= link_to mirror_module_label(module_key), project_mirror_run_path(@project, @run, module_key: module_key) %></td>
+    <% %w[create update delete unchanged ignored note error].each do |action| %><td><%= counts[action] ? link_to(counts[action], project_mirror_run_path(@project, @run, module_key: module_key, action_filter: action)) : "" %></td><% end %></tr>
+  <% end %>
+  </tbody></table>
+</div>
+<% else %>
+  <p class="nodata"><%= l(:label_no_data) %></p>
+<% end %>

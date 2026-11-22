@@ -34,8 +34,10 @@ module RedmineMirror
     # Sources running Mirror log their accesses by session: one per client (a run or a
     # reference refresh), with what it is for (Source::PURPOSES).
     attr_reader :session
+    # Called with the total_count of each paginated list's first page (run progress).
+    attr_accessor :list_total_listener
 
-    def initialize(url:, api_key:, allow_http: false, purpose: nil)
+    def initialize(url:, api_key:, allow_http: false, purpose: nil, application_key: nil)
       @base_uri = URI(url.to_s.end_with?("/") ? url : "#{url}/")
       unless @base_uri.host && (@base_uri.scheme == "https" || (allow_http && @base_uri.scheme == "http")) &&
              !@base_uri.userinfo && !@base_uri.query && !@base_uri.fragment
@@ -43,6 +45,8 @@ module RedmineMirror
       end
       raise Error, "Missing API key" if api_key.to_s.empty?
       @api_key = api_key
+      application_key = application_key.to_s
+      @application_key = application_key unless application_key.empty?
       @session = SecureRandom.hex(16)
       @purpose = purpose
     rescue URI::InvalidURIError
@@ -53,17 +57,33 @@ module RedmineMirror
       request(:get, path, params: params)
     end
 
-    # Every issue association modules read, fetched once per issue for a whole run or
-    # catalog refresh. The cache is bounded to keep very large projects in memory limits.
+    # Cache serialized details so the byte budget bounds retained payloads, even
+    # when one issue contains a large history. Limits apply to each client/run.
     ISSUE_DETAIL_INCLUDES = "journals,attachments,relations,watchers,children"
 
     def issue_detail(id)
+      @issue_cache_limit ||= [Integer(ENV.fetch("MIRROR_ISSUE_CACHE", "5000")), 0].max
+      @issue_cache_bytes_limit ||= [Integer(ENV.fetch("MIRROR_ISSUE_CACHE_BYTES", "16777216")), 0].max
       @issue_details ||= {}
+      @issue_details_bytes ||= 0
       id = Integer(id)
-      return @issue_details[id] if @issue_details.key?(id)
+      if (cached = @issue_details.delete(id))
+        @issue_details[id] = cached
+        return JSON.parse(cached)
+      end
+
       detail = get("issues/#{id}.json", "include" => ISSUE_DETAIL_INCLUDES).fetch("issue")
-      @issue_details.shift if @issue_details.size >= Integer(ENV.fetch("MIRROR_ISSUE_CACHE", "5000"))
-      @issue_details[id] = detail
+      return detail if @issue_cache_limit.zero? || @issue_cache_bytes_limit.zero?
+
+      serialized = JSON.generate(detail)
+      return detail if serialized.bytesize > @issue_cache_bytes_limit
+
+      while @issue_details.size >= @issue_cache_limit || @issue_details_bytes + serialized.bytesize > @issue_cache_bytes_limit
+        @issue_details_bytes -= @issue_details.shift.last.bytesize
+      end
+      @issue_details[id] = serialized
+      @issue_details_bytes += serialized.bytesize
+      detail
     end
 
     def create(path, payload)
@@ -90,6 +110,7 @@ module RedmineMirror
         page = get("#{collection}.json", params.merge("offset" => offset, "limit" => 100))
         records = page.fetch(collection)
         raise Error, "Invalid API collection" unless records.is_a?(Array)
+        list_total_listener&.call(Integer(page.fetch("total_count"))) if offset.zero?
         records.each { |record| yield record }
         offset += records.length
         break if offset >= Integer(page.fetch("total_count"))
@@ -105,6 +126,7 @@ module RedmineMirror
       uri.query = URI.encode_www_form(params) unless params.empty?
       request = { get: Net::HTTP::Get, post: Net::HTTP::Post, put: Net::HTTP::Put }.fetch(method).new(uri)
       request["X-Redmine-API-Key"] = @api_key
+      request["X-Mirror-Application-Key"] = @application_key if @application_key
       request["X-Mirror-Session"] = @session
       request["X-Mirror-Purpose"] = @purpose if @purpose
       request["Content-Type"] = "application/json"
@@ -115,28 +137,31 @@ module RedmineMirror
       http_client.read_timeout = 60
       # A retry after a transport failure could duplicate a successful POST.
       http_client.max_retries = 0
-      # Stream attachments with a size bound before retaining the entire body.
-      if binary
-        attachment_bytes = +"".b
-        http_client.start do |connection|
-          connection.request(request) do |response|
-            raise Error, caller_refusal(response) || "Redmine API returned HTTP #{response.code} for GET #{path}#{refusal(response)}" unless response.is_a?(Net::HTTPSuccess)
-            response.read_body do |chunk|
-              raise Error, "Attachment exceeds the import limit of #{max_bytes / 1024} KB" if attachment_bytes.bytesize + chunk.bytesize > max_bytes
-              attachment_bytes << chunk
-            end
+      # Bound every response before retaining it. A compromised source must not be able
+      # to exhaust the worker with a large JSON document or compressed response.
+      response = nil
+      body = +"".b
+      http_client.start do |connection|
+        connection.request(request) do |received|
+          response = received
+          received.read_body do |chunk|
+            label = binary ? "Attachment" : "Redmine API response"
+            raise Error, "#{label} exceeds the import limit of #{max_bytes / 1024} KB" if body.bytesize + chunk.bytesize > max_bytes
+            body << chunk
           end
         end
-        return attachment_bytes
       end
-      response = http_client.start { |connection| connection.request(request) }
+      if binary
+        raise Error, caller_refusal(response) || "Redmine API returned HTTP #{response.code} for GET #{path}#{refusal(response)}" unless response.is_a?(Net::HTTPSuccess)
+        return body
+      end
       # Never follow redirects or expose response bodies (which can contain private data),
       # except the validation messages of a refused write. The path names the refused
       # resource, typically a missing source permission.
       unless response.is_a?(Net::HTTPSuccess)
-        raise Error, caller_refusal(response) || "Redmine API returned HTTP #{response.code} for #{method.to_s.upcase} #{path}#{refusal(response)}#{validation_errors(response)}"
+        raise Error, caller_refusal(response) || "Redmine API returned HTTP #{response.code} for #{method.to_s.upcase} #{path}#{refusal(response)}#{validation_errors(response, body)}"
       end
-      response.body.to_s.empty? ? {} : JSON.parse(response.body)
+      body.empty? ? {} : JSON.parse(body)
     rescue JSON::ParserError, KeyError, ArgumentError
       raise Error, "Invalid Redmine API response"
     rescue IOError, SystemCallError, Timeout::Error, OpenSSL::SSL::SSLError
@@ -146,9 +171,9 @@ module RedmineMirror
     # Redmine explains a refused write (422) with its validation messages, those its own
     # forms show ("User is invalid"): the log gives them, so the cause is known without
     # replaying the request. Other bodies stay hidden.
-    def validation_errors(response)
+    def validation_errors(response, body)
       return "" unless response.code == "422"
-      messages = Array(JSON.parse(response.body.to_s)["errors"]).map { |message| message.to_s.gsub(/\s+/, " ").strip[0, 300] }
+      messages = Array(JSON.parse(body)["errors"]).map { |message| message.to_s.gsub(/\s+/, " ").strip[0, 300] }
       messages = messages.reject(&:empty?).first(10)
       messages.empty? ? "" : ": #{messages.join('; ')}"
     rescue JSON::ParserError, TypeError
@@ -159,7 +184,11 @@ module RedmineMirror
     # modules do not read it as a missing permission on their data.
     CALLER_REFUSALS = {
       "address" => "The source Redmine refuses this Redmine's address: its administrator must add it to Mirror source's allowed addresses",
-      "api_key" => "The source Redmine accepts only the API key header for Mirror source"
+      "api_key" => "The source Redmine accepts only the API key header for Mirror source",
+      "admin_account" => "The source Redmine refuses an administrator's API key for Mirror source: use a dedicated account that can view the shared projects",
+      "client_address" => "The source project refuses this Redmine's address",
+      "client_user" => "The source project does not authorize this API account",
+      "client_key" => "The source project refuses this Mirror application key"
     }.freeze
 
     def caller_refusal(response)
@@ -169,7 +198,7 @@ module RedmineMirror
     # The lock a Mirror source names when it refuses (Source.refusal): a known word only.
     def refusal(response)
       reason = response["X-Mirror-Source-Refusal"].to_s
-      reason.match?(/\A[a-z_]{1,20}\z/) ? " (Mirror source: #{reason})" : ""
+      reason.match?(/\A[a-z_]{1,32}\z/) ? " (Mirror source: #{reason})" : ""
     end
   end
 end

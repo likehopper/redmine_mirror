@@ -13,7 +13,8 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 #
-# Add the "Mirror" and "Mirror source" tabs to the project settings, for members allowed to configure them.
+# Add the "Mirror" and "Mirror source" tabs to the project settings for members
+# allowed to configure them. Operational pages live in the project menu.
 
 module RedmineMirror
   module ProjectsHelperPatch

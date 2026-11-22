@@ -39,7 +39,7 @@ class MirrorSettingsController < ApplicationController
   end
 
   def update_connection
-    input = params.require(:connection).permit(:source_url, :source_project_id, :api_key, :source_text_format, modules: [])
+    input = params.require(:connection).permit(:source_url, :source_project_id, :api_key, :source_application_key, :source_text_format, modules: [])
     url = input.fetch(:source_url).strip.sub(%r{/+\z}, "")
     reference = source_project_reference(input)
     check_source_allowed(url) unless @setting.persisted?
@@ -49,7 +49,9 @@ class MirrorSettingsController < ApplicationController
     end
     @setting.source_url = url
     previous_key = @setting[:encrypted_api_key]
+    previous_application_key = @setting[:encrypted_source_application_key]
     @setting.api_key = input[:api_key] if input[:api_key].present?
+    @setting.source_application_key = input[:source_application_key] if input[:source_application_key].present?
     raise RedmineMirror::Error, l(:text_mirror_api_key_missing) if @setting.api_key.blank?
     unless @setting.persisted? && [@setting.source_project_id.to_s, @setting.source_project_identifier].include?(reference)
       source = resolve_source_project(reference)
@@ -69,6 +71,10 @@ class MirrorSettingsController < ApplicationController
       if input[:api_key].present? && previous_key
         @setting.child_settings.where(encrypted_api_key: previous_key).update_all(encrypted_api_key: @setting[:encrypted_api_key])
       end
+      if input[:source_application_key].present? && previous_application_key
+        @setting.child_settings.where(encrypted_source_application_key: previous_application_key)
+          .update_all(encrypted_source_application_key: @setting[:encrypted_source_application_key])
+      end
       # The worker reads the source references; saving stays immediate.
       @setting.request_catalog_refresh!
       flash[:notice] = l(:text_mirror_catalog_requested)
@@ -86,7 +92,7 @@ class MirrorSettingsController < ApplicationController
   # Read the connection typed in the form without saving anything: mirror.js shows the
   # result in the form. A saved connection keeps its source and, left blank, its key.
   def check_connection
-    input = params.require(:connection).permit(:source_url, :source_project_id, :api_key)
+    input = params.require(:connection).permit(:source_url, :source_project_id, :api_key, :source_application_key)
     reference = source_project_reference(input)
     unless @setting.persisted?
       @setting.source_url = input.fetch(:source_url).strip.sub(%r{/+\z}, "")
@@ -97,6 +103,7 @@ class MirrorSettingsController < ApplicationController
       raise RedmineMirror::Error, l(:text_mirror_check_other_project_needs_key)
     end
     @setting.api_key = input[:api_key] if input[:api_key].present?
+    @setting.source_application_key = input[:source_application_key] if input[:source_application_key].present?
     raise RedmineMirror::Error, l(:text_mirror_api_key_missing) if @setting.api_key.blank?
     check = RedmineMirror::ConnectionCheck.new(client: @setting.source_client, project_reference: reference).run
     render partial: "mirror_settings/connection_check", locals: { check: check }
@@ -301,10 +308,16 @@ class MirrorSettingsController < ApplicationController
     roles = User.current.managed_roles(@project).select { |role| role_ids.include?(role.id) }
     raise RedmineMirror::Error, l(:text_mirror_invalid_mapping) unless roles.size == role_ids.size
     details = @setting.source_catalog.fetch("user_details", {})
+    typed = params[:mails].respond_to?(:to_unsafe_h) ? params[:mails].to_unsafe_h : {}
     created = []
     errors = []
     Array(params[:source_user_ids]).map(&:to_s).uniq.each do |source_id|
       info = details[source_id]
+      # The source never sends an email its owner hides: the members manager types it.
+      if info && info["mail"].blank? && info["mail_hidden"]
+        info = info.merge("mail" => typed[source_id].to_s.strip)
+        next errors << "#{info['firstname']} #{info['lastname']}: #{l(:text_mirror_user_creation_mail_required)}" if info["mail"].empty?
+      end
       next errors << source_id unless info && info["mail"].present?
       user = create_registered_user(Integer(source_id), info, roles)
       user.persisted? ? created << user : errors << "#{info['firstname']} #{info['lastname']}: #{user.errors.full_messages.to_sentence}"
@@ -325,6 +338,8 @@ class MirrorSettingsController < ApplicationController
     user = User.new(firstname: info["firstname"], lastname: info["lastname"], mail: info["mail"], language: Setting.default_language)
     user.login = info["login"]
     user.status = User::STATUS_REGISTERED
+    # Hidden on the source, hidden here too.
+    user.pref.hide_mail = true if info["mail_hidden"]
     company = RedmineMirror.user_company_field
     user.custom_field_values = { company.id.to_s => info["company"] } if company && info["company"].present?
     mapping = @project.mirror_reference_mappings.where(reference_type: "user", source_id: source_id)

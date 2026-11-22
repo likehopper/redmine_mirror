@@ -30,8 +30,9 @@ module RedmineMirror
     # Project enumerations (plugin) have an API for their managers only. Repositories
     # have no API at all; their credentials are a kind of their own, never allowed by default.
     KINDS = %w[documents news issue_tags scrum queries users issue_custom_fields issue_categories project_enumerations repositories repository_credentials].freeze
-    # Kinds an administrator must check explicitly, even before saving a choice.
-    EXPLICIT_KINDS = %w[issue_custom_fields repository_credentials].freeze
+    # Kinds an administrator must check explicitly, even before saving a choice: personal
+    # data (users' emails, other users' saved queries) and repository access.
+    EXPLICIT_KINDS = %w[queries users issue_custom_fields repositories repository_credentials].freeze
     # Redmine project module a kind's data lives in: without it, there is nothing to share.
     KIND_MODULES = { "documents" => "documents", "news" => "news", "issue_tags" => "issue_tracking", "scrum" => "scrum",
       "issue_custom_fields" => "issue_tracking", "issue_categories" => "issue_tracking",
@@ -44,13 +45,15 @@ module RedmineMirror
 
     # Native permission the API account needs for each kind.
     PERMISSIONS = { "documents" => :view_documents, "news" => :view_news, "issue_tags" => :view_issues,
-      "scrum" => :view_sprint_board, "queries" => :view_issues, "users" => :view_issues, "issue_custom_fields" => :view_issues,
+      "scrum" => :view_sprint_board, "queries" => :view_issues, "users" => :view_members, "issue_custom_fields" => :view_issues,
       "issue_categories" => :view_issues, "project_enumerations" => :view_issues,
       "repositories" => :manage_repository, "repository_credentials" => :manage_repository, "changes" => :view_issues }.freeze
     # Changesets linked to issues, per page of a repository's links.
     LINKS_PER_PAGE = 500
     # Users a destination may ask for in one request.
     USERS_PER_REQUEST = 100
+    # Email digests a destination may send in one user_matches request.
+    DIGESTS_PER_REQUEST = 1_000
     # Saved queries a project shares: issues, time entries and agile boards.
     QUERY_TYPES = %w[IssueQuery TimeEntryQuery AgileQuery].freeze
     # The kind a shared file belongs to, by its container.
@@ -59,23 +62,59 @@ module RedmineMirror
     SESSION = /\A[0-9a-f]{32}\z/
     PURPOSES = %w[references preview synchronization].freeze
     REFUSAL_HEADER = "X-Mirror-Source-Refusal"
+    APPLICATION_KEY_HEADER = "X-Mirror-Application-Key"
 
     def settings
       (Setting.plugin_redmine_mirror rescue {}).to_h
     end
 
+    # Switched on by the administrator and restricted to listed addresses: without any
+    # address, Mirror source stays off, so that an API key alone never opens it.
     def enabled?
+      switched_on? && allowed_address_entries.any?
+    end
+
+    def switched_on?
       settings["source_enabled"].to_s == "1"
     end
 
+    # Switched on but kept off for lack of an allowed address: the administrator is warned.
+    def address_missing?
+      switched_on? && allowed_address_entries.empty?
+    end
+
+    # The change journal behind incremental runs (SourceChanges). On unless the
+    # administrator suspends it: settings saved before this option lack the key.
+    def changes_enabled?
+      settings["source_changes_enabled"].to_s != "0"
+    end
+
     # The addresses an administrator allows to call Mirror source: IPs or networks (CIDR),
-    # one per line. None listed: any address. Listed but none valid: no address, so that a
-    # typo never opens the source.
+    # one per line. None listed, or none valid: no address, so that an empty list or a typo
+    # never opens the source.
     def address_allowed?(ip)
-      entries = settings["source_allowed_addresses"].to_s.split(/[\s,;]+/).reject(&:empty?)
-      return true if entries.empty?
+      entries = allowed_address_entries
+      return false if entries.empty?
+      address_in?(ip, entries)
+    end
+
+    def allowed_address_entries
+      address_entries(settings["source_allowed_addresses"])
+    end
+
+    # Reverse proxies in front of Redmine whose X-Forwarded-For is trusted, besides a proxy
+    # on this host (loopback). An invalid entry trusts nothing.
+    def trusted_proxy_entries
+      address_entries(settings["source_trusted_proxies"])
+    end
+
+    def address_entries(value)
+      value.to_s.split(/[\s,;]+/).reject(&:empty?)
+    end
+
+    def address_in?(ip, entries)
       address = IPAddr.new(ip.to_s)
-      entries.any? do |entry|
+      Array(entries).any? do |entry|
         begin
           IPAddr.new(entry).include?(address)
         rescue IPAddr::Error
@@ -86,22 +125,30 @@ module RedmineMirror
       false
     end
 
-    LOOPBACK = [IPAddr.new("127.0.0.0/8"), IPAddr.new("::1")].freeze
+    def client_refusal(project, request, user)
+      setting = project.mirror_source_setting
+      return "client_address" unless setting&.client_address_allowed?(caller_address(request))
+      return "client_user" unless setting.authorized_user_ids.include?(user.id)
+      return "client_key" unless setting.client_key_matches?(request.headers[APPLICATION_KEY_HEADER])
+    end
 
-    # The caller's address. Behind a reverse proxy on this host (the request comes from the
-    # loopback), the address that proxy appended last to X-Forwarded-For: Rails' remote_ip
-    # skips private addresses, so a destination on the same network would read as the
-    # proxy itself. With another proxy in front, that is the address of the first one.
+    LOOPBACK = %w[127.0.0.0/8 ::1].freeze
+
+    def trusted_proxy?(ip)
+      address_in?(ip, LOOPBACK + trusted_proxy_entries)
+    end
+
+    # The caller's address: the connection's, unless it comes from a trusted proxy (on this
+    # host, or listed): then the address that proxy appended to X-Forwarded-For, and so on
+    # back through trusted proxies. A header sent by anyone else is ignored: it could name
+    # any address. Rails' remote_ip skips private addresses, so a destination on the same
+    # network would read as the proxy itself.
     def caller_address(request)
-      remote = request.remote_addr.to_s
       forwarded = request.headers["X-Forwarded-For"].to_s.split(",").map(&:strip).reject(&:empty?)
-      loopback = begin
-        address = IPAddr.new(remote)
-        LOOPBACK.any? { |range| range.include?(address) }
-      rescue IPAddr::Error
-        false
-      end
-      loopback && !forwarded.empty? ? forwarded.last : remote
+      hops = forwarded + [request.remote_addr.to_s]
+      index = hops.size - 1
+      index -= 1 while index.positive? && trusted_proxy?(hops[index])
+      hops[index]
     end
 
     # Mirror source answers only requests authenticated by the API key header that Mirror
@@ -170,24 +217,38 @@ module RedmineMirror
     end
 
     # Among the requested IDs, the users who are members of the project or appear in its
-    # data: issues, notes, time entries, watchers, user fields, news, wiki pages and files.
+    # data that the API account can see: visible issues, notes (private ones only with
+    # their permission), time entries, watchers, user fields, news, wiki pages and files.
+    # Otherwise an invisible private issue would still reveal its participants' emails.
     # Ruby 2.6 (Redmine 4): no filter_map on the source side.
-    def project_user_ids(project, ids)
+    def project_user_ids(project, ids, user = User.current)
       ids = ids.uniq
       return [] if ids.empty?
-      issues = Issue.where(project_id: project.id).select(:id)
+      issues = Issue.visible(user).where(project_id: project.id)
+      issue_ids = issues.select(:id)
       found = Member.where(project_id: project.id, user_id: ids).pluck(:user_id)
-      found |= Issue.where(project_id: project.id, author_id: ids).pluck(:author_id)
-      found |= Issue.where(project_id: project.id, assigned_to_id: ids).pluck(:assigned_to_id)
-      found |= Journal.where(journalized_type: "Issue", journalized_id: issues, user_id: ids).pluck(:user_id)
-      found |= TimeEntry.where(project_id: project.id, user_id: ids).pluck(:user_id)
-      found |= Watcher.where(watchable_type: "Issue", watchable_id: issues, user_id: ids).pluck(:user_id)
+      found |= issues.where(author_id: ids).pluck(:author_id)
+      found |= issues.where(assigned_to_id: ids).pluck(:assigned_to_id)
+      journals = Journal.where(journalized_type: "Issue", journalized_id: issue_ids, user_id: ids)
+      journals = journals.where(private_notes: false) unless user.allowed_to?(:view_private_notes, project)
+      found |= journals.pluck(:user_id)
+      found |= TimeEntry.visible(user).where(project_id: project.id, user_id: ids).pluck(:user_id)
+      if user.allowed_to?(:view_issue_watchers, project)
+        found |= Watcher.where(watchable_type: "Issue", watchable_id: issue_ids, user_id: ids).pluck(:user_id)
+      end
       found |= CustomValue.joins(:custom_field).where(custom_fields: { field_format: "user" }, customized_type: "Issue",
-        customized_id: issues, value: ids.map(&:to_s)).pluck(:value).map(&:to_i)
-      found |= News.where(project_id: project.id, author_id: ids).pluck(:author_id)
-      found |= WikiContent.joins(page: :wiki).where(wikis: { project_id: project.id }, author_id: ids).pluck(:author_id)
-      containers = { "Issue" => issues, "Project" => [project.id], "Version" => project.versions.select(:id),
-        "Document" => Document.where(project_id: project.id).select(:id), "News" => News.where(project_id: project.id).select(:id) }
+        customized_id: issue_ids, value: ids.map(&:to_s)).pluck(:value).map(&:to_i)
+      news = News.visible(user).where(project_id: project.id)
+      found |= news.where(author_id: ids).pluck(:author_id)
+      if user.allowed_to?(:view_wiki_pages, project)
+        found |= WikiContent.joins(page: :wiki).where(wikis: { project_id: project.id }, author_id: ids).pluck(:author_id)
+      end
+      containers = { "Issue" => issue_ids, "Document" => Document.visible(user).where(project_id: project.id).select(:id),
+        "News" => news.select(:id) }
+      if user.allowed_to?(:view_files, project)
+        containers["Project"] = [project.id]
+        containers["Version"] = project.versions.select(:id)
+      end
       containers.each do |type, scope|
         found |= Attachment.where(container_type: type, container_id: scope, author_id: ids).pluck(:author_id)
       end
@@ -196,6 +257,80 @@ module RedmineMirror
 
     def shared?(project, kind)
       project.module_enabled?(:mirror_source) && project.mirror_source_setting&.shared_modules.to_a.include?(kind)
+    end
+
+    # Incremental tombstones keep only identifiers, so a deleted private object can no
+    # longer be checked through a visible scope. Offer this optimization only to a
+    # dedicated reader whose role can see the full project; other clients use ordinary
+    # full reads, where every endpoint applies Redmine's current visibility.
+    def full_change_visibility?(project, user)
+      change_visibility_gaps(project, user).empty?
+    end
+
+    # What an account lacks for the incremental feed of a project: [] when nothing.
+    def change_visibility_gaps(project, user)
+      return [] if user.admin?
+      roles = user.roles_for_project(project)
+      gaps = []
+      gaps << :issues_visibility unless roles.any? { |role| role.respond_to?(:issues_visibility) && role.issues_visibility == "all" }
+      gaps << :time_entries_visibility unless roles.any? { |role| !role.respond_to?(:time_entries_visibility) || role.time_entries_visibility == "all" }
+      %i[view_private_notes view_members view_time_entries].each { |permission| gaps << permission unless user.allowed_to?(permission, project) }
+      gaps
+    end
+
+    # What keeps destinations out of a project, for its settings page: the project locks,
+    # what each authorized account lacks, and subprojects whose locks differ.
+    def client_status(project)
+      setting = project.mirror_source_setting
+      accounts = User.where(id: setting&.authorized_user_ids.to_a).order(:id).map do |user|
+        { user: user, problems: account_problems(project, user, setting) }
+      end
+      children = project.descendants.where.not(status: Project::STATUS_ARCHIVED).to_a.select { |child| child.module_enabled?(:mirror_source) }
+      { addresses: setting&.client_addresses.to_s.split("\n").reject(&:empty?), key: setting&.client_key? || false, accounts: accounts,
+        children_out_of_sync: children.count { |child| !same_clients?(child.mirror_source_setting, setting) } }
+    end
+
+    # One row per subproject the person sees: whether its addresses, accounts, key and
+    # shared data match this project's (:same), differ (:custom) or are empty (:missing),
+    # and the last destination access. Shared data are compared with what the subproject's
+    # own modules can hold, as "Apply to subprojects" sets them.
+    def subproject_summary(project)
+      parent = project.mirror_source_setting
+      children = project.descendants.where.not(status: Project::STATUS_ARCHIVED).visible.order(:lft).to_a
+      last_ids = MirrorSourceAccess.where(project_id: children.map(&:id)).group(:project_id).maximum(:id)
+      last_accesses = MirrorSourceAccess.where(id: last_ids.values).index_by(&:project_id)
+      compare = lambda do |mine, theirs|
+        next :missing if mine.blank?
+        mine == theirs ? :same : :custom
+      end
+      children.map do |child|
+        row = { project: child, enabled: child.module_enabled?(:mirror_source), last_access: last_accesses[child.id] }
+        setting = child.mirror_source_setting
+        next row unless row[:enabled]
+        expected = parent&.shared_modules.to_a - kinds_without_module(child)
+        row.merge(addresses: compare.call(setting&.client_addresses.to_s.split, parent&.client_addresses.to_s.split),
+                  accounts: compare.call(setting&.authorized_user_ids.to_a.sort, parent&.authorized_user_ids.to_a.sort),
+                  key: compare.call(setting&.client_key_digest, parent&.client_key_digest),
+                  modules: compare.call(setting&.shared_modules.to_a.sort, expected.sort))
+      end
+    end
+
+    def account_problems(project, user, setting)
+      return [[:locked, []]] unless user.active?
+      return [[:admin, []]] if user.admin?
+      problems = []
+      wanted = [:view_issues] + setting.shared_modules.map { |kind| PERMISSIONS[kind] }
+      missing = wanted.compact.uniq.reject { |permission| user.allowed_to?(permission, project) }
+      problems << [:permissions, missing] if missing.any?
+      gaps = changes_enabled? ? change_visibility_gaps(project, user) : []
+      problems << [:incremental, gaps] if gaps.any?
+      problems
+    end
+
+    def same_clients?(child, parent)
+      return parent.nil? if child.nil?
+      return false if parent.nil?
+      MirrorSourceSetting::CLIENT_COLUMNS.all? { |column| child[column].to_s == parent[column].to_s }
     end
 
     # Why a request is refused, or nil when it is served. The order tells the
@@ -207,7 +342,10 @@ module RedmineMirror
       if %w[subprojects localized_names changes].include?(kind)
         return "disabled" unless enabled?
         return "module" unless project.module_enabled?(:mirror_source)
-        return "permission" if kind == "changes" && !user.allowed_to?(PERMISSIONS.fetch(kind), project)
+        if kind == "changes"
+          return "permission" unless user.allowed_to?(PERMISSIONS.fetch(kind), project)
+          return "incremental_visibility" unless full_change_visibility?(project, user)
+        end
         return nil
       end
       return "disabled" unless enabled? && allowed_kinds.include?(kind)
@@ -229,15 +367,16 @@ module RedmineMirror
       PURPOSES.include?(value) ? value : nil
     end
 
-    def log(project, request, user, action, object_count: 0, bytes: 0, reason: nil, details: {})
+    def log(project, request, user, action, object_count: 0, bytes: 0, reason: nil, kind: nil)
       key = session_key(request, user)
-      # A new session prunes the entries past the retention period.
-      unless MirrorSourceAccess.where(session_key: key).exists?
+      # At most once per process and day: retention must not add a query to every API call.
+      unless @access_log_pruned_on == Date.current
         MirrorSourceAccess.where("created_at < ?", retention_days.days.ago).delete_all
+        @access_log_pruned_on = Date.current
       end
       MirrorSourceAccess.create!(project: project, user_id: user.logged? ? user.id : nil, session_key: key,
         purpose: purpose(request), remote_ip: caller_address(request).to_s[0, 45], action: action, reason: reason,
-        object_count: object_count, bytes: bytes, details: JSON.generate(details), created_at: Time.current)
+        object_count: object_count, bytes: bytes, details: JSON.generate("kind" => kind.to_s.presence), created_at: Time.current)
     end
   end
 end

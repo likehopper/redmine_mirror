@@ -208,17 +208,10 @@ class MirrorMigrationDocumentationTest < ApplicationSystemTestCase
     assert_no_selector "#mirror-settings-subtabs .mirror-badge"
   end
 
-  def test_11_preview
+  # Write nothing while an object fails: numbers then follow the source order.
+  def test_11_stop_on_error
     Setting.rest_api_enabled = "1"
-    log_user(ADMIN_LOGIN, ADMIN_PASSWORD)
-    visit "/projects/#{PROJECT}/mirror"
-    click_button "Run preview"
-    assert_text "Execution queued"
-    run = run_worker
-    assert_equal "succeeded", run.status, run.error_message
-    assert project.issues.none?
-    visit current_path
-    screenshot "13-preview", "#content", max_height: 700
+    MirrorProjectSetting.find_by!(project: project).update!(on_error: "stop")
   end
 
   def test_12_import

@@ -17,12 +17,12 @@
 # administrator, the project and its sharing allow it, and logged request by request.
 
 class MirrorSourceApiController < ApplicationController
-  accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :scrum, :queries, :users, :custom_fields, :issue_categories,
-    :project_enumerations, :project_enumeration, :repositories, :repository_links, :download, :localized_names, :subprojects, :changes, :acknowledge_changes
+  accept_api_auth :documents, :document, :news, :news_item, :issue_tags, :scrum, :queries, :users, :user_matches, :custom_fields, :issue_categories,
+    :project_enumerations, :project_enumeration, :repositories, :repository_links, :download, :localized_names, :subprojects, :changes
   # Once Redmine knows the user, before anything else, the project lookup included: the
   # caller's address and API key.
   before_action :check_caller
-  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users custom_fields issue_categories project_enumerations repositories localized_names subprojects changes acknowledge_changes]
+  before_action :find_project_by_project_id, only: %i[documents news issue_tags scrum queries users user_matches custom_fields issue_categories project_enumerations repositories localized_names subprojects changes]
   before_action :find_document, only: :document
   before_action :find_news, only: :news_item
   before_action :find_attachment, only: :download
@@ -31,6 +31,7 @@ class MirrorSourceApiController < ApplicationController
   before_action :find_project_enumeration, only: :project_enumeration
   before_action :find_repository, only: :repository_links
   before_action :check_access
+  before_action :require_change_journal, only: %i[changes]
 
   helper :attachments
   helper :custom_fields
@@ -38,22 +39,19 @@ class MirrorSourceApiController < ApplicationController
 
   def documents
     @documents = @project.documents.preload(:category, attachments: :author).order(:id).to_a
-    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @documents.size,
-      details: { "documents" => @documents.map { |document| { "id" => document.id, "title" => document.title, "files" => document.attachments.size } } })
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @documents.size, kind: "documents")
     respond_to { |format| format.api }
   end
 
   def document
-    RedmineMirror::Source.log(@project, request, User.current, "show", object_count: 1,
-      details: { "documents" => [{ "id" => @document.id, "title" => @document.title }] })
+    RedmineMirror::Source.log(@project, request, User.current, "show", object_count: 1, kind: "documents")
     respond_to { |format| format.api }
   end
 
   # Every news item of the project, with its comments and files.
   def news
     @news = @project.news.preload(:author, comments: :author, attachments: :author).order(:id).to_a
-    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @news.size,
-      details: { "news" => @news.map { |item| { "id" => item.id, "title" => item.title, "comments" => item.comments.size, "files" => item.attachments.size } } })
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @news.size, kind: "news")
     respond_to { |format| format.api }
   end
 
@@ -64,46 +62,26 @@ class MirrorSourceApiController < ApplicationController
     table = Project.table_name
     @subprojects = Project.visible.where("#{table}.lft > ? AND #{table}.rgt < ?", @project.lft, @project.rgt)
       .preload(:enabled_modules).order("#{table}.lft").to_a.select { |child| child.module_enabled?(:mirror_source) }
-    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @subprojects.size,
-      details: { "subprojects" => @subprojects.map { |child| { "id" => child.id, "identifier" => child.identifier } } })
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @subprojects.size, kind: "subprojects")
     respond_to { |format| format.api }
   end
 
+  # Destinations up to 1.0.0-beta.50 identify themselves (+consumer+) and expect the
+  # source to keep their acknowledgements: they get the answer of a source without the
+  # journal, and keep synchronizing in their compatible mode until they are upgraded.
   def changes
-    after = Integer(params[:after].presence || 0)
-    consumer = consumer_key
-    raise ArgumentError if after.negative?
-    result = RedmineMirror::SourceChanges.page(@project, consumer_key: consumer, after: after)
-    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: result.fetch(:changes).size,
-      details: { "changes" => result.fetch(:changes).size, "cursor" => result.fetch(:cursor) })
+    return render_404 if params.key?(:consumer)
+    after = params[:after].presence && Integer(params[:after])
+    raise ArgumentError if after&.negative?
+    result = RedmineMirror::SourceChanges.page(@project, after: after)
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: result.fetch(:changes).size, kind: "changes")
     render json: result
   rescue ArgumentError, TypeError
     render json: { error: "Invalid change cursor" }, status: :unprocessable_entity
   end
 
-  def acknowledge_changes
-    consumer = consumer_key
-    changes = Array(params[:changes]).map do |change|
-      value = change.respond_to?(:to_unsafe_h) ? change.to_unsafe_h : change.to_h
-      value.slice("id", "module_key", "source_id")
-    end
-    pending = Array(params[:pending]).map do |change|
-      value = change.respond_to?(:to_unsafe_h) ? change.to_unsafe_h : change.to_h
-      value.slice("module_key", "source_id", "parent_id")
-    end
-    RedmineMirror::SourceChanges.acknowledge(@project, consumer_key: consumer, changes: changes,
-      baseline: params[:baseline].presence, pending: pending)
-    RedmineMirror::Source.log(@project, request, User.current, "acknowledge", object_count: changes.size,
-      details: { "changes" => changes.size, "pending" => pending.size, "baseline" => params[:baseline].present? })
-    render json: { acknowledged: changes.size }
-  rescue ArgumentError, KeyError, TypeError, ActiveRecord::RecordInvalid => error
-    logger&.warn("Mirror source rejected a change acknowledgement: #{error.class}: #{error.message}")
-    render json: { error: "Invalid change acknowledgement" }, status: :unprocessable_entity
-  end
-
   def news_item
-    RedmineMirror::Source.log(@project, request, User.current, "show", object_count: 1,
-      details: { "news" => [{ "id" => @news_item.id, "title" => @news_item.title }] })
+    RedmineMirror::Source.log(@project, request, User.current, "show", object_count: 1, kind: "news")
     respond_to { |format| format.api }
   end
 
@@ -114,8 +92,7 @@ class MirrorSourceApiController < ApplicationController
     ids = scope.order(:id).pluck(:id)
     names = scope.joins(:tags).pluck(:id, "#{RedmineCrm::Tag.table_name}.name").group_by(&:first)
     @issue_tags = ids.map { |id| [id, names.fetch(id, []).map(&:last).sort] }
-    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @issue_tags.size,
-      details: { "issue_tags" => { "issues" => @issue_tags.count { |_, tags| tags.any? }, "tags" => @issue_tags.flat_map(&:last).uniq.size } })
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @issue_tags.size, kind: "issue_tags")
     respond_to { |format| format.api }
   end
 
@@ -134,33 +111,50 @@ class MirrorSourceApiController < ApplicationController
     # this explicit sharing because the API account can see the issue that references it.
     used_sprint_ids = @scrum_issues.map { |_, sprint_id, _, _| sprint_id }.compact.uniq
     @sprints = ::Sprint.where(project_id: @project.id).or(::Sprint.where(id: used_sprint_ids)).order(:id).to_a
-    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @sprints.size + @scrum_issues.size,
-      details: { "scrum" => { "sprints" => @sprints.size, "issues" => @scrum_issues.size } })
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @sprints.size + @scrum_issues.size, kind: "scrum")
     respond_to { |format| format.api }
   end
 
-  # The project's saved queries of issues, time entries and agile boards, private ones
-  # included: sharing them is the project's explicit choice, and every list is logged.
+  # Saved queries visible to the API account. A project's sharing choice never bypasses
+  # the private-query visibility Redmine applies to that account.
   def queries
     types = RedmineMirror::Source::QUERY_TYPES.select { |type| Object.const_defined?(type) }
-    @queries = Query.where(project_id: @project.id, type: types).preload(:user, :roles).order(:id).to_a
-    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @queries.size,
-      details: { "queries" => @queries.map { |query| { "id" => query.id, "title" => "#{query.name} (#{query.type})" } } })
+    # Never other users' private queries, nor the account's own: public ones, and those
+    # limited to roles, as far as the account can see them.
+    @queries = Query.where(project_id: @project.id, type: types).where.not(visibility: Query::VISIBILITY_PRIVATE)
+      .preload(:user, :roles).order(:id).to_a.select { |query| query.visible?(User.current) }
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @queries.size, kind: "queries")
     respond_to { |format| format.api }
   end
 
   # Login, names, email and company of the requested users (?ids=1,2) who are members of
   # the project or appear in its data; the others are left out without a word. Redmine's
-  # users API gives logins and emails to administrators only.
+  # users API gives logins and emails to administrators only. An email its owner hides
+  # is left out too (user_matches).
   def users
-    ids = params[:ids].to_s.split(",").map { |id| Integer(id, exception: false) }.compact.uniq
-      .first(RedmineMirror::Source::USERS_PER_REQUEST)
-    @users = User.where(type: "User", id: RedmineMirror::Source.project_user_ids(@project, ids))
-      .preload(:email_address, :custom_values).order(:id).to_a
+    @users = User.where(type: "User", id: RedmineMirror::Source.project_user_ids(@project, requested_user_ids, User.current))
+      .preload(:email_address, :custom_values, :preference).order(:id).to_a
     @company_field = RedmineMirror.user_company_field
-    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @users.size,
-      details: { "users" => @users.map { |user| { "id" => user.id, "title" => user.name } } })
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @users.size, kind: "users")
     respond_to { |format| format.api }
+  end
+
+  # Which of the requested users (ids, those users() lists) own one of the given email
+  # digests (digests: SHA-256 of a lowercased address). A destination sends the digests of
+  # its own users' addresses to recognize the accounts whose email is hidden: it learns
+  # only addresses it already knows, and never sends them in clear.
+  def user_matches
+    digests = Array(params[:digests]).map(&:to_s).select { |digest| digest.match?(/\A[0-9a-f]{64}\z/) }.uniq
+    return render(json: { error: "Too many digests" }, status: :unprocessable_entity) if digests.size > RedmineMirror::Source::DIGESTS_PER_REQUEST
+    wanted = digests.to_set
+    users = User.where(type: "User", id: RedmineMirror::Source.project_user_ids(@project, requested_user_ids, User.current))
+      .preload(:email_addresses).order(:id).to_a
+    matches = users.each_with_object([]) do |user, result|
+      digest = user.email_addresses.map { |email| Digest::SHA256.hexdigest(email.address.to_s.downcase) }.find { |value| wanted.include?(value) }
+      result << { "id" => user.id, "digest" => digest } if digest
+    end
+    RedmineMirror::Source.log(@project, request, User.current, "match", object_count: matches.size, kind: "users")
+    render json: { matches: matches }
   end
 
   # Definitions of the issue fields this project can use and this account may see.
@@ -169,8 +163,7 @@ class MirrorSourceApiController < ApplicationController
   def custom_fields
     @custom_fields = @project.all_issue_custom_fields.select { |field| field.visible_by?(@project, User.current) }
       .sort_by { |field| [field.position || 0, field.id] }
-    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @custom_fields.size,
-      details: { "custom_fields" => @custom_fields.map { |field| { "id" => field.id, "title" => field.name } } })
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @custom_fields.size, kind: "issue_custom_fields")
     respond_to { |format| format.api }
   end
 
@@ -179,8 +172,7 @@ class MirrorSourceApiController < ApplicationController
   def localized_names
     names = RedmineMirror::LocalizedNames.source_aliases(@project)
     count = names.values.sum(&:size)
-    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: count,
-      details: { "localized_names" => names.transform_values(&:size) })
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: count, kind: "localized_names")
     render json: { "localized_names" => names }
   end
 
@@ -189,8 +181,7 @@ class MirrorSourceApiController < ApplicationController
   def issue_categories
     @sharing = RedmineMirror::Source.category_sharing?
     @categories = IssueCategory.where(project_id: @project.id).preload(:assigned_to).order(:id).to_a
-    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @categories.size,
-      details: { "issue_categories" => @categories.map { |category| { "id" => category.id, "title" => category[:name] } } })
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @categories.size, kind: "issue_categories")
     respond_to { |format| format.api }
   end
 
@@ -198,14 +189,12 @@ class MirrorSourceApiController < ApplicationController
   # status, sharing and position. Those shared by a parent project come with the parent.
   def project_enumerations
     @enumerations = ::ProjectEnumeration.where(project_id: @project.id).preload(:custom_field).order(:id).to_a
-    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @enumerations.size,
-      details: { "project_enumerations" => @enumerations.map { |enumeration| { "id" => enumeration.id, "title" => enumeration.value } } })
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @enumerations.size, kind: "project_enumerations")
     respond_to { |format| format.api }
   end
 
   def project_enumeration
-    RedmineMirror::Source.log(@project, request, User.current, "show", object_count: 1,
-      details: { "project_enumerations" => [{ "id" => @enumeration.id, "title" => @enumeration.value }] })
+    RedmineMirror::Source.log(@project, request, User.current, "show", object_count: 1, kind: "project_enumerations")
     respond_to { |format| format.api }
   end
 
@@ -216,23 +205,23 @@ class MirrorSourceApiController < ApplicationController
     @repositories = @project.repositories.order(:id).to_a
     # Only when asked: a destination asks only to write a repository with them.
     @credentials = params[:credentials] == "1" && RedmineMirror::Source.refusal(@project, "repository_credentials", User.current).nil?
-    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @repositories.size,
-      details: { "repositories" => @repositories.map { |repository| { "id" => repository.id, "title" => repository.identifier.presence || repository.scm_name } },
-                 "credentials" => @credentials })
+    RedmineMirror::Source.log(@project, request, User.current, "list", object_count: @repositories.size, kind: "repositories")
     respond_to { |format| format.api }
   end
 
   # The links between a repository's changesets and issues, by revision, a page at a time.
   def repository_links
     offset = [params[:offset].to_i, 0].max
-    ids = Changeset.where(repository_id: @repository.id).joins(:issues).distinct.order(:id).offset(offset)
+    visible_issues = Issue.visible.where(project_id: @project.id).select(:id)
+    scope = Changeset.where(repository_id: @repository.id).joins(:issues).where(Issue.table_name => { id: visible_issues }).distinct
+    ids = scope.order(:id).offset(offset)
       .limit(RedmineMirror::Source::LINKS_PER_PAGE).pluck(:id)
-    issues = Changeset.where(id: ids).joins(:issues).pluck(:id, "#{Issue.table_name}.id").group_by(&:first)
+    issues = Changeset.where(id: ids).joins(:issues).where(Issue.table_name => { id: visible_issues })
+      .pluck(:id, "#{Issue.table_name}.id").group_by(&:first)
     @links = Changeset.where(id: ids).order(:id).pluck(:id, :revision).map { |id, revision| [revision, issues.fetch(id, []).map(&:last).sort] }
-    @total = Changeset.where(repository_id: @repository.id).joins(:issues).distinct.count
+    @total = scope.count
     @offset = offset
-    RedmineMirror::Source.log(@project, request, User.current, "show", object_count: @links.size,
-      details: { "repositories" => [{ "id" => @repository.id, "title" => @repository.identifier.presence || @repository.scm_name }], "links" => @links.size })
+    RedmineMirror::Source.log(@project, request, User.current, "show", object_count: @links.size, kind: "repositories")
     respond_to { |format| format.api }
   end
 
@@ -244,8 +233,7 @@ class MirrorSourceApiController < ApplicationController
       return
     end
     RedmineMirror::Source.log(@project, request, User.current, "download", object_count: 1, bytes: @attachment.filesize,
-      details: { "attachment" => { "id" => @attachment.id, "filename" => @attachment.filename,
-        "#{@attachment.container_type.underscore}_id" => @attachment.container_id } })
+      kind: RedmineMirror::Source::CONTAINERS.fetch(@attachment.container_type))
     send_file @attachment.diskfile, filename: @attachment.filename, type: @attachment.content_type.presence || "application/octet-stream",
       disposition: "attachment"
   end
@@ -306,10 +294,10 @@ class MirrorSourceApiController < ApplicationController
     when "issue_tags" then "issue_tags"
     when "scrum" then "scrum"
     when "queries" then "queries"
-    when "users" then "users"
+    when "users", "user_matches" then "users"
     when "custom_fields" then "issue_custom_fields"
     when "localized_names" then "localized_names"
-    when "changes", "acknowledge_changes" then "changes"
+    when "changes" then "changes"
     when "subprojects" then "subprojects"
     when "issue_categories" then "issue_categories"
     when "project_enumerations", "project_enumeration" then "project_enumerations"
@@ -319,27 +307,39 @@ class MirrorSourceApiController < ApplicationController
     end
   end
 
-  # An address outside the administrator's list, or a request not authenticated by its API
-  # key header, is refused without naming any project. Logged by Rails only: the access log
-  # belongs to a project.
+  # A source switched off, an address outside the administrator's list, or a request not
+  # authenticated by its API key header, is refused without naming any project. Logged by
+  # Rails only: the access log belongs to a project.
   def check_caller
     address = RedmineMirror::Source.caller_address(request)
-    if !RedmineMirror::Source.address_allowed?(address)
+    # Switched off, or kept off without any allowed address: refused before anything else.
+    if !RedmineMirror::Source.enabled?
+      reason = "disabled"
+    elsif !RedmineMirror::Source.address_allowed?(address)
       reason = "address"
     elsif !RedmineMirror::Source.api_key_request?(request, User.current)
       reason = "api_key"
+    elsif User.current.admin?
+      # An administrator bypasses every permission: private issues and notes, all projects.
+      # Destinations use a dedicated account given what it may see in the shared projects.
+      reason = "admin_account"
     else
       return
     end
-    logger&.warn("Mirror source refused #{request.path} from #{address}: #{reason}")
+    logger&.warn("Mirror source refused a caller: #{reason}")
     response.headers[RedmineMirror::Source::REFUSAL_HEADER] = reason
     render_403
   end
 
-  def consumer_key
-    value = params[:consumer].to_s
-    raise ArgumentError unless value.match?(/\A[0-9a-f]{64}\z/)
-    value
+  # A suspended journal answers like a source without it: destinations fall back to their
+  # compatible mode (ChangeSet.read), and resuming it asks them for a complete pass.
+  def require_change_journal
+    render_404 unless RedmineMirror::Source.changes_enabled?
+  end
+
+  def requested_user_ids
+    params[:ids].to_s.split(",").map { |id| Integer(id, exception: false) }.compact.uniq
+      .first(RedmineMirror::Source::USERS_PER_REQUEST)
   end
 
   # An account is required, even on public projects. Projects it cannot see are
@@ -348,9 +348,17 @@ class MirrorSourceApiController < ApplicationController
   def check_access
     return require_login unless User.current.logged?
     return deny_access unless @project.visible?
-    reason = RedmineMirror::Source.refusal(@project, kind, User.current)
+    source_reason = RedmineMirror::Source.refusal(@project, kind, User.current)
+    # Only the optional change protocol may announce that it is unavailable before
+    # project-client authentication, so destinations can safely fall back to native
+    # permission-filtered APIs. Data-sharing choices stay behind all client controls.
+    reason = if kind == "changes" && %w[disabled module].include?(source_reason)
+               source_reason
+             else
+               RedmineMirror::Source.client_refusal(@project, request, User.current) || source_reason
+             end
     return unless reason
-    RedmineMirror::Source.log(@project, request, User.current, "refused", reason: reason, details: { "path" => request.path })
+    RedmineMirror::Source.log(@project, request, User.current, "refused", reason: reason, kind: kind)
     response.headers[RedmineMirror::Source::REFUSAL_HEADER] = reason
     deny_access
   end

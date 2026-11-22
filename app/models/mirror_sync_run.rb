@@ -16,9 +16,12 @@
 # Persist execution state, totals and filtered object-level events.
 
 class MirrorSyncRun < ActiveRecord::Base
+  EVENT_PROGRESS_BATCH = 25
   belongs_to :project
   belongs_to :requested_by, class_name: "User", optional: true
   belongs_to :stop_requested_by, class_name: "User", optional: true
+  # The journal: one row per logged object (migration 26).
+  has_many :log_entries, class_name: "MirrorSyncRunEvent", foreign_key: :run_id, dependent: :delete_all
   validates :status, inclusion: { in: %w[queued running succeeded partial failed cancelled] }
   validates :trigger, inclusion: { in: %w[manual automatic operator parent] }
 
@@ -30,7 +33,9 @@ class MirrorSyncRun < ActiveRecord::Base
   # Runs that planned or logged objects of a module.
   scope :for_module, lambda { |module_key|
     key = sanitize_sql_like(JSON.generate(module_key), "!")
-    where("module_totals LIKE :manifest ESCAPE '!' OR events LIKE :event ESCAPE '!'", manifest: "%#{key}:%", event: "%\"module\":#{key}%")
+    where("module_totals LIKE :manifest ESCAPE '!' OR EXISTS (SELECT 1 FROM mirror_sync_run_events " \
+      "WHERE mirror_sync_run_events.run_id = mirror_sync_runs.id AND mirror_sync_run_events.module_key = :module)",
+      manifest: "%#{key}:%", module: module_key.to_s)
   }
 
   # Ends the run, with its duration in seconds when it started.
@@ -71,15 +76,36 @@ class MirrorSyncRun < ActiveRecord::Base
   end
 
   def module_counts
-    self[:module_totals].present? ? JSON.parse(self[:module_totals]) : log_events.group_by { |event| event["module"] }.transform_values(&:size)
+    self[:module_totals].present? ? JSON.parse(self[:module_totals]) : module_event_counts
   end
 
+  # Logged objects per module, with the given modules listed even without any object.
+  def module_event_counts(module_keys = [])
+    module_keys.to_h { |key| [key, 0] }.merge(log_entries.group(:module_key).count)
+  end
+
+  # Phase and per-module counters written by RunProgress while the run works.
+  def live_progress
+    JSON.parse((has_attribute?(:progress) && self[:progress]).presence || "{}")
+  rescue JSON::ParserError
+    {}
+  end
+
+  # The whole journal in memory: for small runs and exports; pages query log_entries.
   def log_events
-    JSON.parse(self[:events].presence || "[]")
+    log_entries.order(:id).map(&:to_event)
   end
 
   def append_event(event)
-    # Only module/ID/action are recorded, never payloads or API credentials.
-    update!(events: JSON.generate(log_events + [event]), processed_records: processed_records + 1)
+    # Not through log_entries: the association would keep every created row in memory.
+    MirrorSyncRunEvent.create!(MirrorSyncRunEvent.attributes_for(id, event))
+    self.processed_records += 1
+    flush_event_progress! if (processed_records % EVENT_PROGRESS_BATCH).zero?
+  end
+
+  # Persist live counters in batches; finish!/update! writes any remaining dirty count.
+  def flush_event_progress!
+    # updated_at doubles as the heartbeat read by end_abandoned_stops.
+    update_columns(processed_records: processed_records, updated_at: Time.current)
   end
 end

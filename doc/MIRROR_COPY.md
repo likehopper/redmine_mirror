@@ -75,11 +75,7 @@ When an issue is deleted on the source, Mirror asks the source for that very iss
 before deleting anything: only a *not found* answer counts. An issue that moved to
 another source project, or that the API key can no longer see, is kept and logged.
 
-Run a preview first: deletions are listed with the *delete* action, nothing is written.
-
-![Preview with a deletion](screenshots/mirror-copy/05-preview-deletion.png)
-
-Then synchronize: the local issue is deleted, with its history, time entries and
+Synchronize: the local issue is deleted, with its history, time entries and
 relations, as Redmine does.
 
 ## 6. Beyond the limit, confirm the deletions

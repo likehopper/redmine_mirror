@@ -78,8 +78,30 @@ class MirrorControllerTest < ActionController::TestCase
     assert_select "#mirror-step-mappings.mirror-step-current a[href='/projects/ecookbook/settings/mirror?mirror_tab=modules']"
     assert_select "#mirror-step-mappings .mirror-step-detail", text: "Users 1, Issues 3, Time tracking 1"
     assert_select "#mirror-source-summary a[href='https://source.example/redmine/projects/legacy']"
-    assert_select "#mirror-actions form", count: 3
+    assert_select "#mirror-actions form", count: 2
     assert_no_match "private-api-key", response.body
+  end
+
+  # The worker reads the references again after a configuration change or a new source
+  # value: the references already read keep the steps done meanwhile.
+  def test_reference_refresh_keeps_the_steps_already_done
+    configure
+    @setting.update_columns(catalog_status: "refreshing",
+      source_catalog: JSON.generate(@setting.source_catalog.merge("source_inventory" => {})))
+    @request.session[:user_id] = 1
+    get :index, params: { project_id: @project.identifier }
+    assert_select "#mirror-step-references.mirror-step-done .mirror-step-detail", text: /Update in progress/
+    assert_select "#mirror-step-mappings.mirror-step-current"
+  end
+
+  # Before any reference was read, the refresh is the step in progress.
+  def test_first_reference_refresh_is_the_step_in_progress
+    configure
+    @setting.update_columns(catalog_status: "pending")
+    @request.session[:user_id] = 1
+    get :index, params: { project_id: @project.identifier }
+    assert_select "#mirror-step-references.mirror-step-waiting.mirror-step-current"
+    assert_select "#mirror-step-mappings.mirror-step-todo"
   end
 
   def test_getting_started_disappears_after_a_first_synchronization
@@ -112,7 +134,7 @@ class MirrorControllerTest < ActionController::TestCase
     grant(:run_mirror)
     @request.session[:user_id] = 2
     get :index, params: { project_id: @project.identifier }
-    assert_select "#mirror-actions form", count: 3
+    assert_select "#mirror-actions form", count: 2
     assert_select ".contextual a.icon-settings", count: 0
   end
 

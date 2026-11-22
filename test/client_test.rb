@@ -20,7 +20,7 @@ require "socket"
 require_relative "../lib/redmine_mirror"
 
 class MirrorClientTest < Minitest::Test
-  def serve(responses)
+  def serve(responses, application_key: nil)
     server = TCPServer.new("127.0.0.1", 0)
     requests = []
     thread = Thread.new do
@@ -35,12 +35,59 @@ class MirrorClientTest < Minitest::Test
         socket.close
       end
     end
-    client = RedmineMirror::Client.new(url: "http://127.0.0.1:#{server.addr[1]}/redmine", api_key: "test-token", allow_http: true)
+    client = RedmineMirror::Client.new(url: "http://127.0.0.1:#{server.addr[1]}/redmine", api_key: "test-token",
+      application_key: application_key, allow_http: true)
     yield client, requests
     thread.value
   ensure
     server&.close
     thread&.kill
+  end
+
+  def with_issue_cache(count:, bytes:)
+    names = %w[MIRROR_ISSUE_CACHE MIRROR_ISSUE_CACHE_BYTES]
+    previous = names.map { |name| ENV[name] }
+    ENV[names[0]] = count.to_s
+    ENV[names[1]] = bytes.to_s
+    yield
+  ensure
+    names.zip(previous).each { |name, value| value ? ENV[name] = value : ENV.delete(name) }
+  end
+
+  def test_issue_cache_evicts_least_recently_used_detail
+    with_issue_cache(count: 2, bytes: 1024) do
+      responses = [1, 2, 3, 2].map { |id| ["200 OK", JSON.generate("issue" => { "id" => id })] }
+      serve(responses) do |client, requests|
+        [1, 2, 1, 3, 1, 2].each { |id| assert_equal id, client.issue_detail(id)["id"] }
+        assert_equal 4, requests.size
+      end
+    end
+  end
+
+  def test_issue_cache_byte_budget_and_caller_mutation
+    detail = { "id" => 1, "description" => "é" * 20 }
+    with_issue_cache(count: 10, bytes: JSON.generate(detail).bytesize) do
+      responses = [detail, detail.merge("id" => 2), detail].map { |issue| ["200 OK", JSON.generate("issue" => issue)] }
+      serve(responses) do |client, requests|
+        client.issue_detail(1)["description"].clear
+        assert_equal detail, client.issue_detail(1)
+        client.issue_detail(2)
+        assert_equal detail, client.issue_detail(1)
+        assert_equal 3, requests.size
+      end
+    end
+  end
+
+  def test_disabled_and_oversized_issue_details_are_not_retained
+    [[0, 1024], [-1, 1024], [10, 0], [10, -1], [10, 1]].each do |count, bytes|
+      with_issue_cache(count: count, bytes: bytes) do
+        responses = 2.times.map { ["200 OK", JSON.generate("issue" => { "id" => 1 })] }
+        serve(responses) do |client, requests|
+          2.times { assert_equal 1, client.issue_detail(1)["id"] }
+          assert_equal 2, requests.size
+        end
+      end
+    end
   end
 
   def test_pagination_and_subdirectory_and_authentication
@@ -80,6 +127,20 @@ class MirrorClientTest < Minitest::Test
     end
   end
 
+  def test_application_key_is_sent_only_when_configured
+    serve([["200 OK", "{}"]], application_key: "mirror-secret") do |client, requests|
+      client.get("projects/1.json")
+      assert_match(/x-mirror-application-key: mirror-secret\r\n/i, requests.first)
+    end
+  end
+
+  def test_long_known_refusal_reason_is_kept_for_secure_fallbacks
+    serve([["403 Forbidden\r\nX-Mirror-Source-Refusal: incremental_visibility", ""]]) do |client, _requests|
+      error = assert_raises(RedmineMirror::Error) { client.get("projects/1/mirror/source/changes.json") }
+      assert_includes error.message, "Mirror source: incremental_visibility"
+    end
+  end
+
   # A refused write gives Redmine's validation messages; other bodies stay hidden.
   def test_refused_write_reports_validation_messages
     responses = [["422 Unprocessable Entity", JSON.generate("errors" => ["User is invalid", "Date  is\nlocked"])],
@@ -101,6 +162,16 @@ class MirrorClientTest < Minitest::Test
   def test_invalid_json_is_reported_without_body
     serve([["200 OK", "secret"]]) do |client, _requests|
       assert_equal "Invalid Redmine API response", assert_raises(RedmineMirror::Error) { client.get("issues.json") }.message
+    end
+  end
+
+  def test_json_response_is_bounded_before_it_is_parsed
+    serve([["200 OK", JSON.generate("issues" => [{ "subject" => "private" }])]]) do |client, _requests|
+      error = assert_raises(RedmineMirror::Error) do
+        client.send(:request, :get, "issues.json", max_bytes: 8)
+      end
+      assert_equal "Redmine API response exceeds the import limit of 0 KB", error.message
+      refute_includes error.message, "private"
     end
   end
 end

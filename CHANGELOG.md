@@ -16,6 +16,188 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.57 — 2026-11-22
+
+- Validate the destination container and attachment author before downloading a file;
+  unchanged attachments continue to reuse their local file without another source transfer.
+- List each subproject in the Mirror source settings: whether its addresses, accounts,
+  key and shared data match the parent's, are customized or still to configure, and its
+  last destination access (served or refused, with the reason).
+- Read the source references again when their worker stopped during the read (server
+  restart, killed process): the refresh no longer stays "In progress" forever. The
+  worker beats every 30 seconds; after two minutes of silence, the next tick requests
+  the refresh again.
+- Keep the Getting started steps done while references already read are refreshed:
+  "Load source references" shows "Update in progress" instead of sending the project
+  back to step 2, and the mappings are checked against the references already read.
+- No migration since beta.54.
+
+## 1.0.0-beta.56 — 2026-11-22
+
+- Fix the "Generate a key" button of the Mirror source settings: it answered "Page not
+  found" because the settings form sent it as PATCH. It now submits its own POST form.
+  No migration since beta.54.
+
+## 1.0.0-beta.55 — 2026-11-22
+
+- Bound JSON responses as file downloads already were, so an unexpectedly large source
+  response cannot exhaust the worker's memory.
+- Keep source access sessions separate by API account, address and purpose even if two
+  clients reuse the same session header; count paginated groups in SQL.
+- Read large execution diagnostics in batches, load only the object correspondences of
+  the visible page, and persist live event counters every 25 objects instead of once per
+  object.
+- Send hidden-email fingerprints only for destination accounts available to the project,
+  and filter those fingerprints from Rails request logs.
+- Normalize authorized source accounts and refuse newly submitted administrator IDs,
+  consistently with the source API.
+
+## 1.0.0-beta.54 — 2026-11-22
+
+Security release for Mirror source. Run the plugin migrations (27) before restarting
+Redmine and the worker. After the migration, a source refuses every request for a
+project until its **Mirror source** settings list the client addresses, the authorized
+API accounts and a generated application key; then save that key in the connection of
+each destination project. Upgrade the sources first.
+
+- **Execution page in tabs**: Summary (actions per module, each count opens its objects),
+  To check (errors by cause, warnings, special cases) and Execution log, which can now be
+  grouped by module, action or reason.
+- **What to fix, explained**: To check separates the causes to fix from the objects that
+  failed only because an object they depend on failed (an issue, a parent wiki page);
+  those are listed by module and pass once the cause is fixed. New explanations: an
+  assignee who is not an assignable member (the refused account is named, with links to
+  add a member or change the mapping), a watcher who cannot see the issue, a file missing
+  on the source (HTTP 404), an unreadable repository. Refused downloads and repositories
+  are one cause each instead of one line per file or path.
+
+- **Mirror source clients restricted per project** (migration 27): each source project
+  accepts only the client addresses or networks, API accounts and generated Mirror
+  application key selected in its settings. Empty project client settings refuse every
+  request: configure them, and the application key on each destination, before the
+  destinations run again. The administrator's allowed addresses and Redmine permissions
+  still apply.
+- **Access status on the source**: the Mirror source tab of a project lists each
+  control (administrator switch, client addresses, application key, authorized accounts),
+  and for each account what it lacks: administrator or locked account, a permission for
+  the shared data, or what the incremental feed requires. It also counts subprojects whose
+  controls differ. Administrators are no longer offered as authorized accounts, since
+  Mirror source refuses their keys.
+- **Assignee who is not a member kept**: an issue assigned on the source to an active
+  user who is not an assignable member of the destination project is written without the
+  assignee through the API, then the assignee is restored locally, as for locked users.
+- **Source access logs keep only operational metadata**: no object titles, filenames or
+  user names; migration 27 clears those details from existing rows and keeps the audit
+  envelope. The logs move to a **Mirror source** project tab, filtered by account,
+  address, purpose or refusal and grouped by session or destination (API account and
+  client address), with its own viewing permission. Users are listed through watchers
+  only when the account may see watchers. The incremental feed is refused to an account
+  that cannot see every private change; the destination then reads in full.
+
+## 1.0.0-beta.53 — 2026-11-21
+
+Run the plugin migrations (26) before restarting Redmine and the worker.
+
+- **Synchronizations followed live**: the execution page shows the phase, each module
+  with its state and the source objects handled out of the total the source gives, and
+  an overall bar. The log fills as objects are written, errors grouped by cause included.
+  The other Mirror tabs link to the running execution, and the overview shows its module.
+- **One pass with *Skip it***: each object is written as soon as it is checked, instead
+  of checking the whole project first and reading the source a second time to write.
+  *Stop: write nothing* still checks every object before the first write.
+- **Simulation withdrawn from the pages**: it read and checked everything without
+  writing, which took as long as a synchronization. The checklist of what remains to
+  settle and the connection check stay on the pages; operators keep the preview through
+  `rake redmine_mirror:sync` without `APPLY=1`. Getting started has five steps.
+- **Run log stored one row per object** (migration 26): appending an object no longer
+  rewrites the whole log, the log page filters and paginates in the database, and a
+  large log no longer exceeds a MySQL `TEXT` column. Existing logs are moved; migrating
+  down rebuilds them.
+
+## 1.0.0-beta.52 — 2026-11-21
+
+- **Upgrade order fixed**: a destination meeting a Mirror source up to 1.0.0-beta.50
+  that keeps the change journal used to fail its runs (HTTP 422: that source requires a
+  consumer key). It now uses its compatible mode, so sources and destinations can be
+  upgraded in either order. With beta.51 destinations, upgrade the sources first.
+
+## 1.0.0-beta.51 — 2026-11-20
+
+Security release for Mirror source. Give the source a dedicated non-administrator
+account and its allowed addresses, then upgrade the source and run its migrations
+before restarting Redmine, then the destinations: a beta.51 destination fails against a
+beta.46 to beta.50 source with the change journal (fixed in beta.52).
+
+- **Change journal limited to Mirror source projects**: model callbacks now read
+  nothing else for projects without Mirror source settings, and a journal error is
+  logged instead of failing the save that already succeeded. The destinations of the
+  project concerned are then asked for a complete pass.
+- **Suspending the change journal**: `Administration → Plugins → Redmine Mirror →
+  Configure → Record the change journal`. Off, callbacks read and write nothing, and
+  the change endpoints answer 404 so that destinations use their compatible mode.
+  Switching it either way asks every destination for a complete pass at its next run.
+- **Personal data and repositories need an explicit choice**: Users, Saved queries and
+  Repositories join Custom fields and Repository credentials among the data an
+  administrator must check. A source that never saved its choice of data (installed
+  up to 1.0.0-beta.31) now refuses them until the administrator checks them.
+- **Users only from visible data**: Mirror source lists a requested user only when the
+  API account can see where that user appears (private issues, private notes, time
+  entries, news, documents, wiki, files follow their native permissions).
+- **Allowed addresses required**: Mirror source stays disabled while no allowed
+  address is listed, even when switched on; the Mirror source page and plugin settings
+  say why. Before upgrading a source whose list is empty, list the destinations'
+  addresses, or their runs are refused. A source switched off now refuses before
+  reading any project: these refusals go to Redmine's log, not to the access log.
+- **Administrators' keys refused**: Mirror source refuses an administrator's API key
+  (`admin_account`), who would see every project, private issue and note. Destinations
+  use a dedicated account with a read-only role in the shared projects; replace an
+  administrator key before upgrading the source.
+- **Hidden emails respected**: Mirror source no longer sends an email its owner hides.
+  A destination recognizes the account from SHA-256 digests of its own addresses
+  (`POST /projects/:id/mirror/source/users/matches.json`), so no address travels in clear.
+- **Private saved queries never shared**: only public queries and those shown to roles
+  the API account can see. Private queries a destination already imported stay there:
+  delete them on the destination if they must go.
+- **Source without destination state**: each destination keeps its position in the
+  change journal and its failed objects; reading the journal writes nothing on the
+  source. Consumers, acknowledgements and pending entries are removed (migration 25),
+  so a caller can no longer add rows or entries there. A gap in the journal (suspension,
+  journal error) records a marker that sends every destination behind it to a complete
+  pass. Destinations up to 1.0.0-beta.50 get the answer of a source without the journal
+  and use their compatible mode.
+- **Journal limited to visible objects**: modifications of objects the API account
+  cannot see (private issues, private notes, time entries) are left out of the change
+  journal it reads; a deletion still gives the number of the object deleted.
+- **Trusted proxies**: a reverse proxy on another host can be listed in the plugin
+  settings; the address it adds to `X-Forwarded-For` is then checked against the
+  allowed addresses. Without it, only a proxy on the same host is trusted, as before.
+- **Accounts for hidden emails**: in **Accounts to create**, a source user whose email
+  is hidden asks for the email to use; the account keeps it hidden.
+- **Wiki pages read only when changed**: incremental runs compare the page index with
+  the last import and read only new, edited or moved pages. The source journal reports
+  files attached to or removed from a page, which keep its version. Requires this
+  version on both sides; otherwise every page is read, as before.
+- Migration 24 indexes the Mirror source access log by session; migration 25 drops the
+  consumer tables and the destination consumer key. Run plugin migrations before
+  restarting Redmine.
+- An invalid saved source URL no longer breaks the native issue page of a destination.
+
+## 1.0.0-beta.50 — 2026-11-18
+
+- Allow several source memberships to map to one destination member without an
+  internal uniqueness error. Combine their roles, preserve local-change conflicts,
+  and keep the member when only one source alias is deleted. Memberships use a
+  complete pass to preserve the roles of unchanged aliases.
+- Migration 23 preserves destination uniqueness for other modules. Run plugin
+  migrations before restarting workers; do not mix old and new workers. Downgrading
+  requires resolving shared member correspondences first, without discarding them.
+
+## 1.0.0-beta.49 — 2026-11-17
+
+- Bound the per-client issue detail cache by both count and serialized bytes
+  (16 MiB by default), retain recently consulted issues, and allow disabling it
+  for memory-constrained workers. Oversized issues remain importable.
+
 ## 1.0.0-beta.48 — 2026-11-14
 
 - **Issue timestamp fallback without Mirror source**: when the source does not expose

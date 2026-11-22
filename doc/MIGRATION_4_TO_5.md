@@ -143,14 +143,13 @@ and save again. Module tabs with a red counter still have references to map.
 
 ![Map issues](screenshots/migration/12-map-issues.png)
 
-### 11. Run a preview
+### 11. Choose to write nothing while an object fails
 
-On the project's **Mirror** page, **Run preview**: Mirror checks every object without
-writing anything. Fix what the log reports until the preview has no error: objects are
-created in the source order, so issue and time entry numbers grow as on the source, but
-an object skipped by one run and imported by a later one gets a higher number.
-
-![Preview](screenshots/migration/13-preview.png)
+In **Settings → Mirror → Schedule**, set **On error** to **Stop: write nothing**. Objects
+are created in the source order, so issue and time entry numbers grow as on the source,
+but an object skipped by one run and imported by a later one gets a higher number. With
+this choice, the import below checks every object first and writes nothing until the log
+has no error.
 
 ### 12. Import
 

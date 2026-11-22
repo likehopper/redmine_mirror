@@ -34,6 +34,22 @@ class MirrorDiagnosisTest < Minitest::Test
     assert_nil cause("Destination rejected issue: Subject cannot be blank")
   end
 
+  # Consequences of another failure are one group per kind, apart from the causes.
+  def test_shared_causes_and_consequences_are_grouped
+    events = [
+      { "module" => "issue_journals", "action" => "error", "reason" => "Missing destination issue correspondence" },
+      { "module" => "time_tracking", "action" => "error", "reason" => "Issue has no synchronized destination" },
+      { "module" => "issue_attachments", "action" => "error", "reason" => "Redmine API returned HTTP 404 for GET attachments/download/328" },
+      { "module" => "issue_attachments", "action" => "error", "reason" => "Redmine API returned HTTP 404 for GET attachments/download/500" },
+      { "module" => "issue_tracking", "action" => "error", "reason" => "Redmine API returned HTTP 422 for POST issues.json: Assignee is invalid",
+        "details" => { "code" => "assignee_not_assignable", "id" => "7", "name" => "Ann" } }]
+    groups = RedmineMirror::Diagnosis.groups(events).to_h { |group| [group[:key], group] }
+    assert_equal({ "issue_journals" => 1, "time_tracking" => 1 }, groups.fetch("issue_not_imported")[:modules])
+    assert groups.fetch("issue_not_imported")[:consequence]
+    assert_equal 2, groups.fetch("source_file_missing")[:count]
+    refute groups.fetch("assignee_not_assignable:7")[:consequence]
+  end
+
   def test_details_win_over_the_text
     details = { "code" => "missing_reference", "field" => "fixed_version", "id" => "44", "owner_id" => "30" }
     assert_equal ["missing_reference", details], cause("anything", details)

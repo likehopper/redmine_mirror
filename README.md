@@ -18,7 +18,7 @@ Document Mirror setup, operation, extension points or validation evidence.
 
 # <img src="assets/images/synchronisation-des-donnees-64.png" width="64" height="64" alt=""> Redmine Mirror
 
-![Version](https://img.shields.io/badge/Version-1.0.0--beta.48-orange)
+![Version](https://img.shields.io/badge/Version-1.0.0--beta.57-orange)
 ![Destination tested](https://img.shields.io/badge/Destination_tested-5.1_%7C_6.1-blue)
 ![Source tested](https://img.shields.io/badge/Source_tested-4.0_%7C_4.2_%7C_5.0_%7C_6.1-blue)
 ![Database tested](https://img.shields.io/badge/Database_tested-SQLite_3-blue)
@@ -32,7 +32,7 @@ existing destination project, through the destination REST API and native models
 
 Use it to migrate projects to a new instance, or to keep a regularly updated secondary
 copy. Each project has its own connection, mappings, schedule, history and conflicts.
-Version **1.0.0-beta.48** is a pre-release for testing before 1.0.0, not a stable release.
+Version **1.0.0-beta.57** is a pre-release for testing before 1.0.0, not a stable release.
 
 ## Features
 
@@ -59,9 +59,9 @@ Version **1.0.0-beta.48** is a pre-release for testing before 1.0.0, not a stabl
 | Repositories | Git and Subversion repositories (definition, optionally credentials) and the links between revisions and issues; the content is copied beforehand (Mirror source) |
 | Project enumerations | Values of issue fields of the Project Enumerations plugin (both sides), with status, sharing and position; issue values follow (Mirror source) |
 
-- Preview before writing, manual runs and automatic schedules.
-- Incremental runs after the first complete import: each destination acknowledges
-  successful source changes; failed objects remain queued and proposed again.
+- Manual runs followed live (phase, modules, objects, log) and automatic schedules.
+- Incremental runs after the first complete import: each destination reads the source
+  changes after the position it keeps; failed objects remain in its retry queue.
 - Without Mirror source on the source instance, scheduled runs remain compatible:
   issues are filtered by `updated_on` from the previous applied run, with a safety
   overlap and explicit retries. Other selected modules keep their complete pass, and
@@ -81,7 +81,7 @@ Version **1.0.0-beta.48** is a pre-release for testing before 1.0.0, not a stabl
 - A failing object is skipped and the rest synchronized, or the run stops: your choice.
 - Mapping proposals: same name (ignoring case, accents, punctuation and word order) and,
   on request, AI (see below).
-- Guidance: a checklist before the preview, and errors grouped by cause, largest first,
+- Guidance: a checklist before the first synchronization, and errors grouped by cause, largest first,
   each explained with links to its fix: a reference that only needs enabling in the
   project, a version inherited from a parent project to synchronize first, a source
   permission to grant.
@@ -115,10 +115,12 @@ these rules in full: data sent, setup, credit, security and limits.
   the Documents, News, Tags, Agile and Saved queries modules, which Redmine's API does
   not cover (documents, news comments and files, tags, Scrum sprints, query definitions):
   install Mirror 1.0.0-beta.19 or later (1.0.0-beta.26 for News, 1.0.0-beta.28 for Tags,
-  1.0.0-beta.30 for Agile, 1.0.0-beta.31 for Saved queries, 1.0.0-beta.32 for user accounts) on the source too (on Redmine 4.0 to 4.2, Mirror then runs as a source only),
+  1.0.0-beta.30 for Agile, 1.0.0-beta.31 for Saved queries, 1.0.0-beta.32 for user accounts, 1.0.0-beta.51 for incremental runs) on the source too (on Redmine 4.0 to 4.2, Mirror then runs as a source only),
   then share them through its **Mirror source** module
   (see [Mirror source](doc/CONFIGURATION.md#mirror-source-on-the-source-redmine)).
-  Use the key of a dedicated, read-only account member of the source projects
+  Use the key of a dedicated, read-only account member of the source projects,
+  generate a distinct Mirror application key, and authorize that account and the
+  destination address in each source project
   (see [source permissions](doc/CONFIGURATION.md#2-enable-the-rest-api)).
 - HTTPS URLs on both sides.
 - With SQLite, keep the `timeout: 5000` of Redmine's sample `database.yml`: the worker and
@@ -127,8 +129,10 @@ these rules in full: data sent, setup, credit, security and limits.
   custom field definitions: Mirror maps them, it never creates them, except registered
   user accounts from a Mirror source when the administrator allows it.
 
-Validated with SQLite: destinations **Redmine 6.1.4 and 5.1.13**, sources **Redmine
-4.0.3, 4.2, 5.0 and 6.1**. Other versions and databases are not validated yet. See the
+End-to-end validation uses SQLite: destinations **Redmine 6.1.4 and 5.1.13**, sources
+**Redmine 4.0.3, 4.2, 5.0 and 6.1**. Redmine 6.1.4 unit, functional and integration
+suites also run on PostgreSQL 15, MySQL 8.0 and MariaDB 10.11, without an interinstance
+run on those databases. See the exact scope and known failures in the
 [compatibility matrix](test/compatibility/README.md) and the
 [validation record](test/environment/VALIDATION.md).
 
@@ -162,13 +166,13 @@ Without the worker, runs stay queued. Then follow the illustrated
    the next steps.
 4. In **Settings → Mirror**, set the source connection and modules.
 5. Map users and references.
-6. On the **Mirror** page, run a preview, then synchronize.
+6. On the **Mirror** page, check the list of what remains to settle, then synchronize.
 
 ### Upgrading
 
 Back up the database, attachment storage and plugin directory. Stop web and worker
 processes, replace the plugin, run the migration above, restart both, then check the
-mappings and run a preview. To revert a schema change, restore the database, files and
+mappings and synchronize. To revert a schema change, restore the database, files and
 plugin together.
 
 ### Uninstalling
@@ -210,8 +214,8 @@ only.
   with redmine_reporting when it is installed on the destination.
 - Some historical change types are not supported and fail explicitly.
 - Destination workflows and validations apply: a preview cannot guarantee every write.
-- Runs are not atomic across API calls. Object failures are retried and unacknowledged
-  source changes are proposed again; after an uncertain HTTP write or a worker crash,
+- Runs are not atomic across API calls. Object failures are retried and a run that does
+  not finish reads its source changes again; after an uncertain HTTP write or a worker crash,
   inspect the destination before rerunning. Mirror does not merge concurrent edits.
 
 Details in the [module reference](doc/MODULES.md#limits).

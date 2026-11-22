@@ -28,6 +28,7 @@ class MirrorSettingsControllerTest < ActionController::TestCase
     @setting = MirrorProjectSetting.new(project: @project, source_url: "https://source.example/redmine", source_project_id: 12)
     @setting.selected_modules = %w[issue_tracking time_tracking]
     @setting.api_key = "private-api-key"
+    @setting.source_application_key = "mirror-application-key"
     @setting.source_catalog = { "tracker" => { "1" => "Remote tracker" }, "status" => { "1" => "Open" },
       "priority" => { "1" => "Normal" }, "user" => { "7" => "Remote Alice" }, "activity" => { "9" => "Development" } }
     @setting.save!

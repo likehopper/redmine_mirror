@@ -86,7 +86,7 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
 
   # Runner double: three objects; a stop is requested while the second is written.
   class StoppedRunner
-    def run(config, apply: false, track_relation_blocks: false)
+    def run(config, apply: false, track_relation_blocks: false, progress: nil)
       events = (1..3).map { |id| { module: "issue_tracking", source_id: id, action: "create" } }
       events.each_with_index do |event, index|
         MirrorSyncRun.last.update_columns(stop_requested_at: Time.current) if apply && index == 1
@@ -127,7 +127,7 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
   # Runner double: a stop is requested once the last object is written, after the last
   # throttled check: too late to interrupt, but nothing follows the run.
   class StopAtEndRunner
-    def run(config, apply: false, track_relation_blocks: false)
+    def run(config, apply: false, track_relation_blocks: false, progress: nil)
       events = (1..3).map { |id| { module: "issue_tracking", source_id: id, action: "create" } }
       events.each { |event| yield event if block_given? }
       MirrorSyncRun.last.update_columns(stop_requested_at: Time.current) if apply
@@ -180,25 +180,58 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     assert_equal [run], @project.mirror_sync_runs.to_a
   end
 
+  # A reference refresh interrupted with its worker (a restart during the read) is read
+  # again once its heartbeat has been silent long enough, instead of staying in progress.
+  def test_tick_requests_again_a_reference_refresh_whose_worker_is_silent
+    @setting.update_columns(catalog_status: "refreshing", catalog_progress: JSON.generate("step" => 1), updated_at: 30.seconds.ago)
+    RedmineMirror::Synchronization.requeue_abandoned_catalogs
+    assert_equal "refreshing", @setting.reload.catalog_status
+    @setting.update_columns(updated_at: 5.minutes.ago)
+    RedmineMirror::Synchronization.requeue_abandoned_catalogs
+    assert_equal "pending", @setting.reload.catalog_status
+    assert_empty @setting.catalog_progress
+  end
+
+  def test_reference_refresh_beats_while_reading_and_stops_beating
+    @setting.update_columns(catalog_status: "pending", updated_at: 1.hour.ago)
+    heartbeat = HeartbeatDouble.new
+    started = nil
+    catalog = Object.new
+    catalog.define_singleton_method(:fetch) { |progress: nil| raise RedmineMirror::Error, "Source unavailable" }
+    RedmineMirror::Synchronization.stub(:start_catalog_heartbeat, ->(id) { started = id; heartbeat }) do
+      RedmineMirror::SourceCatalog.stub(:new, catalog) { RedmineMirror::Synchronization.refresh_catalogs }
+    end
+    assert_equal @setting.id, started
+    assert heartbeat.killed
+    assert_equal "failed", @setting.reload.catalog_status
+  end
+
   def test_run_log_summarizes_actions_and_filters_special_cases
-    run = @project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "succeeded", events: JSON.generate([
+    run = log_mirror_events(@project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "succeeded"), [
       { "module" => "issue_tracking", "source_id" => 3, "destination_id" => 1, "action" => "create", "flags" => ["converted:textile>html", "issue_references"] },
       { "module" => "issue_tracking", "source_id" => 4, "destination_id" => 2, "action" => "create" },
-      { "module" => "time_tracking", "source_id" => 9, "destination_id" => 5, "action" => "unchanged" }]))
+      { "module" => "time_tracking", "source_id" => 9, "destination_id" => 5, "action" => "unchanged" }])
     get :show, params: { project_id: @project.identifier, id: run.id }
-    assert_select "#mirror-run-summary", text: /Converted: Textile → HTML \(CKEditor\) \(1\)/
+    # Summary, what to check and the journal are tabs; the summary opens first.
+    assert_select "#tab-summary.selected"
+    assert_select "#mirror-run-summary a[href*='action_filter=unchanged']", text: "1"
+    assert_select "#mirror-run-attention", text: /Converted: Textile → HTML \(CKEditor\) \(1\)/
     assert_select "#mirror-log tbody tr", 3
     get :show, params: { project_id: @project.identifier, id: run.id, flag: "any" }
+    assert_select "#tab-log.selected"
     assert_select "#mirror-log tbody tr", 1
     assert_select "#mirror-log .mirror-flag", text: "Issue numbers (#123)"
+    get :show, params: { project_id: @project.identifier, id: run.id, group_by: "module_key" }
+    assert_select "#mirror-log tr.group", 2
+    assert_select "#mirror-log tr.group", text: /Time tracking\s+1/
   end
 
   def test_warnings_and_conflicts_link_to_where_they_are_fixed
     field = IssueCustomField.create!(name: "Impact level", field_format: "string", trackers: [Tracker.first])
-    run = @project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "succeeded", events: JSON.generate([
+    run = log_mirror_events(@project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "succeeded"), [
       { "module" => "issue_tracking", "source_id" => 3, "action" => "create",
         "warnings" => ["Custom field \"Impact level\" is not enabled for destination tracker \"Bug\": enable it, or ignore source field #7; the value was not imported"] },
-      { "module" => "issue_watchers", "source_id" => 4, "action" => "error", "reason" => "Local modification detected for issue_watchers" }]))
+      { "module" => "issue_watchers", "source_id" => 4, "action" => "error", "reason" => "Local modification detected for issue_watchers" }])
     get :show, params: { project_id: @project.identifier, id: run.id }
     assert_select "#mirror-warning-causes a.mirror-fix[href=?]", "/custom_fields/#{field.id}/edit", text: "enable the field for this tracker"
     assert_select "#mirror-error-causes a.mirror-fix[href*='tab=attention']", text: "resolve the conflict"
@@ -212,9 +245,13 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     assert_equal "queued", run.reload.status
   end
 
-  def test_preview_and_schedule
+  # The simulation is no longer offered on the pages: only synchronizations are queued.
+  def test_simulation_is_refused_and_schedule_is_saved
     post :create, params: { project_id: @project.identifier, mode: "preview" }
-    assert_not @project.mirror_sync_runs.first!.apply?
+    assert_equal "Invalid synchronization mode", flash[:error]
+    assert_empty @project.mirror_sync_runs
+    post :create, params: { project_id: @project.identifier, mode: "apply" }
+    assert @project.mirror_sync_runs.first!.apply?
     patch :update, params: { project_id: @project.identifier, schedule: { enabled: "1", interval_minutes: "15" } }
     assert @setting.reload.auto_sync_enabled?
     assert_equal 15, @setting.sync_interval_minutes
@@ -242,7 +279,7 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
   def test_runner_launches_but_cannot_schedule
     revoke_member_rights
     Role.givable.each { |role| role.add_permission!(:run_mirror) }
-    post :create, params: { project_id: @project.identifier, mode: "preview" }
+    post :create, params: { project_id: @project.identifier, mode: "apply" }
     assert_equal 1, MirrorSyncRun.count
     patch :update, params: { project_id: @project.identifier, schedule: { enabled: "1", interval_minutes: "15" } }
     assert_response :forbidden
@@ -274,7 +311,7 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
   # A connection saved before its modules are chosen runs nothing, by hand or on schedule.
   def test_connection_without_modules_runs_nothing
     @setting.update!(selected_modules: [], auto_sync_enabled: true, sync_interval_minutes: 15, next_sync_at: 1.minute.ago)
-    post :create, params: { project_id: @project.identifier, mode: "preview" }
+    post :create, params: { project_id: @project.identifier, mode: "apply" }
     assert_equal "No module selected yet: choose what to import, then save.", flash[:error]
     RedmineMirror::Synchronization.stub(:execute, nil) { RedmineMirror::Synchronization.tick }
     assert_equal 0, @project.mirror_sync_runs.count
@@ -284,7 +321,7 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
   class PartialRunner
     attr_reader :calls
     def initialize; @calls = []; end
-    def run(config, apply: false, track_relation_blocks: false)
+    def run(config, apply: false, track_relation_blocks: false, progress: nil)
       @calls << [apply, config["on_error"]]
       events = [{ module: "issue_tracking", source_id: 1, action: "create" },
                 { module: "issue_tracking", source_id: 2, action: "error", reason: "Missing user mapping for source ID 7" }]
@@ -296,7 +333,7 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
   class ConfigurationRunner
     attr_reader :configs
     def initialize; @configs = []; end
-    def run(config, apply: false, track_relation_blocks: false)
+    def run(config, apply: false, track_relation_blocks: false, progress: nil)
       @configs << config
       event = { module: "issue_tracking", source_id: 1, action: "unchanged" }
       yield event if block_given?
@@ -327,10 +364,51 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
   def test_skip_mode_writes_the_rest_and_reports_partial_success
     runner = PartialRunner.new
     run = execute_with(runner, on_error: "skip")
-    assert_equal [[false, "collect"], [true, "skip"]], runner.calls
+    # One pass: the source is read once and every object is logged as it is written.
+    assert_equal [[true, "skip"]], runner.calls
     assert_equal "partial", run.status
     assert_includes run.error_message, "Missing user mapping for source ID 7"
     assert_equal 100, run.progress_percentage
+  end
+
+  # Runner double: notes how many objects the journal holds when each one is handled.
+  class JournalWatchingRunner
+    attr_reader :seen
+    def initialize; @seen = []; end
+    def run(config, apply: false, track_relation_blocks: false, progress: nil)
+      progress&.modules!(["issue_tracking"])
+      progress&.start("issue_tracking")
+      events = (1..3).map { |id| { module: "issue_tracking", source_id: id, action: "create" } }
+      events.each do |event|
+        @seen << MirrorSyncRun.last.log_entries.count
+        progress&.record("issue_tracking")
+        yield event if block_given?
+      end
+      progress&.finish
+      events
+    end
+  end
+
+  def test_skip_mode_logs_each_object_as_soon_as_it_is_written
+    runner = JournalWatchingRunner.new
+    run = execute_with(runner, on_error: "skip")
+    assert_equal [0, 1, 2], runner.seen
+    assert_equal 3, run.log_entries.count
+    assert_equal 3, run.total_records
+    assert_equal [["issue_tracking", "done", 3]], run.live_progress.fetch("modules").map { |entry| entry.values_at("key", "state", "done") }
+  end
+
+  def test_running_execution_page_shows_its_phase_and_modules
+    run = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual")
+    run.update!(status: "running", started_at: Time.current)
+    run.update_columns(progress: JSON.generate("phase" => "writing", "modules" => [
+      { "key" => "issue_tracking", "state" => "done", "done" => 4, "total" => 4 },
+      { "key" => "time_tracking", "state" => "running", "done" => 25, "total" => 100 },
+      { "key" => "issue_watchers", "state" => "waiting", "done" => 0, "total" => nil }]))
+    get :show, params: { project_id: @project.identifier, id: run.id }
+    assert_select "#mirror-run-progress[data-mirror-reload]", text: /Writing\s+—\s+module 2 of 3/
+    assert_select "#mirror-run-progress progress[value='41']"
+    assert_select "#mirror-run-modules tr.mirror-module-running td", text: "25 / 100"
   end
 
   def test_source_without_change_protocol_uses_previous_applied_run_for_issue_filter
@@ -341,7 +419,7 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     run = execute_with(runner, on_error: "skip")
 
     expected = (previous.started_at - 5.minutes).utc.iso8601
-    assert_equal [expected, expected], runner.configs.map { |config| config["issue_updated_on_since"] }
+    assert_equal [expected], runner.configs.map { |config| config["issue_updated_on_since"] }
     assert runner.configs.none? { |config| config["incremental"] }
     assert @setting.reload.incremental_signature.present?
     assert_equal "succeeded", run.status
@@ -366,32 +444,51 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     assert_equal %w[create error], run.log_events.map { |event| event["action"] }
   end
 
-  # A preview with failing objects does not block the rest in skip mode: it reads as
-  # partial and completes the Getting started preview step; stop mode still fails it.
+  # A preview (still run by operators through rake) with failing objects does not block
+  # the rest in skip mode: it reads as partial; stop mode still fails it.
   def test_preview_with_errors_is_partial_in_skip_mode
     runner = PartialRunner.new
     run = execute_with(runner, on_error: "skip", apply: false)
     assert_equal [[false, "collect"]], runner.calls
     assert_equal "partial", run.status
     assert_includes run.error_message, "Missing user mapping for source ID 7"
-    get :show, params: { project_id: @project.identifier, id: run.id }
-    assert_equal :done, @controller.view_context.mirror_setup_steps(@project, @setting.reload).assoc(:preview)[1]
     assert_equal "failed", execute_with(PartialRunner.new, on_error: "stop", apply: false).status
   end
 
   def test_run_log_groups_errors_by_cause
-    run = @project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "partial", events: JSON.generate(
-      [1, 2, 3].map { |id| { "module" => "time_tracking", "source_id" => id, "action" => "error", "reason" => "Missing user mapping for source ID 7" } }))
+    run = log_mirror_events(@project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "partial"), 
+      [1, 2, 3].map { |id| { "module" => "time_tracking", "source_id" => id, "action" => "error", "reason" => "Missing user mapping for source ID 7" } })
     get :show, params: { project_id: @project.identifier, id: run.id }
     assert_select "#mirror-error-causes li", text: /Missing user mapping for source ID 7 — 3 object\(s\)/
     assert_select "#mirror-error-causes .mirror-guide", text: /No local reference corresponds to #7 yet/
     assert_select "#mirror-error-causes a[href*='tab=users']", text: "fix the mapping"
     # A cause link lists only its own objects.
-    events = JSON.parse(run.events) + [{ "module" => "issue_tracking", "source_id" => 9, "action" => "error", "reason" => "Other cause" }]
-    run.update!(events: JSON.generate(events))
+    log_mirror_events(run, [{ "module" => "issue_tracking", "source_id" => 9, "action" => "error", "reason" => "Other cause" }])
     get :show, params: { project_id: @project.identifier, id: run.id, action_filter: "error", reason: "Other cause" }
     assert_select "#mirror-log tbody tr", 1
     assert_select "#mirror-reason-filter", text: /Other cause/
+    # Refused downloads of different files are one cause.
+    log_mirror_events(run, [328, 500].map { |id| { "module" => "issue_attachments", "source_id" => id, "action" => "error",
+      "reason" => "Redmine API returned HTTP 404 for GET attachments/download/#{id}" } })
+    get :show, params: { project_id: @project.identifier, id: run.id }
+    assert_select "#mirror-error-causes li", text: %r{HTTP 404 for GET attachments/download/… — 2 object\(s\)}
+    get :show, params: { project_id: @project.identifier, id: run.id, action_filter: "error", reason: "source_file_missing" }
+    assert_select "#mirror-log tbody tr", 2
+    assert_select "#mirror-reason-filter", text: %r{attachments/download/…}
+  end
+
+  def test_to_check_tab_separates_causes_from_their_consequences
+    run = log_mirror_events(@project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "partial"), [
+      { "module" => "issue_tracking", "source_id" => 1, "action" => "error", "reason" => "Redmine API returned HTTP 422 for POST issues.json: Assignee is invalid",
+        "details" => { "code" => "assignee_not_assignable", "id" => "2", "name" => "John Smith" } },
+      { "module" => "issue_journals", "source_id" => 2, "action" => "error", "reason" => "Missing destination issue correspondence" },
+      { "module" => "issue_journals", "source_id" => 3, "action" => "error", "reason" => "Missing destination issue correspondence" }])
+    get :show, params: { project_id: @project.identifier, id: run.id, tab: "attention" }
+    assert_select "#mirror-attention-intro", text: /1 cause\(s\) to fix. 2 other object\(s\)/
+    assert_select "#mirror-error-causes li", text: /Assignee is invalid \(John Smith\)/
+    assert_select "#mirror-error-causes .mirror-guide", text: /Add John Smith to the project members/
+    assert_select "#mirror-error-consequences li", 1
+    assert_select "#mirror-error-consequences a[href*='module_key=issue_journals']", text: "Issue history (2)"
   end
 
   def test_failure_is_logged_and_lock_is_released
@@ -411,10 +508,10 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
   end
 
   def test_log_filters_module_action_and_source_id
-    run = @project.mirror_sync_runs.create!(trigger: "manual", events: JSON.generate([
+    run = log_mirror_events(@project.mirror_sync_runs.create!(trigger: "manual"), [
       { module: "issue_tracking", source_id: 1, action: "create" },
       { module: "time_tracking", source_id: 2, action: "update" },
-      { module: "time_tracking", source_id: 3, action: "unchanged" }]))
+      { module: "time_tracking", source_id: 3, action: "unchanged" }])
     get :show, params: { project_id: @project.identifier, id: run.id, module_key: "time_tracking", action_filter: "update", source_id: "2" }
     assert_response :success
     assert_select "#mirror-log tbody tr", count: 1
@@ -426,16 +523,25 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     run = @project.mirror_sync_runs.create!(trigger: "manual", status: "running", total_records: 2)
     assert_equal 0, run.progress_percentage
     run.append_event(module: "issue_tracking", source_id: 1, action: "create")
+    run.flush_event_progress!
     assert_equal 50, run.reload.progress_percentage
     run.append_event(module: "time_tracking", source_id: 2, action: "create")
+    run.flush_event_progress!
     assert_equal 99, run.progress_percentage
     run.update!(status: "succeeded")
     assert_equal 100, run.progress_percentage
   end
 
+  def test_event_progress_is_persisted_in_batches
+    run = @project.mirror_sync_runs.create!(trigger: "manual", status: "running", total_records: 25)
+    24.times { |index| run.append_event(module: "issue_tracking", source_id: index + 1, action: "create") }
+    assert_equal 0, MirrorSyncRun.find(run.id).processed_records
+    run.append_event(module: "issue_tracking", source_id: 25, action: "create")
+    assert_equal 25, MirrorSyncRun.find(run.id).processed_records
+  end
+
   def test_log_retains_local_id_and_remote_link
-    run = @project.mirror_sync_runs.create!(trigger: "manual", source_url: "https://remote.example/redmine",
-      events: JSON.generate([{ module: "issue_tracking", source_id: 12, destination_id: 34, action: "create" }]))
+    run = log_mirror_events(@project.mirror_sync_runs.create!(trigger: "manual", source_url: "https://remote.example/redmine"), [{ module: "issue_tracking", source_id: 12, destination_id: 34, action: "create" }])
     get :show, params: { project_id: @project.identifier, id: run.id }
     assert_response :success
     assert_select 'a[href="https://remote.example/redmine/issues/12"]', text: "12"
@@ -447,8 +553,8 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
   def test_guide_points_to_a_reference_that_only_needs_enabling
     @project.trackers = [Tracker.find(1), Tracker.find(2)]
     @setting.update!(source_catalog: { "tracker" => { "5" => "support REQUEST" } })
-    run = @project.mirror_sync_runs.create!(apply: false, trigger: "manual", status: "partial", events: JSON.generate(
-      [1, 2].map { |id| { "module" => "issue_tracking", "source_id" => id, "action" => "error", "reason" => "Missing tracker mapping for source ID 5" } }))
+    run = log_mirror_events(@project.mirror_sync_runs.create!(apply: false, trigger: "manual", status: "partial"), 
+      [1, 2].map { |id| { "module" => "issue_tracking", "source_id" => id, "action" => "error", "reason" => "Missing tracker mapping for source ID 5" } })
     get :show, params: { project_id: @project.identifier, id: run.id }
     assert_select "#mirror-error-causes li", text: /\(support REQUEST\) — 2 object\(s\)/
     assert_select "#mirror-error-causes .mirror-guide", text: /The tracker Support request exists in Redmine but is not enabled in this project/
@@ -464,9 +570,9 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     other.api_key = "other-key"
     other.save!
     details = ->(owner) { { "code" => "missing_reference", "field" => "fixed_version", "id" => "44", "name" => "2.0", "owner_id" => owner, "owner_name" => "Parent" } }
-    run = @project.mirror_sync_runs.create!(apply: false, trigger: "manual", status: "partial", events: JSON.generate([
+    run = log_mirror_events(@project.mirror_sync_runs.create!(apply: false, trigger: "manual", status: "partial"), [
       { "module" => "issue_tracking", "source_id" => 1, "action" => "error", "reason" => "Missing fixed_version correspondence", "details" => details.call("30") },
-      { "module" => "issue_tracking", "source_id" => 2, "action" => "error", "reason" => "Missing fixed_version correspondence", "details" => details.call("31") }]))
+      { "module" => "issue_tracking", "source_id" => 2, "action" => "error", "reason" => "Missing fixed_version correspondence", "details" => details.call("31") }])
     get :show, params: { project_id: @project.identifier, id: run.id }
     assert_select "#mirror-error-causes > li", 1
     assert_select ".mirror-guide", text: /inherited from the source project Parent, mirrored here by OnlineStore: synchronize OnlineStore first/

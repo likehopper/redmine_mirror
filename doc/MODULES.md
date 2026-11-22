@@ -88,6 +88,13 @@ the source permission *View members* (public by default).
 - Additive: missing members and roles are added, local members and roles are kept,
   nothing is removed. A role Mirror gave and that was removed locally while the source
   still lists it is a conflict.
+- Several source users or groups may map to one local member. Their own mapped roles
+  are combined; each source membership keeps its correspondence. In source-wins mode,
+  removing one source membership removes only its contribution: the local member stays
+  while another source membership still maps to it.
+- Memberships are read as a complete list, including during incremental runs, so an
+  unchanged alias can retain its roles when another changes. Other modules keep their
+  incremental reads.
 - Locked accounts can be added. Anonymized users are not added.
 - Roles inherited from a group or a parent project are not copied: they come with that
   group or project.
@@ -99,7 +106,7 @@ version, author and dates (`created_on`, `updated_on`, `closed_on`, at the API's
 precision). Issues are created and updated through the destination REST API, so
 native workflows and validations apply. Author and dates are then restored through
 local models: the destination must be the Redmine the worker runs on
-(`MIRROR_DESTINATION_URL`). Invalid dates or unmapped authors are reported as errors in the preview; with *Skip it*,
+(`MIRROR_DESTINATION_URL`). Invalid dates or unmapped authors are reported as errors in the log; with *Skip it*,
 the other issues are still synchronized.
 
 A source tracker or status mapped to **Do not import its issues** leaves those issues
@@ -284,7 +291,7 @@ Discovery lists the fields used by the project's issues and their history.
   administrator and project explicitly share **Custom fields** through Mirror source.
 - Otherwise, Redmine hides the definitions. The fields and their values come from the
   issues and their history; each value takes the format of the mapped local field and is
-  validated in the preview; list choices are the values actually found. The module tab
+  validated before it is written; list choices are the values actually found. The module tab
   says which mode applies.
 
 1. Create the local fields in Redmine administration and enable them on the project and
@@ -319,6 +326,10 @@ local models and send no notification.
   references** lists the authors of every version in *Users*.
 - Local versions keep the source numbers; a version deleted on the source leaves the
   same gap. New source versions are added on later runs.
+- Incremental runs read the page index, then only the pages whose version, date or
+  parent changed, that the source journal reports (files attached or removed), or that
+  need work on the destination. A complete pass, or a source before 1.0.0-beta.51, reads
+  every page.
 - Texts follow the destination format and issue references are rewritten, as for issues.
   Wiki links (`[[Page]]`) keep their titles, which are the same on both sides.
 - The source start page becomes the destination's when the destination start page does
@@ -425,7 +436,9 @@ the destination. Enable the Agile module on the destination project.
 
 Recreates the project's saved queries of issues, time entries and agile boards (the
 latter with redmine_agile on both sides), through **Mirror source**: Redmine's API lists
-only their names. The source API key needs *View issues*; private queries are included.
+only their names. The source API key needs *View issues*. Only public queries and those
+shown to roles the account can see are shared; private queries never, the account's own
+included.
 
 - Filters, columns, sorts, grouping and board options (status columns, work-in-progress
   limits, sprint) are translated through the mappings of the other tabs (statuses,
@@ -436,8 +449,8 @@ only their names. The source API key needs *View issues*; private queries are in
   user, project filter with values, filter of a plugin missing here) is **not created**
   and is logged as ignored, with the reason: it would show other issues than its name
   says. Columns, sorts and groups that do not exist here are left out.
-- A private query goes to its mapped owner, locked or not, and is ignored when the owner
-  is anonymized. A query shown to roles gets the roles mapped in Members, or else the
+- A private query (from an older source) goes to its mapped owner, locked or
+  not, and is ignored when the owner is anonymized. A query shown to roles gets the roles mapped in Members, or else the
   roles of the project that can edit it.
 - A local edit or deletion of an imported query is a conflict, except in mirror mode.
 
@@ -463,18 +476,30 @@ send no notification.
 
 ## Synchronization and worker
 
-**Run preview** and **Synchronize now** queue a run; the worker processes it. The first
-run, a configuration rewrite and **Full synchronization** validate all records. Ordinary
-later runs validate only source changes not acknowledged by this destination and retained
-failures; adapters without incremental source events keep their complete pass. The
-preflight lists every failing object, not only the first one. Progress counts processed
-objects, unchanged ones included, and reaches 100% when the run ends.
+**Synchronize now** queues a run; the worker processes it and the run's page shows its
+progress live: the phase, each module with its state, the source objects handled out of
+the total the source gives, and the log as it fills. The first run, a configuration
+rewrite and **Full synchronization** read all records. Ordinary later runs read only
+source changes recorded after this destination's position and retained failures; adapters
+without incremental source events keep their complete pass. With *Skip it*, each object is
+written as soon as it is checked, in a single pass. With *Stop*, every object is checked
+first and the preflight lists every failing object, not only the first one; nothing is
+written while one fails. The run log is stored one row per object.
 
-Mirror source records a monotonic change journal with explicit deletion tombstones. A
-preview never acknowledges it. An applying destination acknowledges each successful
-object; a failed one is proposed again. When *The source wins* is off, a source deletion
-is acknowledged but deliberately kept locally. When it is on, deletion safety limits and
+Mirror source records a monotonic change journal with explicit deletion tombstones. Each
+destination keeps its own position in it: a synchronization moves past the changes it
+read, an operator preview does not, and a failed object waits in the destination retry queue. The journal
+leaves out modifications of objects the source API account cannot see (private issues,
+private notes, time entries); a deletion only gives the number of an object that no
+longer exists. When *The source wins* is off, a source deletion is deliberately kept
+locally. When it is on, deletion safety limits and
 their explicit confirmation still apply.
+
+The source keeps this journal only for projects with Mirror source settings. Its
+administrator can suspend it (**Record the change journal** in the plugin settings):
+destinations then receive a 404 and use their compatible mode, as without Mirror source.
+Switching it, or a journal error on the source, asks the destinations concerned for a
+complete pass at their next run, since the changes of that period were not recorded.
 
 **When an object fails** (Settings → Mirror → Automatic synchronization):
 
@@ -515,14 +540,14 @@ the module, remote and local IDs with links, the action (`create`, `update`, `un
 Logs never contain API keys or request bodies. They are kept without automatic purge.
 
 **Synchronized objects** lists the project's persisted source/local object links,
-filtered by module, source ID and local ID. Only imports create them; previews do not;
+filtered by module, source ID and local ID. Only imports create them, not operator previews;
 there is nothing to configure on this page. On an imported issue,
 users who can configure Mirror see a **Mirror source issue** link.
 
 ## Conflicts
 
 Mirror stores a fingerprint of the managed fields of every imported object. When a local
-value differs, the run stops at the first conflict, preview included, and records it in
+value differs, the run stops at the first conflict and records it in
 **Conflicts** (module, remote and local IDs, reason, status).
 
 - **Keep local object**: excludes this object, for this module and project only. The
@@ -552,7 +577,7 @@ copy of the source, for every selected module:
   source project, or that the source key can no longer see, is kept and logged.
 - Up to 10% of a module's objects (at least 2) are deleted in a run. Beyond that, nothing
   is deleted: the run ends with errors, and **Overview** offers to synchronize again and
-  confirm the deletions. The preview lists the deletions too.
+  confirm the deletions.
 - A version still used by local issues is not deleted; the log says so.
 
 Deleting an issue also deletes its history, files, time entries, relations and subtasks,
@@ -604,4 +629,5 @@ development environments.
   the destination before rerunning an uncertain write. No automatic HTTP retry.
 - A concurrent edit after preflight can still be overwritten: the APIs offer no atomic
   version check.
-- Preview checks mappings and conflicts but cannot guarantee that every write is accepted.
+- The checks before writing cover mappings and conflicts but cannot guarantee that every
+  write is accepted.

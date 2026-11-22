@@ -33,13 +33,11 @@ Overview: getting started, source and schedule, actions, current execution, item
   </div>
   <% if mirror_can_run?(@project) %>
     <div class="box" id="mirror-actions">
-      <p><%= button_to l(:button_mirror_preview), project_mirror_enqueue_path(@project), params: { mode: "preview" }, method: :post, form_class: "mirror-inline-form", disabled: active.present? %>
-        <em class="info"><%= l(:text_mirror_preview_help) %></em></p>
       <p><%= button_to l(:button_mirror_sync_now), project_mirror_enqueue_path(@project), params: { mode: "apply" }, method: :post, form_class: "mirror-inline-form", disabled: active.present?,
-               data: { confirm: (l(:text_mirror_sync_confirm) unless steps[3][1] == :done) } %>
+               data: { confirm: (l(:text_mirror_sync_confirm) unless steps.assoc(:mappings)[1] == :done) } %>
         <em class="info"><%= l(:text_mirror_sync_help) %></em></p>
       <%# Deletions beyond the safety limit wait for this explicit confirmation. %>
-      <% awaiting = !active && current&.apply? ? current.log_events.count { |event| event["action"] == "error" && event["reason"].to_s.start_with?("Deletion awaits confirmation") } : 0 %>
+      <% awaiting = !active && current&.apply? ? current.log_entries.where(action: "error").where("reason LIKE ?", "Deletion awaits confirmation%").count : 0 %>
       <p><%= button_to l(:button_mirror_full_sync), project_mirror_enqueue_path(@project), params: { mode: "apply", force_full: "1" }, method: :post,
                form_class: "mirror-inline-form", disabled: active.present?, data: { confirm: l(:text_mirror_full_sync_confirm) } %></p>
       <% if awaiting.positive? %>
@@ -58,7 +56,13 @@ Overview: getting started, source and schedule, actions, current execution, item
     <p><label><%= l(:field_status) %></label><%= active ? l("label_mirror_run_#{active.status}".to_sym) : l(:label_mirror_idle) %>
       <% if current %> — <%= link_to l(:label_mirror_log), project_mirror_run_path(@project, current) %><% end %></p>
     <p><label><%= l(:label_mirror_progress) %></label>
-      <% if current && current.progress_percentage.nil? && current.status == "running" %><%= l(:text_mirror_objects_checked, count: current.processed_records) %>
+      <% if current&.status == "running" && (summary = mirror_progress_summary(current.live_progress)) %>
+        <progress value="<%= summary[:percentage] %>" max="100"></progress> <%= summary[:percentage] %>% —
+        <%= l("label_mirror_phase_#{summary[:phase]}", default: summary[:phase].to_s) %>,
+        <%= summary[:current] ? "#{mirror_module_label(summary[:current]['key'])} #{summary[:current]['done']}#{" / #{summary[:total]}" if summary[:total]}" : "" %>
+        (<%= l(:text_mirror_module_position, position: summary[:position], count: summary[:count]) %>)
+        — <%= link_to l(:label_mirror_follow_run), project_mirror_run_path(@project, current) %>
+      <% elsif current && current.progress_percentage.nil? && current.status == "running" %><%= l(:text_mirror_objects_checked, count: current.processed_records) %>
       <% elsif current && !current.progress_percentage.nil? %><progress value="<%= current.progress_percentage %>" max="100"></progress> <%= current.progress_percentage %>%
       <% else %>—<% end %></p>
     <%# Dates of the execution shown above, not of another one. %>

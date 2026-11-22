@@ -40,7 +40,7 @@ end
 # lives here, not in lib/redmine_mirror/version.rb: Zeitwerk would require that file to
 # define RedmineMirror::Version, which would hide Redmine's Version model in this namespace.
 module RedmineMirror
-  VERSION = "1.0.0-beta.48"
+  VERSION = "1.0.0-beta.57"
   # Contract between Mirror and external adapters. Increase only on incompatible
   # changes to Adapters::Base, MappingTable or the registration rules.
   ADAPTER_API_VERSION = 1
@@ -68,11 +68,13 @@ require File.join(File.dirname(__FILE__), "redmine_mirror/projects_helper_patch"
 require File.join(File.dirname(__FILE__), "redmine_mirror/authorization")
 require File.join(File.dirname(__FILE__), "redmine_mirror/plain_flash")
 require File.join(File.dirname(__FILE__), "redmine_mirror/policy")
+require File.join(File.dirname(__FILE__), "redmine_mirror/run_progress")
 require File.join(File.dirname(__FILE__), "redmine_mirror/runner")
 require File.join(File.dirname(__FILE__), "redmine_mirror/database_store")
 require File.join(File.dirname(__FILE__), "redmine_mirror/synchronization")
 require File.join(File.dirname(__FILE__), "redmine_mirror/source")
 require File.join(File.dirname(__FILE__), "redmine_mirror/source_changes")
+require File.join(File.dirname(__FILE__), "redmine_mirror/settings_controller_patch")
 require File.join(File.dirname(__FILE__), "redmine_mirror/change_set")
 
 # The entry point requires its internal files before Zeitwerk walks them. Record the

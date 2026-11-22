@@ -50,8 +50,10 @@ patch "projects/:project_id/mirror/synchronizations/:id/cancel", to: "mirror_syn
 
 patch "projects/:project_id/mirror/conflicts/:id", to: "mirror_conflicts#update", as: "project_mirror_conflict"
 
-# Mirror source: what this Redmine shares with Mirror destinations, and its access log.
+# Mirror source: project settings and the separate operational access log.
+get "projects/:project_id/mirror_source", to: "mirror_source#index", as: "project_mirror_source_log"
 patch "projects/:project_id/mirror_source", to: "mirror_source_settings#update", as: "project_mirror_source"
+post "projects/:project_id/mirror_source/client_key", to: "mirror_source_settings#rotate_client_key", as: "project_mirror_source_client_key"
 post "projects/:project_id/mirror_source/subprojects", to: "mirror_source_settings#apply_to_subprojects", as: "project_mirror_source_subprojects"
 get "projects/:project_id/mirror/source/documents", to: "mirror_source_api#documents", as: "mirror_source_documents"
 get "mirror/source/documents/:id", to: "mirror_source_api#document", as: "mirror_source_document"
@@ -61,11 +63,11 @@ get "projects/:project_id/mirror/source/issue_tags", to: "mirror_source_api#issu
 get "projects/:project_id/mirror/source/scrum", to: "mirror_source_api#scrum", as: "mirror_source_scrum"
 get "projects/:project_id/mirror/source/queries", to: "mirror_source_api#queries", as: "mirror_source_queries"
 get "projects/:project_id/mirror/source/users", to: "mirror_source_api#users", as: "mirror_source_users"
+post "projects/:project_id/mirror/source/users/matches", to: "mirror_source_api#user_matches", as: "mirror_source_user_matches"
 get "projects/:project_id/mirror/source/custom_fields", to: "mirror_source_api#custom_fields", as: "mirror_source_custom_fields"
 get "projects/:project_id/mirror/source/localized_names", to: "mirror_source_api#localized_names", as: "mirror_source_localized_names"
 get "projects/:project_id/mirror/source/subprojects", to: "mirror_source_api#subprojects", as: "mirror_source_subprojects"
 get "projects/:project_id/mirror/source/changes", to: "mirror_source_api#changes", as: "mirror_source_changes"
-post "projects/:project_id/mirror/source/changes/acknowledgements", to: "mirror_source_api#acknowledge_changes", as: "mirror_source_change_acknowledgements"
 get "projects/:project_id/mirror/source/issue_categories", to: "mirror_source_api#issue_categories", as: "mirror_source_issue_categories"
 get "projects/:project_id/mirror/source/project_enumerations", to: "mirror_source_api#project_enumerations", as: "mirror_source_project_enumerations"
 get "mirror/source/project_enumerations/:id", to: "mirror_source_api#project_enumeration", as: "mirror_source_project_enumeration"

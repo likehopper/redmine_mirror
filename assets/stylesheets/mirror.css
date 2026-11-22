@@ -101,6 +101,7 @@ table.mirror-module-statistics td:first-child { text-align: left; }
 /* Mirror source: refused accesses stand out in the access log. */
 tr.mirror-source-refused td { color: #c22; }
 .mirror-module-hint { display: inline; }
+#mirror-source-filters fieldset label { margin-right: 1em; white-space: nowrap; }
 /* Connection tab: the subprojects table. */
 table.mirror-subprojects td { text-align: left; vertical-align: top; }
 table.mirror-subprojects details summary { cursor: pointer; }
@@ -125,3 +126,12 @@ table.mirror-ai-usage { width: auto; min-width: 30em; }
 #mirror-checklist ul { margin: 0; }
 .mirror-module-checks { margin: .5em 0; padding-left: 0; list-style: none; }
 .mirror-module-checks li { margin: .3em 0; }
+
+/* Mirror source access status: each lock, green when in place, red when missing. */
+#mirror-source-status li.mirror-ok::marker { color: #2e7d32; }
+#mirror-source-status li.mirror-missing { color: #b71c1c; }
+#mirror-source-status .mirror-source-account-problem { margin-left: 1em; }
+/* Subprojects summary: same as this project, customized, or still to configure. */
+#mirror-source-subprojects-summary .mirror-source-same { color: #2e7d32; }
+#mirror-source-subprojects-summary .mirror-source-custom { color: #8a6d1d; }
+#mirror-source-subprojects-summary .mirror-source-missing { color: #b71c1c; }

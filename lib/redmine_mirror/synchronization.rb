@@ -88,16 +88,31 @@ module RedmineMirror
     # the worker runs, including long reads that report no object (module listings,
     # deletion checks). Returns the thread, killed by execute when it ends.
     def self.start_heartbeat(run_id)
+      beat(MirrorSyncRun.where(id: run_id, status: "running"))
+    end
+
+    # The same heartbeat for a reference refresh, on the project setting's updated_at.
+    def self.start_catalog_heartbeat(setting_id)
+      beat(MirrorProjectSetting.where(id: setting_id, catalog_status: "refreshing"))
+    end
+
+    def self.beat(records)
       Thread.new do
         loop do
           sleep heartbeat_interval
-          ActiveRecord::Base.connection_pool.with_connection do
-            MirrorSyncRun.where(id: run_id, status: "running").update_all(updated_at: Time.current)
-          end
+          ActiveRecord::Base.connection_pool.with_connection { records.update_all(updated_at: Time.current) }
         end
       rescue StandardError
         nil
       end
+    end
+
+    # A reference refresh whose worker is gone (no heartbeat for WORKER_SILENCE seconds:
+    # killed process, server restart) is requested again; only "pending" ones are
+    # claimed, so it would otherwise stay "refreshing" forever.
+    def self.requeue_abandoned_catalogs(now = Time.current)
+      MirrorProjectSetting.where(catalog_status: "refreshing").where("updated_at < ?", now - WORKER_SILENCE)
+        .update_all(catalog_status: "pending", catalog_progress: nil)
     end
 
     def self.heartbeat_interval
@@ -107,14 +122,17 @@ module RedmineMirror
     # Source references requested from the web UI, refreshed before any run so that a
     # preview queued right after a configuration change uses them.
     def self.refresh_catalogs
+      requeue_abandoned_catalogs
       MirrorProjectSetting.where(catalog_status: "pending").find_each do |setting|
         claimed = false
         setting.with_lock do
           next unless setting.catalog_status == "pending"
-          setting.update_columns(catalog_status: "refreshing", catalog_progress: nil)
+          # updated_at starts the heartbeat read by requeue_abandoned_catalogs.
+          setting.update_columns(catalog_status: "refreshing", catalog_progress: nil, updated_at: Time.current)
           claimed = true
         end
         next unless claimed
+        heartbeat = start_catalog_heartbeat(setting.id)
         begin
           client = setting.source_client(purpose: "references")
           # Progress is saved at most every 2 seconds, for the configuration page.
@@ -124,7 +142,8 @@ module RedmineMirror
             saved_at = Time.current
             setting.update_columns(catalog_progress: JSON.generate("step" => step, "steps" => steps, "module" => key, "records" => records, "at" => saved_at.iso8601))
           end
-          catalog = SourceCatalog.new(client: client, project_id: setting.source_project_id, adapters: setting.adapters).fetch(progress: progress)
+          catalog = SourceCatalog.new(client: client, project_id: setting.source_project_id, adapters: setting.adapters,
+            destination_project: setting.project).fetch(progress: progress)
           identifier = client.get("projects/#{Integer(setting.source_project_id)}.json").fetch("project")["identifier"]
           # AI proposals cost requests: keep them; the forms show only those still valid.
           previous = setting.reload.source_catalog["ai_suggestions"]
@@ -139,6 +158,8 @@ module RedmineMirror
           # Unexpected exception text can contain URLs, credentials or private records.
           message = error.is_a?(Error) ? error.message : "Internal error (#{error.class.name})"
           setting.update_columns(catalog_status: "failed", catalog_error: message)
+        ensure
+          heartbeat.kill
         end
       end
     end
@@ -196,7 +217,6 @@ module RedmineMirror
         destination_key = ENV.fetch("MIRROR_DESTINATION_API_KEY") { raise Error, "MIRROR_DESTINATION_API_KEY is not configured for the worker" }
         destination = Client.new(url: destination_url, api_key: destination_key, allow_http: config.fetch("allow_http"))
         source = setting.source_client(purpose: run.apply? ? "synchronization" : "preview")
-        consumer_key = setting.source_consumer_key!
         signature = Digest::SHA256.hexdigest(JSON.generate(config.slice("source_url", "source_project_id", "destination_project_id",
           "modules", "module_options", "source_wins", "text_format")))
         previous_mappings = JSON.parse(setting.incremental_mapping_state.presence || "{}")
@@ -204,10 +224,11 @@ module RedmineMirror
         configuration_full = run.force_full? ||
           (setting.incremental_signature.present? && setting.incremental_signature != signature) ||
           mapping_rewrite?(previous_mappings, current_mappings)
-        change_set = ChangeSet.read(source, setting.source_project_id, consumer_key: consumer_key)
+        change_set = ChangeSet.read(source, setting.source_project_id, after: setting.source_change_cursor)
         full = configuration_full || setting.source_change_cursor.nil? || change_set.full_required?
         issue_updated_on = fallback_issue_updated_on(run) unless change_set.supported? || configuration_full
         config = config.merge("incremental" => change_set.supported? && !full, "changes" => change_set.changes,
+          "journaled_modules" => change_set.journaled_modules,
           "track_retries" => run.apply?, "issue_updated_on_since" => issue_updated_on)
         runner = Runner.new(source: source, destination: destination, store: DatabaseStore.new(key, project_id: setting.project_id))
         stop_check = stop_checker(run)
@@ -215,64 +236,60 @@ module RedmineMirror
         FileUtils.mkdir_p(Rails.root.join("tmp"))
         File.open(Rails.root.join("tmp", "mirror-#{key}.lock"), "a", 0600) do |lock|
           raise Error, "Synchronization already running" unless lock.flock(File::LOCK_EX | File::LOCK_NB)
-          # Complete prevalidation before the first import write. An apply request
-          # also records blocked secondary links so managers can diagnose the failure.
-          # The preview reports every object error at once instead of the first one.
-          checked = 0
-          preview = runner.run(config.merge("on_error" => "collect"), track_relation_blocks: run.apply?) do
-            stop_check.call
-            # Without a total yet, processed_records counts the objects checked so far.
-            checked += 1
-            # updated_at doubles as the heartbeat read by end_abandoned_stops.
-            run.update_columns(processed_records: checked, updated_at: Time.current) if (checked % 25).zero?
-          end
-          totals = setting.selected_modules.to_h { |key| [key, 0] }
-          preview.each { |event| totals[event.fetch(:module)] += 1 }
-          run.update!(total_records: preview.size, processed_records: 0, module_totals: JSON.generate(totals))
-          preview_errors = preview.count { |event| event[:action] == "error" }
-          # "skip" writes everything else; "stop" writes nothing while an object fails.
+          progress = RunProgress.new(run)
           applied = false
-          applied_events = []
-          if run.apply? && (preview_errors.zero? || setting.on_error == "skip")
-            applied_events = runner.run(config.merge("on_error" => setting.on_error), apply: true) do |event|
+          if run.apply? && setting.on_error == "skip"
+            # A failing object never holds the others back in "skip": write in one pass,
+            # each object logged as soon as it is handled, without reading the source twice.
+            progress.phase!("writing")
+            runner.run(config.merge("on_error" => "skip"), apply: true, track_relation_blocks: true, progress: progress) do |event|
+              run.append_event(event)
+              stop_check.call
+            end
+            run.update!(total_records: run.processed_records, module_totals: JSON.generate(run.module_event_counts(setting.selected_modules)))
+            applied = true
+          else
+            # "stop" (and a preview) validates every object before the first import write,
+            # and reports every object error at once instead of the first one. An apply
+            # request also records blocked secondary links so managers can diagnose them.
+            progress.phase!("checking")
+            checked = 0
+            preview = runner.run(config.merge("on_error" => "collect"), track_relation_blocks: run.apply?, progress: progress) do
+              stop_check.call
+              # Without a total yet, processed_records counts the objects checked so far.
+              checked += 1
+              # updated_at doubles as the heartbeat read by end_abandoned_stops.
+              run.update_columns(processed_records: checked, updated_at: Time.current) if (checked % 25).zero?
+            end
+            totals = setting.selected_modules.to_h { |key| [key, 0] }
+            preview.each { |event| totals[event.fetch(:module)] += 1 }
+            run.update!(total_records: preview.size, processed_records: 0, module_totals: JSON.generate(totals))
+            preview_errors = preview.count { |event| event[:action] == "error" }
+          end
+          # "stop" writes nothing while an object fails.
+          if !applied && run.apply? && preview_errors.zero?
+            progress.phase!("writing")
+            runner.run(config.merge("on_error" => setting.on_error), apply: true, progress: progress) do |event|
               run.append_event(event)
               stop_check.call
             end
             applied = true
-          else
+          elsif !applied
             preview.each do |event|
               run.append_event(event)
               stop_check.call
             end
           end
+          # The position moves past every change read: objects in error are retried from
+          # mirror_sync_retries, and a complete pass that read no journal keeps none.
           if applied
-            successful = applied_events.reject { |event| event[:action] == "error" }
-              .to_h { |event| [[event.fetch(:module), event.fetch(:source_id)], true] }
-            selected = setting.selected_modules
-            acknowledgements = change_set.changes.select do |change|
-              !selected.include?(change.fetch("module_key")) ||
-                (!config["source_wins"] && change.fetch("action") == "delete") ||
-                successful[[change.fetch("module_key"), change.fetch("source_id")]]
-            end
-            if full && change_set.supported?
-              pending = applied_events.select { |event| event[:action] == "error" }.map do |event|
-                { "module_key" => event.fetch(:module), "source_id" => event.fetch(:source_id), "parent_id" => event[:parent_id] }.compact
-              end
-              change_set.acknowledge(source, setting.source_project_id, consumer_key: consumer_key,
-                baseline: change_set.cursor, pending: pending)
-              setting.update_columns(source_change_cursor: change_set.cursor, incremental_signature: signature,
-                incremental_mapping_state: JSON.generate(current_mappings))
-            elsif !full
-              change_set.acknowledge(source, setting.source_project_id, consumer_key: consumer_key, changes: acknowledgements) if acknowledgements.any?
-              setting.update_columns(source_change_cursor: change_set.cursor,
-                incremental_mapping_state: JSON.generate(current_mappings))
-            elsif !change_set.supported?
-              setting.update_columns(incremental_signature: signature,
-                incremental_mapping_state: JSON.generate(current_mappings))
-            end
+            columns = { incremental_mapping_state: JSON.generate(current_mappings) }
+            columns[:source_change_cursor] = change_set.cursor if change_set.supported?
+            columns[:incremental_signature] = signature if full
+            setting.update_columns(columns)
           end
         end
-        errors = run.log_events.select { |event| event["action"] == "error" }
+        errors = run.log_entries.where(action: "error").order(:id).map(&:to_event)
         # A value first used on the source after the last reference refresh is missing from
         # the mapping tabs: read the references again, so that they list it.
         catalog = setting.source_catalog

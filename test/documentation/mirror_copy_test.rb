@@ -97,8 +97,6 @@ class MirrorCopyDocumentationTest < ApplicationSystemTestCase
     delete_source_issue(ids.first)
     preview = synchronize(apply: false)
     assert_equal 1, preview.log_events.count { |event| event["action"] == "delete" }
-    visit "/projects/#{PROJECT}/mirror/synchronizations/#{preview.id}?action_filter=delete"
-    screenshot "05-preview-deletion", "#mirror-log"
     run = synchronize
     assert_equal 1, run.log_events.count { |event| event["action"] == "delete" }
     assert_equal source_issue_count, project.issues.count

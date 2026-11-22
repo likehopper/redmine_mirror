@@ -29,6 +29,7 @@ setting = MirrorProjectSetting.new(project: project, source_url: original.source
 # A fixed selection keeps the expected counts independent of the manual project's modules.
 setting.selected_modules = %w[issue_categories project_versions issue_tracking time_tracking]
 setting.api_key = original.api_key
+setting.source_application_key = original.source_application_key
 setting.source_catalog = original.source_catalog
 setting.module_options = original.module_options
 setting.save!

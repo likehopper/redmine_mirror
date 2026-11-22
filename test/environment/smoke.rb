@@ -35,7 +35,8 @@ config["modules"] = %w[issue_categories project_versions issue_tracking time_tra
 key = Digest::SHA256.hexdigest("disposable-smoke-#{project.id}")
 source = RedmineMirror::Client.new(url: config.fetch("source_url"), api_key: source_key, allow_http: true)
 destination = RedmineMirror::Client.new(url: config.fetch("destination_url"), api_key: ENV.fetch("MIRROR_DESTINATION_API_KEY"), allow_http: true)
-runner = RedmineMirror::Runner.new(source: source, destination: destination, store: RedmineMirror::DatabaseStore.new(key))
+runner = RedmineMirror::Runner.new(source: source, destination: destination,
+  store: RedmineMirror::DatabaseStore.new(key, project_id: project.id))
 begin
   preview = runner.run(config)
   abort "Wrong preview count" unless preview.size == 27
@@ -66,7 +67,8 @@ Member.create!(project: project, user: User.find_by!(login: "alice"), roles: [Ro
 config["destination_project_id"] = project.id
 config["modules"] = %w[issue_categories project_versions issue_tracking time_tracking]
 key = Digest::SHA256.hexdigest("disposable-ignore-smoke-#{project.id}")
-runner = RedmineMirror::Runner.new(source: source, destination: destination, store: RedmineMirror::DatabaseStore.new(key))
+runner = RedmineMirror::Runner.new(source: source, destination: destination,
+  store: RedmineMirror::DatabaseStore.new(key, project_id: project.id))
 ignore_all = ->(kind) { config.merge("mappings" => config.fetch("mappings").merge(kind => config.fetch("mappings").fetch(kind).transform_values { "ignore" })) }
 begin
   events = runner.run(ignore_all.call("activity"), apply: true)

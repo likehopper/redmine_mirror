@@ -53,7 +53,15 @@ API.
 
 The source API key determines what can be imported: data it cannot see is skipped.
 Use the key of a dedicated, non-administrator source account, member of the source
-projects with a read-only role:
+projects with a read-only role. Mirror source refuses administrators' keys: an
+administrator sees every project, private issue and note.
+
+Mirror first uses the additional routes provided by **Mirror source**, then falls back
+to Redmine's native REST API for data Redmine already exposes and when the incremental
+journal is unavailable. The Mirror source address, authorized-account and application-key
+locks protect only its `/mirror/source/` routes; native routes retain Redmine's own API
+key, visibility and permission controls. Restrict the whole REST API at the network or
+reverse-proxy layer when the source must accept calls only from the destination network.
 
 | Source permission | Needed for |
 | --- | --- |
@@ -65,7 +73,7 @@ projects with a read-only role:
 | View members (public by default) | Members |
 | View documents | Documents ([Mirror source](#mirror-source-on-the-source-redmine) on the source) |
 | View files | Files |
-| View issues | Saved queries ([Mirror source](#mirror-source-on-the-source-redmine) on the source; private queries included) |
+| View issues | Saved queries ([Mirror source](#mirror-source-on-the-source-redmine) on the source; public queries and those shown to the account's roles, never private ones) |
 | View sprint board (Scrum plugin) | Agile sprints and issue data ([Mirror source](#mirror-source-on-the-source-redmine) on the source, redmine_agile PRO on the destination) |
 | View issues | Tags ([Mirror source](#mirror-source-on-the-source-redmine) on the source, Redmine Tags plugin on both sides) |
 | View news | News ([Mirror source](#mirror-source-on-the-source-redmine) on the source) |
@@ -74,9 +82,10 @@ projects with a read-only role:
 Projects the account is not a member of are not visible. **Issue custom fields** also
 work without an administrator key: Redmine then hides the field definitions, so the
 fields and their values come from the source issues, each value takes the format of
-the destination field you map it to and is checked in the preview, and list choices
-are the values found in the issues and their history. An administrator key adds
-format compatibility checks and the complete lists of possible values.
+the destination field you map it to and is checked before it is written, and list choices
+are the values found in the issues and their history. Sharing **Custom fields** through
+Mirror source adds format compatibility checks and the complete lists of possible
+values without an administrator key.
 
 ## 3. Allow the source Redmine
 
@@ -97,7 +106,7 @@ see [AI usage](AI.md).
 | Permission | Allows |
 | --- | --- |
 | **View Mirror** | Mirror menu: status, execution history and logs, items to review, synchronized objects |
-| **Run Mirror synchronizations and resolve conflicts** | The above, plus preview, synchronize now, cancel a queued run, keep or recheck a conflict |
+| **Run Mirror synchronizations and resolve conflicts** | The above, plus synchronize now, stop a run, keep or recheck a conflict |
 | **Configure Mirror** | The above, plus the **Settings → Mirror** tab: connection, schedule and mappings |
 
 Members who can enable the project's modules (*Select project modules*) can also
@@ -128,6 +137,11 @@ a link to the page of the next one.
 - **Source Redmine URL**: chosen from the allowed sources;
 - **Source project**: its identifier, as in `<source>/projects/<identifier>`, or its numeric ID;
 - **Source API key**: stored encrypted and never displayed again;
+- **Source Mirror application key**: the one-time key generated in the source project's
+  Mirror source settings, also stored encrypted and never displayed again. It proves the
+  caller is a configured Mirror application; the API key still identifies the read-only
+  Redmine account and applies its permissions. It is required when selected data uses
+  Mirror source endpoints and left empty for a source without Mirror;
 - **Source text format**: *Auto* detects Textile, Markdown or HTML (CKEditor) for each
   text; choose a format to force it. Texts are converted to this Redmine's text format,
   and issue references point to the imported issues; the detected formats are shown
@@ -150,6 +164,8 @@ Saving checks the connection; the worker then loads the source references, which
 take a few minutes on large projects. The page shows its progress and refreshes until
 it has finished. The URL and project cannot be changed afterwards. **Refresh source
 references** reloads them after new users, statuses or activities appear on the source.
+The references already read stay in use meanwhile, and Getting started keeps its steps
+done. A read interrupted by a worker restart starts again two minutes later.
 When both plugins are recent and the source runs Localizable, this refresh also reads
 the original and translated names of references available to the project. They are
 matching aliases only: Mirror neither imports nor synchronizes Localizable settings.
@@ -192,13 +208,13 @@ subproject has enabled.
 - creates it under its local parent (*Add subprojects* on that parent), or takes the
   existing one (*Select project modules* on it);
 - enables Mirror and the Redmine modules its Mirror modules need;
-- gives it a Mirror configuration taken from this one: same source and API key (a new
-  key saved here reaches it), same options, and this project's correspondences for the
+- gives it a Mirror configuration taken from this one: same source, API key and Mirror
+  application key (a new key saved here reaches it), same options, and this project's correspondences for the
   references it has none for, once its own references are read. Change them in its own
   Mirror tab to override them; members follow its user and role correspondences.
 
 A subproject whose source parent is not configured is refused: check its parent too.
-After a successful preview or synchronization here, each configured subproject runs the
+After a successful synchronization here, each configured subproject runs the
 same way (launch origin *Parent project*). Nothing is ever unlinked or removed.
 
 ## 7. Map users
@@ -222,7 +238,14 @@ the missing members to the project first, or create their accounts from the sour
 When the source project shares **Users** ([Mirror source](#mirror-source-on-the-source-redmine)),
 each source user shows its login, email and company, and a local account with the same
 email is preselected before one with the same name. Redmine's users API gives emails to
-administrators only; Mirror source lets a project manager use them.
+administrators only; Mirror source lets a project manager use them. An email its owner
+hides (*My account → Hide my email address*) is never sent: the destination sends the
+SHA-256 digests of the addresses of accounts available to this project's mapping, and
+the source answers which of them the account owns, so the matching local account is still
+preselected. The fingerprints are filtered from Rails request logs. This assumes the
+explicitly authorized Mirror destination is trusted: an authorized client can test a
+guessed address by its fingerprint. Without a match, **Accounts to create** asks for the
+email of such a user, and the account keeps it hidden.
 
 **Accounts to create**, below the table, lists the unmapped source users whose email has
 no account here. Check them, optionally check roles to add them as members, and click
@@ -296,54 +319,62 @@ imported yet: log it, or add a private note with the remote link.
 
 ![Relation policy](screenshots/configuration/13-relations-policy.png)
 
-## 9. Run a preview
+## 9. Check before synchronizing
 
 On the **Mirror** page, **Overview** shows the source, the modules, the schedule, the
-current execution and what needs checking. Click **Run preview**.
+current execution and what needs checking.
 
 ![Overview](screenshots/configuration/14-overview.png)
 
-The run is queued, then processed by the worker (see [Run the worker](#run-the-worker));
-the page refreshes until it finishes. The log lists what an import would do, object by
-object, without writing anything.
+It lists what the configuration alone reveals: references without correspondence,
+disabled project modules, mapped fields the project does not use. A local reference that
+exists in Redmine under the same name but is not offered (a tracker not enabled in the
+project, a status no workflow uses, an inactive activity, a user who is not a member) is
+pointed out with the page that enables it. **Check** in the connection settings tests the
+API account, the source project and its rights.
 
-![Preview log](screenshots/configuration/15-preview-log.png)
+![Before synchronizing](screenshots/configuration/35-checklist.png)
 
-Before the first preview, the **Mirror** page lists what the configuration alone
-reveals: references without correspondence, disabled project modules, mapped fields the
-project does not use. A local reference that exists in Redmine under the same name but is
-not offered (a tracker not enabled in the project, a status no workflow uses, an inactive
-activity, a user who is not a member) is pointed out with the page that enables it.
+## 10. Synchronize
 
-![Before the preview](screenshots/configuration/35-checklist.png)
+Click **Synchronize now**. The run is queued, then processed by the worker (see
+[Run the worker](#run-the-worker)), and its page opens. While it runs, the page reloads
+itself and shows the phase, each module with its state and the source objects handled
+out of the total the source gives, and the log fills as objects are written. The other
+Mirror tabs link to it with **Follow the execution**.
 
-In the log, errors are grouped by cause, the largest first: fixing one unblocks all its
-objects. Each cause is explained, with links to where it is fixed when the current user
+A finished execution has three tabs: **Summary** (actions per module, each count opens
+its objects), **To check** (errors by cause, warnings and special cases) and **Execution
+log** (the objects, filtered by module, action, source ID or special case, and grouped by
+module, action or reason).
+
+In **To check**, errors are grouped by cause, the largest first: fixing one unblocks all its
+objects. Objects that failed only because an object they depend on failed (the issue of a
+journal, attachment or watcher, the parent of a wiki page) are listed apart, by module:
+they are written at the next synchronization once the cause is fixed. Each cause is explained, with links to where it is fixed when the current user
 may do it (a mapping tab, the project settings, a custom field, a workflow, a conflict),
 otherwise who to ask. A version inherited from a parent project points to the local
 project that mirrors that parent: synchronize it first.
 
 ![Errors by cause](screenshots/configuration/36-guided-errors.png)
 
-Errors do not block the rest: with **Skip it and synchronize the rest** (the default), a
-preview with errors ends **Partial**, and a synchronization writes every other object.
-The failing ones are retried by the next synchronization. With **Stop: write nothing**,
-the preview ends **Failed** and nothing is written until every error is fixed.
+Errors do not block the rest: with **Skip it and synchronize the rest** (the default),
+each object is written as soon as it is checked, a failing one is logged and the run ends
+**Partial**. The failing ones are retried by the next synchronization once fixed. With
+**Stop: write nothing**, every object is checked first (phase **Checking**), and nothing
+is written until every error is fixed; the run then ends **Failed**.
 
-## 10. Synchronize
-
-Click **Synchronize now**. The log gives, for each object, its remote and local IDs with
-links, and the action taken. Its **Summary** counts the actions per module, groups the
-errors and warnings by cause, and lists the **special cases to check**: converted texts,
-issue numbers, links to the source Redmine, images and links to attachments. Click one
-to list the objects concerned, each with its local and source links. The preview shows
-them too, before anything is written.
+The log gives, for each object, its remote and local IDs with links, and the action
+taken. Its **Summary** counts the actions per module, groups the errors and warnings by
+cause, and lists the **special cases to check**: converted texts, issue numbers, links to
+the source Redmine, images and links to attachments. Click one to list the objects
+concerned, each with its local and source links.
 
 The first successful import is complete. Later runs ask Mirror source only for additions,
-modifications and explicit deletions not yet acknowledged by this destination. A preview
-never acknowledges them. An object in error stays proposed and is also retained in the
-destination retry queue; adding its missing correspondence retries it without rereading
-the whole project. Use **Full synchronization** when you intentionally want to reconcile
+modifications and explicit deletions recorded after the position this destination keeps;
+the source stores nothing for the destination.
+An object in error is retained in the destination retry queue; adding its missing
+correspondence retries it without rereading the whole project. Use **Full synchronization** when you intentionally want to reconcile
 every selected object again.
 
 ![Import log](screenshots/configuration/16-import-log.png)
@@ -369,6 +400,10 @@ for their other issue.
 
 Imported issues keep their author, dates, notes and attachments. Members who can view
 Mirror see a **Mirror source issue** link.
+
+Mirror downloads an attachment only after its destination container and local author
+exist. A recorded attachment whose source metadata and destination file are unchanged
+reuses the local file on later synchronizations instead of downloading it again.
 
 ![Imported issue](screenshots/configuration/19-imported-issue.png)
 
@@ -479,37 +514,75 @@ only, and categories to their managers only, without sharing. On the source Redm
    shared, whatever the projects check. Only the data this Redmine can provide is listed
    (Tags need the Redmine Tags plugin, Scrum sprints the Scrum plugin); projects do not
    see the rest, which is refused to destinations.
+   **Users**, **Saved queries**, **Custom fields**, **Repositories** and **Repository
+   credentials** stay unchecked until the administrator checks them: they carry personal
+   data (emails, saved queries) or repository access. Private queries are never shared.
    **Allowed addresses** restricts Mirror source to the addresses or networks (CIDR) of
-   the destination Redmines, one per line; empty, any address may call it. A list with no
-   valid entry refuses every address. Whatever the list, Mirror source answers only
+   the destination Redmines, one per line. It is required: while it is empty, Mirror
+   source stays disabled even when switched on, and the settings and Mirror source page
+   say why. A list with no valid entry refuses every address. Whatever the list, Mirror source answers only
    requests authenticated by the API key in the `X-Redmine-API-Key` header, as Mirror
    destinations send it: a browser session, a login and password or a key in the URL are
-   refused. These refusals (*address*, *api_key*) are written to Redmine's log, not to the
+   refused. These refusals (*disabled*, *address*, *api_key*) are written to Redmine's log, not to the
    project access log. Behind a reverse proxy on the same host, the address is the one
-   that proxy adds last to `X-Forwarded-For` (Apache and nginx proxies add it); with
-   another proxy in front, list that proxy's address, or filter at the firewall.
+   that proxy adds last to `X-Forwarded-For` (Apache and nginx proxies add it). With a
+   proxy on another host, list it in **Trusted proxies**: the address it adds is then
+   checked, back through every trusted proxy. The header of any other caller is ignored,
+   since anyone can write it.
+   **Record the change journal** (on by default) lets destinations read only what
+   changed since their last run. Uncheck it to suspend it, for example during a
+   maintenance: nothing is recorded, destinations fall back to complete passes, and
+   switching it asks each destination for a complete pass at its next run.
 
    ![Mirror source allowed](screenshots/configuration/27-source-allowed.png)
 3. In the project: `Settings → Modules`, enable **Mirror source** (the **Mirror** module
-   is not needed), then in `Settings → Mirror source` check **Documents**, **News**, **Tags**,
+   is not needed), then in `Settings → Mirror source` enter the IP addresses or networks
+   (CIDR) of this project's destination clients, select the API accounts they use and
+   **Generate a new key**. Copy that one-time Mirror application key into the destination
+   project's connection. The source keeps only its SHA-256 digest; the destination stores
+   the key encrypted with Redmine's `database_cipher_key`. The application key identifies
+   a configured Mirror instance and is distinct from the API key identifying its Redmine
+   account.
+   All three controls are required: an empty address list, no selected account or no
+   application key refuses every request. The address must also pass the administrator-wide
+   list, and the account must still have the native Redmine permission for the requested
+   data. After upgrading an existing installation through migration 27, access therefore
+   remains closed until each shared project configures these client settings and each
+   destination saves the generated key. **Generate a new key** again replaces it: the old
+   key is refused at once, so copy the new one into every destination project (and apply
+   the sharing to the subprojects again).
+   The **Access of the destinations** box at the top of the tab lists each control, in
+   green when in place and in red when missing, and for each authorized account what it
+   lacks: an administrator account (refused), a locked account, a permission for the
+   shared data, or what the incremental feed requires (see all issues and all time
+   entries, view private notes, view members, view spent time). Without the latter,
+   destinations still synchronize but read the whole project at each run. It also counts
+   the subprojects whose addresses, accounts or key differ from this project.
+   Then check **Documents**, **News**, **Tags**,
    **Scrum sprints**, **Saved queries**, **Users**, **Custom fields**, **Issue categories**, **Project
    enumerations**, **Repositories** and/or **Repository credentials** and save.
    Data whose Redmine module the project has not enabled (Documents, News, Repository,
    Scrum, Issue tracking for tags and categories) is greyed.
    In a project with subprojects, **Apply this sharing to the subprojects** enables Mirror
    source in each subproject where you may enable modules and configure Mirror source,
-   and shares the same data there, among the data its own modules hold. Subprojects are
+   and copies the same authorized addresses, accounts, application key and shared data
+   there, among the data its own modules hold. Subprojects are
    not configured otherwise: a later change in the parent reaches them only when applied
    again, and the API account needs a role in each one (or the subproject inherits the
-   members).
+   members). Closed subprojects are skipped: Redmine forbids changing their modules.
+   The table below the button lists each subproject: whether its addresses, accounts,
+   key and shared data are the same as the parent's, customized or still to configure,
+   and its last destination access (served or refused, with the reason). The project
+   name opens its Mirror source settings; the date opens its access log.
    Custom field definitions and repository credentials are offered only when the
    administrator checked them under **Data projects may share**: they are never allowed
    by default. Even then, repository credentials are
    sent only to a destination that asks for them, to write a repository of a project
    that keeps them (**Keep the credentials** in its Repositories tab).
    Sharing Issue categories gives every category of the project with its default
-   assignee and, when the source has it, its sharing with subprojects. Sharing Saved queries shows the
-   destination every query of the project, private ones included. Sharing Users gives
+   assignee and, when the source has it, its sharing with subprojects. Sharing Saved queries
+   follows Redmine's visibility for the authorized API account: another user's private
+   query is not sent. Sharing Users gives
    the login, name, email and company (the user field chosen in the plugin settings, or
    named Company) of the users the destination asks for, only if they are members of the
    project or appear in its data (issues, notes, time entries, watchers, news, wiki, files).
@@ -521,20 +594,33 @@ only, and categories to their managers only, without sharing. On the source Redm
    no additional sharing choice, and no Localizable setting is transferred.
 
    ![Shared data](screenshots/configuration/28-source-sharing.png)
-4. Give the source API account *View documents* (Documents), *View news* (News) or
-   *View issues* (Tags, Saved queries, Users, Custom fields, Issue categories, Project enumerations),
+4. Give the source API account *View documents* (Documents), *View news* (News),
+   *View members* (Users) or *View issues* (Tags, Saved queries, Custom fields, Issue categories, Project enumerations),
    *Manage repository* (Repositories) or *View sprint board* (Scrum sprints) in that project. Anonymous access is refused, even on public projects.
+   Incremental synchronization is used only when this dedicated role has *All issues*,
+   *All time entries*, *View private notes*, *View members* and *View spent time*; otherwise
+   Mirror automatically performs permission-filtered full reads. This avoids disclosing
+   identifiers of private objects through deletion tombstones.
 
-The **Access log** below the sharing lists one session per destination run or reference
-refresh: account, address, purpose, objects listed, files sent and refusals. **Details**
-lists each request and what it sent. Refused requests name the lock that refused them.
+The project's **Mirror source** menu lists one session per destination run or reference
+refresh: account, address, purpose, object counts, bytes sent and refusals. It can filter
+sessions by account, address, purpose or refusal, and group them by session or by the
+observable destination (API account and client address). **Details** lists the resource
+type and count for each request. It deliberately stores no object
+title, filename, user name, email, request parameter, API key or application key. Refused
+requests name only the lock that refused them.
+Migration 24 clears the detailed JSON of older access rows because beta50 stored titles,
+user names and filenames there; their date, account, address, action, counters and byte
+volume remain available for audit.
 
 ![Access log](screenshots/configuration/29-source-log.png)
 
 ![Session details](screenshots/configuration/30-source-session.png)
 
-Entries are kept 180 days by default (plugin settings). Configuring the sharing and
-reading the log need the permission *Configure Mirror source and read its access log*.
+Entries are kept 180 days by default (plugin settings). Configuration remains in
+`Settings → Mirror source` and needs *Configure Mirror source*. Reading the operational
+project menu needs the separate
+*View Mirror source access log* permission; administrators retain the cross-project log.
 `Administration → Mirror → Source: shared resources` shows whether Mirror source is
 allowed, the projects that enabled the module with what they share, their last access
 and sessions, then the sessions of every project, filtered by project or to those with
@@ -585,7 +671,7 @@ not left blocked.
 | "Mirror source is disabled…", "Enable the Mirror source module…", "Share Documents…", "Share News…" | Open that lock on the source: [Mirror source](#mirror-source-on-the-source-redmine). |
 | "The source project does not list its files" | Enable the Files module on the source project and give the source account *View files*. |
 | "MIRROR_DESTINATION_URL is not configured" | Set both variables in the worker's environment. |
-| Preview ends Partial or Failed on a mapping | Complete the module tabs with a red counter (steps 7 and 8); with *Skip it*, the rest is synchronized meanwhile. |
+| Synchronization ends Partial or Failed on a mapping | Complete the module tabs with a red counter (steps 7 and 8); with *Skip it*, the rest is synchronized meanwhile. |
 | Run reports a conflict | Step 12. |
 | Relations or parents pending | Import the other project, then rerun this one. |
 

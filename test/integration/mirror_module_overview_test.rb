@@ -65,8 +65,8 @@ class MirrorModuleOverviewTest < Redmine::IntegrationTest
   def test_last_run_of_the_module_sums_its_actions
     events = [{ "module" => "wiki", "source_id" => 1, "action" => "create" }, { "module" => "wiki", "source_id" => 2, "action" => "create" },
       { "module" => "wiki", "source_id" => 3, "action" => "ignored" }, { "module" => "users", "source_id" => 5, "action" => "update" }]
-    run = @project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "succeeded", finished_at: Time.current,
-      module_totals: JSON.generate("users" => 1, "wiki" => 3), events: JSON.generate(events))
+    run = log_mirror_events(@project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "succeeded", finished_at: Time.current,
+      module_totals: JSON.generate("users" => 1, "wiki" => 3)), events)
     # A preview writes nothing: it is not the last synchronization.
     @project.mirror_sync_runs.create!(apply: false, trigger: "manual", status: "succeeded", module_totals: JSON.generate("wiki" => 3))
     MirrorConflict.create!(project_id: @project.id, connection_key: "key", module_key: "wiki", source_id: 3, message: "Local edit")

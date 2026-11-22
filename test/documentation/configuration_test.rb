@@ -184,17 +184,10 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     assert_no_selector "#mirror-settings-subtabs .mirror-badge"
   end
 
-  def test_10_preview
+  def test_10_overview
     visit "/projects/#{PROJECT}/mirror"
-    assert_selector "#mirror-step-preview.mirror-step-current"
+    assert_selector "#mirror-step-sync.mirror-step-current"
     screenshot "14-overview", "#content"
-    click_button "Run preview"
-    assert_text "Execution queued"
-    run = run_worker
-    assert_equal "succeeded", run.status, run.error_message
-    assert project.issues.none?
-    visit current_path
-    screenshot "15-preview-log", "#content", max_height: 760
   end
 
   def test_11_import
@@ -295,6 +288,7 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
   def test_17_mirror_source
     visit "/settings/plugin/redmine_mirror"
     check "settings_source_enabled"
+    fill_in "settings_source_allowed_addresses", with: "203.0.113.10"
     screenshot "27-source-allowed", "#mirror-source-settings"
     click_button "Apply"
     assert_selector "#flash_notice"
@@ -316,16 +310,16 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
         action: action, created_at: Time.current - minutes.minutes }.merge(attributes))
     end
     refused, synchronized = "1" * 32, "2" * 32
-    log.call(refused, 30, "refused", purpose: "references", reason: "not_shared", details: JSON.generate("path" => "/projects/handbook/mirror/source/documents.json"))
+    log.call(refused, 30, "refused", purpose: "references", reason: "not_shared", details: JSON.generate("kind" => "documents"))
     log.call(synchronized, 12, "list", purpose: "synchronization", object_count: 2,
-      details: JSON.generate("documents" => documents.map { |document| { "id" => document.id, "title" => document.title, "files" => 1 } }))
-    [["architecture.pdf", 482_304], ["operations.pdf", 215_040]].each_with_index do |(filename, bytes), index|
+      details: JSON.generate("kind" => "documents"))
+    [482_304, 215_040].each_with_index do |bytes, index|
       log.call(synchronized, 11 - index, "download", purpose: "synchronization", object_count: 1, bytes: bytes,
-        details: JSON.generate("attachment" => { "id" => 900 + index, "filename" => filename, "document_id" => documents[index].id }))
+        details: JSON.generate("kind" => "documents"))
     end
-    visit "/projects/handbook/settings/mirror_source"
+    visit "/projects/handbook/mirror_source"
     assert_selector "table.mirror-source-sessions tbody tr", count: 2
-    screenshot "29-source-log", "#tab-content-mirror_source"
+    screenshot "29-source-log", "#main"
     within("table.mirror-source-sessions tbody tr:first-child") { click_link "Details" }
     assert_selector "table.mirror-source-accesses tbody tr", count: 3
     screenshot "30-source-session", "table.mirror-source-accesses"
@@ -372,13 +366,13 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     visit "/projects/#{PROJECT}/mirror"
     assert_selector "#mirror-checklist li", text: /Statuses: \d+ without correspondence/
     screenshot "35-checklist", "#mirror-checklist"
-    click_button "Run preview"
+    accept_confirm { click_button "Synchronize now" }
     assert_text "Execution queued"
     run = run_worker
     assert_equal "partial", run.status, run.error_message
-    visit "/projects/#{PROJECT}/mirror/synchronizations/#{run.id}"
+    visit "/projects/#{PROJECT}/mirror/synchronizations/#{run.id}?tab=attention"
     assert_selector "#mirror-error-causes .mirror-guide"
-    screenshot "36-guided-errors", "#mirror-run-summary"
+    screenshot "36-guided-errors", "#mirror-run-attention"
   end
 
   # A source project that shares Users (Mirror source): a source user without an account

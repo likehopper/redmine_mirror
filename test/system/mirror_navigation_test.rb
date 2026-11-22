@@ -112,7 +112,7 @@ class MirrorSynchronizationSystemTest < ApplicationSystemTestCase
   fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules, :trackers, :projects_trackers,
     :issue_statuses, :enumerations, :versions, :issue_categories, :boards, :repositories, :custom_fields, :workflows
 
-  def test_admin_configures_schedule_and_queues_preview
+  def test_admin_configures_schedule_and_queues_a_synchronization
     project = Project.find(1)
     project.enable_module!(:mirror)
     setting = MirrorProjectSetting.new(project: project, source_url: "https://remote.example", source_project_id: 12)
@@ -128,9 +128,10 @@ class MirrorSynchronizationSystemTest < ApplicationSystemTestCase
     assert setting.reload.auto_sync_enabled?
     click_link "Mirror page"
     assert_text "every 15 minutes"
-    click_button "Run preview"
+    click_button "Synchronize now"
     assert_text "Queued"
     assert_equal "queued", project.mirror_sync_runs.first!.status
+    assert project.mirror_sync_runs.first!.apply?
   end
 end
 
@@ -145,9 +146,9 @@ class MirrorHistorySystemTest < ApplicationSystemTestCase
     setting.selected_modules = ["time_tracking"]
     setting.api_key = "system-key"
     setting.save!
-    run = project.mirror_sync_runs.create!(trigger: "manual", status: "succeeded", events: JSON.generate([
+    run = log_mirror_events(project.mirror_sync_runs.create!(trigger: "manual", status: "succeeded"), [
       { module: "issue_tracking", source_id: 1, action: "create" },
-      { module: "time_tracking", source_id: 2, action: "unchanged" }]))
+      { module: "time_tracking", source_id: 2, action: "unchanged" }])
     log_user("admin", "admin")
     visit "/projects/ecookbook/mirror?tab=history"
     select "Succeeded", from: "status"
@@ -156,6 +157,7 @@ class MirrorHistorySystemTest < ApplicationSystemTestCase
     assert_current_path(/status=succeeded/)
     within("#mirror-history") { click_link run.id.to_s }
     assert_current_path "/projects/ecookbook/mirror/synchronizations/#{run.id}", ignore_query: true
+    find("#tab-log").click
     select "Time tracking", from: "module_key"
     click_button "Apply"
     assert_current_path(/module_key=time_tracking/)

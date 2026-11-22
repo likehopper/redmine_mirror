@@ -44,21 +44,22 @@ Redmine::Plugin.register :redmine_mirror do
         mirror_conflicts: [:update], mirror_settings: [:show, :update_connection, :check_connection, :update_subprojects, :refresh_subprojects, :update_mappings, :refresh, :request_ai, :update_defaults, :apply_defaults, :fix_setup] }, require: :member
     end
   end
-  # Mirror source, when this Redmine is a source: a project shares chosen data with Mirror
-  # destinations (Documents, News), if an administrator allows it. Configuring the sharing
-  # and reading its access log are one permission; the API account needs only the
-  # native permission of the data (View documents, View news).
+  # Mirror source, when this Redmine is a source: project settings configure clients and
+  # shared data; a separate project page exposes the operational access log.
   project_module :mirror_source do
-    permission :manage_mirror_source, { projects: [:settings], mirror_source_settings: [:update, :apply_to_subprojects] }, require: :member
+    permission :manage_mirror_source, { projects: [:settings], mirror_source_settings: [:update, :apply_to_subprojects, :rotate_client_key] }, require: :member
+    permission :view_mirror_source_log, { mirror_source: [:index] }, read: true, require: :member
   end
   # Administrators list the source Redmine URLs that project managers may connect to,
   # and allow Mirror source globally (off by default).
-  settings default: { "allowed_source_urls" => "", "user_company_field_id" => "", "source_enabled" => "", "source_log_days" => "180" },
+  settings default: { "allowed_source_urls" => "", "user_company_field_id" => "", "source_enabled" => "", "source_changes_enabled" => "1", "source_log_days" => "180" },
     partial: "settings/redmine_mirror"
   unless RedmineMirror.source_only?
     menu :project_menu, :mirror, { controller: "mirror", action: "index" },
          caption: :label_mirror, param: :project_id
   end
+  menu :project_menu, :mirror_source, { controller: "mirror_source", action: "index" },
+       caption: :label_mirror_source_module, param: :project_id
   # Administration overview of the projects Mirror is configured in; a source-only
   # Redmine opens its Mirror source page.
   menu :admin_menu, :mirror_admin, { controller: "mirror_admin", action: RedmineMirror.source_only? ? "source" : "index" },
@@ -75,9 +76,10 @@ Attachment.include(RedmineMirror::SourceChanges::AttachmentPatch) unless Attachm
 IssueRelation.include(RedmineMirror::SourceChanges::IssueRelationPatch) unless IssueRelation < RedmineMirror::SourceChanges::IssueRelationPatch
 Watcher.include(RedmineMirror::SourceChanges::IssueAssociationPatch) unless Watcher < RedmineMirror::SourceChanges::IssueAssociationPatch
 CustomValue.include(RedmineMirror::SourceChanges::IssueAssociationPatch) unless CustomValue < RedmineMirror::SourceChanges::IssueAssociationPatch
+SettingsController.include(RedmineMirror::SettingsControllerPatch) unless SettingsController < RedmineMirror::SettingsControllerPatch
 # The settings tab is added by a helper of ProjectsController, not by patching
 # ProjectsHelper: plugins that chain project_settings_tabs with alias_method would
 # capture a prepended method and break its call to super.
 ProjectsController.helper(MirrorHelper) unless ProjectsController._helpers < MirrorHelper
 ProjectsController.helper(RedmineMirror::ProjectsHelperPatch) unless ProjectsController._helpers < RedmineMirror::ProjectsHelperPatch
-Rails.application.config.filter_parameters += [:api_key, :encrypted_api_key]
+Rails.application.config.filter_parameters += [:api_key, :encrypted_api_key, :source_application_key, :encrypted_source_application_key, :digests]

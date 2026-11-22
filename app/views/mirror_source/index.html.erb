@@ -1,0 +1,57 @@
+<%#
+File: redmine_mirror/app/views/mirror_source/index.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Project Mirror source access log, separate from its configuration.
+%><% html_title l(:label_mirror_source_module) %>
+<% content_for :header_tags do %>
+  <%= stylesheet_link_tag "mirror", plugin: "redmine_mirror" %>
+<% end %>
+<% if User.current.allowed_to?(:manage_mirror_source, @project) %>
+  <% content_for :contextual do %>
+    <%= link_to l(:label_settings), settings_project_path(@project, tab: "mirror_source"), class: "icon icon-settings" %>
+  <% end %>
+<% end %>
+
+<h2><%= l(:label_mirror_source_module) %></h2>
+
+<% if @session_key.match?(RedmineMirror::Source::SESSION) %>
+  <p><%= link_to l(:label_mirror_source_all_sessions), project_mirror_source_log_path(@project) %></p>
+  <%= render "mirror_source_settings/accesses", accesses: @accesses %>
+<% else %>
+  <%= form_tag project_mirror_source_log_path(@project), method: :get, id: "mirror-source-filters" do %>
+    <fieldset><legend><%= l(:label_filter_plural) %></legend>
+      <label><%= l(:label_mirror_source_account) %>
+        <%= select_tag :user_id, options_for_select(@accounts.map { |user| [user.name, user.id] }, params[:user_id]), include_blank: true %></label>
+      <label><%= l(:label_mirror_source_address) %>
+        <%= select_tag :remote_ip, options_for_select(@addresses, params[:remote_ip]), include_blank: true %></label>
+      <label><%= l(:label_mirror_source_purpose) %>
+        <%= select_tag :purpose, options_for_select(RedmineMirror::Source::PURPOSES.map { |purpose| [l("label_mirror_source_purpose_#{purpose}".to_sym), purpose] }, params[:purpose]), include_blank: true %></label>
+      <label><%= check_box_tag :refused, "1", params[:refused] == "1" %> <%= l(:label_mirror_source_refused_only) %></label>
+      <label><%= l(:label_mirror_source_group_by) %>
+        <%= select_tag :group_by, options_for_select([[l(:label_mirror_source_group_session), "session"], [l(:label_mirror_source_group_destination), "destination"]], @group_by) %></label>
+      <%= submit_tag l(:button_apply), class: "small" %>
+      <%= link_to l(:button_clear), project_mirror_source_log_path(@project), class: "icon icon-reload" %>
+    </fieldset>
+  <% end %>
+
+  <% if @group_by == "destination" %>
+    <%= render "mirror_source_settings/destinations", destinations: @rows %>
+  <% else %>
+    <%= render "mirror_source_settings/sessions", sessions: @rows, show_project: false,
+      details_path: ->(row) { project_mirror_source_log_path(@project, mirror_source_session_params(row)) } %>
+  <% end %>
+  <span class="pagination"><%= pagination_links_full @pages, @row_count %></span>
+  <p><em class="info"><%= l(:text_mirror_source_retention, days: RedmineMirror::Source.retention_days) %></em></p>
+<% end %>

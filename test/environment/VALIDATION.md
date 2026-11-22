@@ -427,7 +427,8 @@ refus de validation désormais par objet. Runner CI 6.1.4 sans Scrum ni redmine_
 228 tests Redmine / 1219 assertions ; tests autonomes 41 / 164.
 
 1.0.0-beta.31 (24 octobre 2026) : module Requêtes enregistrées (demandes, temps passé,
-tableaux agiles) par Mirror source (Voir les demandes, requêtes privées comprises).
+tableaux agiles) par Mirror source (Voir les demandes ; les requêtes privées étaient
+alors comprises, comportement restreint depuis aux requêtes visibles par le compte API).
 Instance de validation 4.0.3 → 5 : 9 requêtes de démonstration, 7 créées (statut, tracker,
 version, « moi », utilisateur, filtre de sprint Scrum devenu « agile_sprints », tag,
 filtres « issue.* » du temps passé, colonnes et limites d'un tableau agile traduites ; rôles

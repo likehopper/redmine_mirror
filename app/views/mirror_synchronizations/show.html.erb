@@ -25,68 +25,8 @@ Render project-scoped Mirror controls and diagnostics using native Redmine helpe
 <% if @run.stopped_on_request? %>
   <p class="info" id="mirror-stopped-by"><%= l(:text_mirror_stopped_by, time: format_time(@run.stop_requested_at), user: @run.stop_requested_by&.name || "—") %></p>
 <% elsif @run.error_message.present? %><p><%= link_to l(:label_mirror_conflicts), mirror_page_path(@project, "attention", anchor: "mirror-conflicts-section") %></p><div class="flash error"><%= @run.error_message %></div><% end %>
-<p<%= ' data-mirror-reload="10"'.html_safe if %w[queued running].include?(@run.status) %>><%= l(:label_mirror_progress) %>: <%= if !@run.progress_percentage.nil? then "#{@run.progress_percentage}%" elsif @run.status == "running" then l(:text_mirror_objects_checked, count: @run.processed_records) else "—" end %></p>
-<ul><% @run.module_counts.each do |key, count| %><li><%= mirror_module_label(key) %>: <%= count %></li><% end %></ul>
-<%= form_tag project_mirror_run_path(@project, @run), method: :get do %>
-<fieldset><legend><%= l(:label_filter_plural) %></legend>
-<%= label_tag :module_key, l(:label_mirror_modules) %>
-<%= select_tag :module_key, options_for_select([[l(:label_all), ""]] + @run.log_events.map { |event| event["module"] }.uniq.map { |key| [mirror_module_label(key), key] }, params[:module_key]) %>
-<%= label_tag :action_filter, l(:label_mirror_action) %>
-<%= select_tag :action_filter, options_for_select([[l(:label_all), ""]] + %w[create update delete unchanged ignored note error].map { |key| [mirror_module_label(key), key] }, params[:action_filter]) %>
-<%= label_tag :source_id, l(:label_mirror_source) %><%= number_field_tag :source_id, params[:source_id], min: 1 %>
-<%= label_tag :flag, l(:label_mirror_special_cases) %>
-<%= select_tag :flag, options_for_select([[l(:label_all), ""], [l(:label_mirror_flag_any), "any"]] + @flag_counts.keys.sort.map { |flag| [mirror_flag_label(flag), flag] }, params[:flag]) %>
-<%= hidden_field_tag :reason, params[:reason] if params[:reason].present? %>
-<%= hidden_field_tag :warning, params[:warning] if params[:warning].present? %>
-<%= submit_tag l(:button_apply) %><%= link_to l(:button_clear), project_mirror_run_path(@project, @run) %>
-</fieldset>
-<% end %>
-<% if @action_counts.any? %>
-<div class="box" id="mirror-run-summary">
-  <h3><%= l(:label_mirror_run_summary) %></h3>
-  <table class="list"><thead><tr><th><%= l(:label_mirror_modules) %></th><% %w[create update delete unchanged ignored note error].each do |action| %><th><%= action %></th><% end %></tr></thead><tbody>
-  <% @action_counts.each do |module_key, counts| %>
-    <tr><td><%= link_to mirror_module_label(module_key), project_mirror_run_path(@project, @run, module_key: module_key) %></td>
-    <% %w[create update delete unchanged ignored note error].each do |action| %><td><%= counts[action] || "" %></td><% end %></tr>
-  <% end %>
-  </tbody></table>
-  <% if @error_groups.any? %>
-    <p><strong><%= l(:label_mirror_errors_by_cause) %></strong> <em class="info"><%= l(:text_mirror_errors_by_cause) %></em></p>
-    <ul id="mirror-error-causes">
-    <% @error_groups.first(20).each do |group| %>
-      <% guide = group[:code] ? mirror_guidance(group[:code], group[:params]) : nil %>
-      <li><%= group[:reason] %><%= " (#{guide[:name]})" if guide&.dig(:name) %> —
-        <%= link_to l(:label_mirror_objects_count, count: group[:count]), project_mirror_run_path(@project, @run, action_filter: "error", reason: group[:key]) %>
-        <% if guide %>
-          <div class="mirror-guide"><%= guide[:text] %>
-            <%= safe_join(guide[:actions].map { |label, path| link_to(label, path, class: "mirror-fix") }, " · ") %></div>
-        <% end %>
-      </li>
-    <% end %>
-    </ul>
-  <% end %>
-  <% if @warning_counts.any? %>
-    <p><strong><%= l(:label_mirror_warnings_by_cause) %></strong></p>
-    <ul id="mirror-warning-causes"><% @warning_counts.first(20).each do |warning, count| %><li><%= mirror_reason(warning) %> — <%= link_to l(:label_mirror_objects_count, count: count), project_mirror_run_path(@project, @run, warning: warning) %></li><% end %></ul>
-  <% end %>
-  <% if @flag_counts.any? %>
-    <p><strong><%= l(:label_mirror_special_cases) %></strong>
-    <% @flag_counts.sort.each do |flag, count| %>
-      <%= link_to "#{mirror_flag_label(flag)} (#{count})", project_mirror_run_path(@project, @run, flag: flag), class: "mirror-flag" %>
-    <% end %></p>
-  <% end %>
-</div>
-<% end %>
-<% if params[:warning].present? %>
-  <p id="mirror-warning-filter"><strong><%= l(:label_mirror_warning) %>:</strong> <%= params[:warning] %> — <%= link_to l(:button_clear), project_mirror_run_path(@project, @run) %></p>
-<% end %>
-<% if params[:reason].present? %>
-  <p id="mirror-reason-filter"><strong><%= l(:label_mirror_error_cause) %>:</strong> <%= params[:reason] %> — <%= link_to l(:button_clear), project_mirror_run_path(@project, @run, action_filter: "error") %></p>
-<% end %>
-<table class="list" id="mirror-log"><thead><tr><th><%= l(:label_mirror_modules) %></th><th><%= l(:label_mirror_remote_id) %></th><th><%= l(:label_mirror_local_id) %></th><th><%= l(:label_mirror_action) %></th><th><%= l(:label_mirror_to_check) %></th><th><%= l(:label_mirror_reason) %></th></tr></thead><tbody>
-<% @events.each do |event| %>
-<tr><td><%= mirror_module_label(event["module"]) %></td><td><%= mirror_object_link(event["module"], event["source_id"], source_url: @source_url) %></td><td><%= mirror_object_link(event["module"], event.key?("destination_id") ? event["destination_id"] : @object_mappings[[event["module"], event["source_id"].to_i]]) %></td><td><%= event["action"] %></td><td><%= safe_join(Array(event["flags"]).map { |flag| content_tag(:span, mirror_flag_label(flag), class: "mirror-flag") }, " ") %></td><td><%= mirror_reason(event["reason"], event["details"]) %><% Array(event["warnings"]).each do |warning| %><div class="mirror-warning"><%= mirror_reason(warning) %></div><% end %><% if event["remote_issue_id"] %> — #<%= mirror_object_link("issue_tracking", event["remote_issue_id"], source_url: @source_url) %><% end %></td></tr>
-<% end %>
-</tbody></table>
-
-<span class="pagination"><%= pagination_links_full @event_pages, @event_count %></span>
+<%= render "mirror/run_progress", run: @run if %w[queued running].include?(@run.status) %>
+<% tabs = [{ name: "summary", partial: "mirror_synchronizations/run_summary", label: :label_mirror_run_summary }]
+   tabs << { name: "attention", partial: "mirror_synchronizations/run_attention", label: :label_mirror_to_check } if @error_groups.any? || @warning_counts.any? || @flag_counts.any?
+   tabs << { name: "log", partial: "mirror_synchronizations/run_log", label: :label_mirror_log } %>
+<%= render_tabs tabs, @tab %>

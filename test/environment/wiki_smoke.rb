@@ -36,6 +36,7 @@ end
 begin
   setting = MirrorProjectSetting.new(project: project, source_url: original.source_url, source_project_id: source_id)
   setting.api_key = original.api_key
+  setting.source_application_key = original.source_application_key
   setting.selected_modules = %w[wiki]
   setting.source_catalog = RedmineMirror::SourceCatalog.new(client: setting.source_client, project_id: source_id, adapters: setting.adapters).fetch
   setting.save!

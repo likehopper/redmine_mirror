@@ -16,6 +16,10 @@
 # Build native and remote object links without exposing configured API credentials.
 
 module MirrorHelper
+  def mirror_source_session_params(row)
+    { session: row.session_key, user_id: row.user_id, remote_ip: row.remote_ip, purpose: row.purpose || "-" }
+  end
+
   # The Mirror page of the project menu: overview, history, attention and synchronized objects.
   def mirror_page_path(project, tab = nil, **options)
     project_mirror_path(project, { tab: tab }.compact.merge(options))
@@ -79,21 +83,27 @@ module MirrorHelper
   def mirror_setup_steps(project, setting)
     connected = setting&.persisted?
     runs = connected ? project.mirror_sync_runs.where(status: %w[succeeded partial]) : nil
+    # References read before stay usable while the worker reads them again (after a
+    # configuration change or a synchronization meeting a new source value): the steps
+    # already done do not go back to "to do" meanwhile.
+    loaded = connected && setting.source_catalog_loaded?
     catalog = if !connected then :todo
-              elsif setting.catalog_refreshing? then :waiting
+              elsif setting.catalog_refreshing? then loaded ? :done : :waiting
               elsif setting.catalog_status == "failed" then :failed
               else :done
               end
+    detail = if catalog == :failed then setting.catalog_error
+             elsif catalog == :done && setting.catalog_refreshing? then l(:text_mirror_step_references_refreshing)
+             end
     unmapped = mirror_unmapped_counts(project, setting)
-    mappings = catalog != :done || setting.selected_modules.empty? || unmapped.any? ? :todo : :done
+    usable = catalog == :done || loaded
+    mappings = usable && setting.selected_modules.any? && unmapped.empty? ? :done : :todo
     synchronized = connected && runs.where(apply: true).exists?
-    previewed = synchronized || (connected && runs.where(apply: false).exists?)
     [
       [:connection, connected ? :done : :todo, nil, mirror_configuration_path(project)],
-      [:references, catalog, (setting.catalog_error if catalog == :failed), mirror_configuration_path(project)],
+      [:references, catalog, detail, mirror_configuration_path(project)],
       [:mappings, mappings, unmapped.map { |key, count| "#{mirror_module_label(key)} #{count}" }.join(", ").presence,
         mirror_configuration_path(project, "modules")],
-      [:preview, previewed ? :done : :todo, nil, mirror_page_path(project)],
       [:sync, synchronized ? :done : :todo, nil, mirror_page_path(project)],
       [:schedule, connected && setting.auto_sync_enabled? ? :done : :todo, nil, mirror_configuration_path(project, "schedule")]
     ]
@@ -101,7 +111,7 @@ module MirrorHelper
 
   # Getting started is shown until a first synchronization succeeded.
   def mirror_setup_complete?(steps)
-    steps.first(5).all? { |step| step[1] == :done }
+    steps.first(4).all? { |step| step[1] == :done }
   end
 
   # Local record with the same name as an unmapped source reference, preselected in the
@@ -145,6 +155,22 @@ module MirrorHelper
     else
       column_content(column, setting)
     end
+  end
+
+  # Live progress of a running execution (RunProgress): the module in progress, its
+  # position and the share of modules done, counting the current one by its objects.
+  def mirror_progress_summary(progress)
+    modules = Array(progress["modules"])
+    return nil if modules.empty?
+    current_index = modules.index { |entry| entry["state"] == "running" }
+    finished = modules.count { |entry| entry["state"] == "done" }
+    current = current_index && modules[current_index]
+    # A total exceeded by the objects handled is not that module's total (RunProgress).
+    total = current && current["total"] && current["done"] <= current["total"] ? current["total"] : nil
+    fraction = finished + (total && total.positive? ? current["done"].fdiv(total) : 0)
+    { phase: progress["phase"], modules: modules, current: current, total: total,
+      position: (current_index || finished.clamp(1, modules.size) - 1) + 1, count: modules.size,
+      percentage: [(fraction * 100 / modules.size).floor, 99].min }
   end
 
   def mirror_duration(seconds)
@@ -225,7 +251,7 @@ module MirrorHelper
       linked: linked.fetch(adapter.key, 0),
       parts: MODULE_PARTS.fetch(adapter.key, []).to_h { |key| [key, linked.fetch(key, 0)] },
       run: run,
-      actions: run ? run.log_events.select { |event| event["module"] == adapter.key }.map { |event| event["action"] }.tally : {},
+      actions: run ? run.log_entries.where(module_key: adapter.key).group(:action).count : {},
       conflicts: project.mirror_conflicts.where(module_key: adapter.key, status: "open").count,
       unmapped: unmapped[adapter.key].to_i,
       checks: adapter.overview_checks(project, setting, catalog.dig("module_statistics", adapter.key) || {}),
@@ -322,9 +348,31 @@ module MirrorHelper
     when "deletions"
       guide[:text] = l(:text_mirror_guide_deletions)
       add.call(:label_mirror_guide_overview, mirror_page_path(@project))
+    when "assignee_not_assignable", "watcher_no_access"
+      guide[:name] = params["name"]
+      guide[:text] = l("text_mirror_guide_#{code}".to_sym, name: params["name"] || l(:label_mirror_guide_unnamed_user))
+      add.call(:label_mirror_add_member, User.current.allowed_to?(:manage_members, @project) && settings_project_path(@project, tab: "members"))
+      add.call(:label_mirror_fix_mapping, manager && mirror_configuration_path(@project, "users"))
+    when "repository_unreadable"
+      guide[:text] = l(:text_mirror_guide_repository_unreadable)
+      add.call(:label_mirror_fix_repository_paths, manager && mirror_configuration_path(@project, "repositories"))
+    when "issue_not_imported", "wiki_parent_missing", "source_file_missing"
+      guide[:text] = l("text_mirror_guide_#{code}".to_sym)
     end
-    guide[:text] = [guide[:text], l(:text_mirror_guide_ask)].compact.join(" ") if guide[:actions].empty? && code != "source_permission"
+    # Nothing to ask for: a source permission or file, or objects that follow another fix.
+    unless %w[source_permission source_file_missing issue_not_imported wiki_parent_missing].include?(code)
+      guide[:text] = [guide[:text], l(:text_mirror_guide_ask)].compact.join(" ") if guide[:actions].empty?
+    end
     guide
+  end
+
+  # A permission or a role visibility an account lacks on a Mirror source project.
+  def mirror_source_gap_label(name)
+    case name
+    when :issues_visibility then "#{l(:field_issues_visibility)} : #{l(:label_issues_visibility_all)}"
+    when :time_entries_visibility then "#{l_or_humanize(:time_entries_visibility, prefix: 'field_')} : #{l_or_humanize(:time_entries_visibility_all, prefix: 'label_')}"
+    else l_or_humanize(name, prefix: "permission_")
+    end
   end
 
   # What to settle before a preview, found from the configuration alone: references

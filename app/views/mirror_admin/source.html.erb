@@ -29,6 +29,9 @@ enabled it and what they share, then every session across projects, or one sessi
   <%= l(RedmineMirror::Source.enabled? ? :text_mirror_admin_source_enabled : :text_mirror_admin_source_disabled, days: RedmineMirror::Source.retention_days) %>
   <%= link_to l(:label_mirror_admin_configuration), plugin_settings_path("redmine_mirror") %>
 </p>
+<% if RedmineMirror::Source.address_missing? %>
+  <p class="warning" id="mirror-source-no-address"><%= l(:text_mirror_source_no_address) %></p>
+<% end %>
 
 <% if @accesses %>
   <h3><%= link_to_project(@session_project) %> — <%= l(:label_mirror_source_details) %></h3>
@@ -67,6 +70,6 @@ enabled it and what they share, then every session across projects, or one sessi
     </fieldset>
   <% end %>
   <%= render "mirror_source_settings/sessions", sessions: @sessions, show_project: true,
-        details_path: ->(row) { mirror_admin_source_path(project_id: row.project_id, session: row.session_key) } %>
+        details_path: ->(row) { mirror_admin_source_path(mirror_source_session_params(row).merge(project_id: row.project_id)) } %>
   <span class="pagination"><%= pagination_links_full @session_pages, @session_count %></span>
 <% end %>

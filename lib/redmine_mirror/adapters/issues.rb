@@ -63,7 +63,7 @@ module RedmineMirror
         end
       end
 
-      # A source without Mirror's acknowledged journal can still limit ordinary issue
+      # A source without Mirror's change journal can still limit ordinary issue
       # reads by Redmine's native timestamp filter. Failed issues are read explicitly so
       # fixing a mapping retries them even when their source timestamp did not change.
       def records_updated_since(client, project_id, since, retry_ids = [])
@@ -126,9 +126,19 @@ module RedmineMirror
         fields.priority_for(value, source_id: source_id, project: project)
       end
 
-      # Redmine's REST API refuses a locked assignee and a version that is not open,
-      # although an existing issue keeps both when they are locked or closed later.
-      # Those references are held back from the API write and restored locally.
+      # Redmine refuses an assignee who is not a member of the project with an assignable
+      # role, without naming the account: the run page then says whom to add.
+      def explain_refusal(error, payload)
+        return error unless error.details.nil? && error.message.include?("Assignee is invalid") && payload.is_a?(Hash)
+        user = Principal.find_by(id: payload["assigned_to_id"])
+        return error unless user
+        Error.new(error.message, details: { "code" => "assignee_not_assignable", "id" => user.id.to_s, "name" => user.name })
+      end
+
+      # Redmine's REST API refuses a locked assignee, an assignee who is not an assignable
+      # member of the project, and a version that is not open, although an existing issue
+      # keeps them when they change later. Those references are held back from the API
+      # write and restored locally, as on the source.
       def rest_attributes(payload)
         held = local_references(payload)
         held.empty? ? payload : payload.except(*held)
@@ -137,7 +147,7 @@ module RedmineMirror
       def local_references(payload)
         held = []
         assignee = payload["assigned_to_id"]
-        held << "assigned_to_id" if RedmineMirror.inactive_user?(assignee)
+        held << "assigned_to_id" if RedmineMirror.inactive_user?(assignee) || !assignable?(assignee, payload["project_id"])
         version_id = payload["fixed_version_id"]
         if version_id.is_a?(Integer)
           version = Version.find_by(id: version_id)
@@ -145,6 +155,13 @@ module RedmineMirror
           held << "fixed_version_id" unless version.open?
         end
         held
+      end
+
+      # Read once per project and run: the members module runs before issues.
+      def assignable?(principal_id, project_id)
+        return true unless principal_id.is_a?(Integer) && project_id
+        ids = (@assignable_ids ||= {})[project_id] ||= Project.find(project_id).assignable_users.map(&:id)
+        ids.include?(principal_id)
       end
 
       # Update an imported issue as the REST API would (same account, permissions, workflow

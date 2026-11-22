@@ -1,0 +1,48 @@
+<%#
+File: redmine_mirror/app/views/mirror_source_settings/_client_status.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+What still keeps destinations out of this project: each lock, and what each authorized
+account lacks, so that the person configuring it sees why a destination is refused.
+%><% status = RedmineMirror::Source.client_status(@project) %>
+<% gaps_text = ->(names) { names.map { |name| mirror_source_gap_label(name) }.join(", ") } %>
+<% open = RedmineMirror::Source.enabled? && status[:addresses].any? && status[:key] && status[:accounts].any? { |account| account[:problems].none? { |kind, _| %i[locked admin].include?(kind) } } %>
+<div class="box" id="mirror-source-status">
+  <h3><%= l(:label_mirror_source_status) %></h3>
+  <p class="<%= open ? 'mirror-source-open' : 'warning' %>" id="mirror-source-status-summary"><%= l(open ? :text_mirror_source_status_open : :text_mirror_source_status_closed) %></p>
+  <ul>
+    <li class="<%= RedmineMirror::Source.enabled? ? 'mirror-ok' : 'mirror-missing' %>"><%= l(RedmineMirror::Source.enabled? ? :text_mirror_source_status_enabled : :text_mirror_source_disabled) %></li>
+    <li class="<%= status[:addresses].any? ? 'mirror-ok' : 'mirror-missing' %>" id="mirror-source-status-addresses">
+      <%= status[:addresses].any? ? l(:text_mirror_source_status_addresses, addresses: status[:addresses].join(", ")) : l(:text_mirror_source_status_no_address) %></li>
+    <li class="<%= status[:key] ? 'mirror-ok' : 'mirror-missing' %>" id="mirror-source-status-key">
+      <%= l(status[:key] ? :text_mirror_source_status_key : :text_mirror_source_status_no_key) %></li>
+    <li class="<%= status[:accounts].any? ? 'mirror-ok' : 'mirror-missing' %>" id="mirror-source-status-accounts">
+      <%= l(status[:accounts].any? ? :text_mirror_source_status_accounts : :text_mirror_source_status_no_account) %>
+      <% if status[:accounts].any? %>
+        <ul>
+        <% status[:accounts].each do |account| %>
+          <li class="<%= account[:problems].empty? ? 'mirror-ok' : 'mirror-missing' %>"><%= link_to_user account[:user] %> —
+            <% if account[:problems].empty? %><%= l(:text_mirror_source_account_ready) %><% end %>
+            <% account[:problems].each do |kind, names| %>
+              <div class="mirror-source-account-problem"><%= l("text_mirror_source_account_#{kind}".to_sym, missing: gaps_text.call(names)) %></div>
+            <% end %>
+          </li>
+        <% end %>
+        </ul>
+      <% end %></li>
+    <% if status[:children_out_of_sync].positive? %>
+      <li class="mirror-missing" id="mirror-source-status-subprojects"><%= l(:text_mirror_source_status_subprojects, count: status[:children_out_of_sync]) %></li>
+    <% end %>
+  </ul>
+</div>

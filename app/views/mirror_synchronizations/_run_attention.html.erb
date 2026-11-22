@@ -1,0 +1,58 @@
+<%#
+File: redmine_mirror/app/views/mirror_synchronizations/_run_attention.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Execution tab of what to check: errors by cause with their fix, warnings and special cases.
+%><div class="box" id="mirror-run-attention">
+  <% causes, consequences = @error_groups.partition { |group| !group[:consequence] } %>
+  <% if @error_groups.any? %>
+    <p id="mirror-attention-intro"><%= l(:text_mirror_attention_intro, causes: causes.size, objects: consequences.sum { |group| group[:count] }) %></p>
+  <% end %>
+  <% if causes.any? %>
+    <h3><%= l(:label_mirror_causes_to_fix) %></h3>
+    <p><em class="info"><%= l(:text_mirror_errors_by_cause) %></em></p>
+    <ul id="mirror-error-causes">
+    <% causes.first(20).each do |group| %>
+      <% guide = group[:code] ? mirror_guidance(group[:code], group[:params]) : nil %>
+      <li><%= group[:reason] %><%= " (#{guide[:name]})" if guide&.dig(:name) %> —
+        <%= link_to l(:label_mirror_objects_count, count: group[:count]), project_mirror_run_path(@project, @run, action_filter: "error", reason: group[:key]) %>
+        <% if guide %>
+          <div class="mirror-guide"><%= guide[:text] %>
+            <%= safe_join(guide[:actions].map { |label, path| link_to(label, path, class: "mirror-fix") }, " · ") %></div>
+        <% end %>
+      </li>
+    <% end %>
+    </ul>
+  <% end %>
+  <% if consequences.any? %>
+    <h3><%= l(:label_mirror_consequences) %></h3>
+    <ul id="mirror-error-consequences">
+    <% consequences.each do |group| %>
+      <li><%= mirror_guidance(group[:code], group[:params])[:text] %>
+        <div><%= safe_join(group[:modules].map { |module_key, count| link_to("#{mirror_module_label(module_key)} (#{count})", project_mirror_run_path(@project, @run, action_filter: "error", reason: group[:key], module_key: module_key)) }, " · ") %></div>
+      </li>
+    <% end %>
+    </ul>
+  <% end %>
+  <% if @warning_counts.any? %>
+    <p><strong><%= l(:label_mirror_warnings_by_cause) %></strong></p>
+    <ul id="mirror-warning-causes"><% @warning_counts.first(20).each do |warning, count| %><li><%= mirror_reason(warning) %> — <%= link_to l(:label_mirror_objects_count, count: count), project_mirror_run_path(@project, @run, warning: warning) %></li><% end %></ul>
+  <% end %>
+  <% if @flag_counts.any? %>
+    <p><strong><%= l(:label_mirror_special_cases) %></strong>
+    <% @flag_counts.sort.each do |flag, count| %>
+      <%= link_to "#{mirror_flag_label(flag)} (#{count})", project_mirror_run_path(@project, @run, flag: flag), class: "mirror-flag" %>
+    <% end %></p>
+  <% end %>
+</div>

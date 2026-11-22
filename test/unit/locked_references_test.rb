@@ -35,6 +35,15 @@ class MirrorLockedReferencesTest < ActiveSupport::TestCase
     refute_includes ids, 8 # active, not a member
   end
 
+  def test_refused_assignee_is_named_for_the_run_page
+    adapter = RedmineMirror::Adapters::Issues.new
+    refusal = RedmineMirror::Error.new("Redmine API returned HTTP 422 for POST issues.json: Assignee is invalid")
+    details = adapter.explain_refusal(refusal, { "assigned_to_id" => 8 }).details
+    assert_equal({ "code" => "assignee_not_assignable", "id" => "8", "name" => User.find(8).name }, details)
+    other = RedmineMirror::Error.new("Redmine API returned HTTP 422 for POST issues.json: Subject cannot be blank")
+    assert_same other, adapter.explain_refusal(other, { "assigned_to_id" => 8 })
+  end
+
   def test_issue_holds_back_locked_assignee_and_closed_versions
     adapter = RedmineMirror::Adapters::Issues.new
     payload = { "subject" => "S", "assigned_to_id" => LOCKED, "fixed_version_id" => 1, "project_id" => 1 }
@@ -42,6 +51,8 @@ class MirrorLockedReferencesTest < ActiveSupport::TestCase
     assert_equal ["fixed_version_id"], adapter.local_references(payload.merge("assigned_to_id" => 2, "fixed_version_id" => 2))
     open = payload.merge("assigned_to_id" => 2, "fixed_version_id" => 3)
     assert_same open, adapter.rest_attributes(open)
+    # An active user who is not a member, as when removed from the source project later.
+    assert_equal ["assigned_to_id"], adapter.local_references(open.merge("assigned_to_id" => 8))
   end
 
   def test_issue_rejects_a_version_not_shared_with_the_project

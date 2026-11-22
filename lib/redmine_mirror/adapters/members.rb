@@ -53,7 +53,9 @@ module RedmineMirror
     # wins, a member's own roles are exactly the mapped source roles.
     class Members < Base
       def key; "project_members"; end
-      def incremental?; true; end
+      # A changed alias can remove a role still supplied by another source member.
+      # Read the complete membership list to compute their combined roles safely.
+      def incremental?; false; end
       def phase; :references; end
       def dependencies; ["users"]; end
       def mapping_tables; [RoleMappingTable.new, GroupMappingTable.new]; end
@@ -80,6 +82,19 @@ module RedmineMirror
 
       def records_for(client, _project_id, source_ids)
         source_ids.sort.map { |id| client.get("memberships/#{Integer(id)}.json").fetch("membership") }
+      end
+
+      def prepare_records(records, mappings:, source_project_id:)
+        rows = records.select { |record| record.fetch("project").fetch("id").to_i == source_project_id }
+        groups = rows.group_by do |record|
+          kind = record["user"] ? "user" : "group"
+          value = mappings.fetch(kind, {})[record.fetch(kind).fetch("id").to_s].to_s
+          value.match?(/\A\d+\z/) && value.to_i.positive? ? value.to_i : [kind, record.fetch("id")]
+        end
+        groups.values.flat_map do |members|
+          roles = members.flat_map { |record| self.class.own_roles(record) }.uniq { |role| role.fetch("id") }
+          members.map { |record| record.merge("combined_roles" => roles) }
+        end
       end
 
       UNMAPPED = %w[block skip].freeze
@@ -115,7 +130,9 @@ module RedmineMirror
         if !Policy.source_wins? && previous && previous.fetch("source_fingerprint") == digest(roles) && digest(roles & current) != previous.fetch("destination_fingerprint")
           raise Error, "Local modification detected for project_members: a role given from the source was removed locally from #{principal.name}"
         end
-        target = Policy.source_wins? ? roles : (current + roles).uniq.sort
+        combined_roles = record.fetch("combined_roles", self.class.own_roles(record))
+          .filter_map { |role| optional_map(mappings, "role", role.fetch("id")) }.uniq.sort
+        target = Policy.source_wins? ? combined_roles : (current + combined_roles).uniq.sort
         event[:destination_id] = member&.id
         event[:action] = member ? (target == current ? "unchanged" : "update") : "create"
         if apply
