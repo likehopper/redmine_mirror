@@ -18,7 +18,23 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Minimum declared Redmine version: **5.0** as a destination, **4.0** as a source with
 Mirror source (source only). This is not a compatibility certification.
-Current plugin version: **1.0.0-beta.54**.
+Current plugin version: **1.0.0-beta.55**.
+
+## 1.0.0-beta.55 validation — 2026-11-22
+
+Candidate based on `v1.0.0-beta.54` with bounded HTTP response bodies, source access
+sessions kept distinct by account, address and purpose, SQL group counts, batched run
+diagnostics and progress writes, project-scoped hidden-email fingerprints, normalized
+source accounts and clarified native-API boundaries.
+
+- `bash test/compatibility/run.sh`: Redmine 6.1.4 / Ruby 3.4.11 / Rails 7.2.3.2 /
+  SQLite; 387 Redmine tests, 2,327 assertions, no failures, errors or skips. The same
+  runner passed the standalone suites, including core (64 tests, 248 assertions), HTTP
+  client (12 tests, 66 assertions) and diagnosis (4 tests, 13 assertions), plus fresh
+  install and uninstall/reinstall.
+- Not rerun for this candidate: PostgreSQL, MySQL, MariaDB, Redmine 4 source-only,
+  interinstance smokes, `versions.sh` and documentation guides. Their beta.54 results
+  below are historical evidence for that exact source, not beta.55 validation.
 
 ## 1.0.0-beta.54 validation — 2026-11-22
 

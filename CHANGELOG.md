@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.55 — 2026-11-22
 
 - Bound JSON responses as file downloads already were, so an unexpectedly large source
   response cannot exhaust the worker's memory.
