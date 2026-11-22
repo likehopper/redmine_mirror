@@ -326,8 +326,15 @@ itself and shows the phase, each module with its state and the source objects ha
 out of the total the source gives, and the log fills as objects are written. The other
 Mirror tabs link to it with **Follow the execution**.
 
-In the log, errors are grouped by cause, the largest first: fixing one unblocks all its
-objects. Each cause is explained, with links to where it is fixed when the current user
+A finished execution has three tabs: **Summary** (actions per module, each count opens
+its objects), **To check** (errors by cause, warnings and special cases) and **Execution
+log** (the objects, filtered by module, action, source ID or special case, and grouped by
+module, action or reason).
+
+In **To check**, errors are grouped by cause, the largest first: fixing one unblocks all its
+objects. Objects that failed only because an object they depend on failed (the issue of a
+journal, attachment or watcher, the parent of a wiki page) are listed apart, by module:
+they are written at the next synchronization once the cause is fixed. Each cause is explained, with links to where it is fixed when the current user
 may do it (a mapping tab, the project settings, a custom field, a workflow, a conflict),
 otherwise who to ask. A version inherited from a parent project points to the local
 project that mirrors that parent: synchronize it first.

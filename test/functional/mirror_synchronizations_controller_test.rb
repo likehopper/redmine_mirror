@@ -186,11 +186,18 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
       { "module" => "issue_tracking", "source_id" => 4, "destination_id" => 2, "action" => "create" },
       { "module" => "time_tracking", "source_id" => 9, "destination_id" => 5, "action" => "unchanged" }])
     get :show, params: { project_id: @project.identifier, id: run.id }
-    assert_select "#mirror-run-summary", text: /Converted: Textile → HTML \(CKEditor\) \(1\)/
+    # Summary, what to check and the journal are tabs; the summary opens first.
+    assert_select "#tab-summary.selected"
+    assert_select "#mirror-run-summary a[href*='action_filter=unchanged']", text: "1"
+    assert_select "#mirror-run-attention", text: /Converted: Textile → HTML \(CKEditor\) \(1\)/
     assert_select "#mirror-log tbody tr", 3
     get :show, params: { project_id: @project.identifier, id: run.id, flag: "any" }
+    assert_select "#tab-log.selected"
     assert_select "#mirror-log tbody tr", 1
     assert_select "#mirror-log .mirror-flag", text: "Issue numbers (#123)"
+    get :show, params: { project_id: @project.identifier, id: run.id, group_by: "module_key" }
+    assert_select "#mirror-log tr.group", 2
+    assert_select "#mirror-log tr.group", text: /Time tracking\s+1/
   end
 
   def test_warnings_and_conflicts_link_to_where_they_are_fixed
@@ -434,6 +441,28 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     get :show, params: { project_id: @project.identifier, id: run.id, action_filter: "error", reason: "Other cause" }
     assert_select "#mirror-log tbody tr", 1
     assert_select "#mirror-reason-filter", text: /Other cause/
+    # Refused downloads of different files are one cause.
+    log_mirror_events(run, [328, 500].map { |id| { "module" => "issue_attachments", "source_id" => id, "action" => "error",
+      "reason" => "Redmine API returned HTTP 404 for GET attachments/download/#{id}" } })
+    get :show, params: { project_id: @project.identifier, id: run.id }
+    assert_select "#mirror-error-causes li", text: %r{HTTP 404 for GET attachments/download/… — 2 object\(s\)}
+    get :show, params: { project_id: @project.identifier, id: run.id, action_filter: "error", reason: "source_file_missing" }
+    assert_select "#mirror-log tbody tr", 2
+    assert_select "#mirror-reason-filter", text: %r{attachments/download/…}
+  end
+
+  def test_to_check_tab_separates_causes_from_their_consequences
+    run = log_mirror_events(@project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "partial"), [
+      { "module" => "issue_tracking", "source_id" => 1, "action" => "error", "reason" => "Redmine API returned HTTP 422 for POST issues.json: Assignee is invalid",
+        "details" => { "code" => "assignee_not_assignable", "id" => "2", "name" => "John Smith" } },
+      { "module" => "issue_journals", "source_id" => 2, "action" => "error", "reason" => "Missing destination issue correspondence" },
+      { "module" => "issue_journals", "source_id" => 3, "action" => "error", "reason" => "Missing destination issue correspondence" }])
+    get :show, params: { project_id: @project.identifier, id: run.id, tab: "attention" }
+    assert_select "#mirror-attention-intro", text: /1 cause\(s\) to fix. 2 other object\(s\)/
+    assert_select "#mirror-error-causes li", text: /Assignee is invalid \(John Smith\)/
+    assert_select "#mirror-error-causes .mirror-guide", text: /Add John Smith to the project members/
+    assert_select "#mirror-error-consequences li", 1
+    assert_select "#mirror-error-consequences a[href*='module_key=issue_journals']", text: "Issue history (2)"
   end
 
   def test_failure_is_logged_and_lock_is_released

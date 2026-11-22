@@ -193,6 +193,8 @@ module RedmineMirror
         # Keep the first actionable divergence and stop; remaining records are
         # deliberately left unprocessed rather than reported as successful.
         rescue Error => error
+          # The adapter may name what a refusal is about (Issues: the assignee to add as a member).
+          error = adapter.explain_refusal(error, payload) if adapter.respond_to?(:explain_refusal)
           @mapping_store.record_conflict(adapter.key, record.fetch("id"), error) if @mapping_store.respond_to?(:record_conflict)
           if config["track_retries"] && @mapping_store.respond_to?(:record_retry)
             parent_id = adapter.is_a?(Adapters::IssueChildren) ? adapter.source_issue_ids(record).first : nil

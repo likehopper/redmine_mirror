@@ -157,6 +157,7 @@ class MirrorHistorySystemTest < ApplicationSystemTestCase
     assert_current_path(/status=succeeded/)
     within("#mirror-history") { click_link run.id.to_s }
     assert_current_path "/projects/ecookbook/mirror/synchronizations/#{run.id}", ignore_query: true
+    find("#tab-log").click
     select "Time tracking", from: "module_key"
     click_button "Apply"
     assert_current_path(/module_key=time_tracking/)

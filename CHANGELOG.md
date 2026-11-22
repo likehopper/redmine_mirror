@@ -16,6 +16,19 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+- **Execution page in tabs**: Summary (actions per module, each count opens its objects),
+  To check (errors by cause, warnings, special cases) and Execution log, which can now be
+  grouped by module, action or reason.
+- **What to fix, explained**: To check separates the causes to fix from the objects that
+  failed only because an object they depend on failed (an issue, a parent wiki page);
+  those are listed by module and pass once the cause is fixed. New explanations: an
+  assignee who is not an assignable member (the refused account is named, with links to
+  add a member or change the mapping), a watcher who cannot see the issue, a file missing
+  on the source (HTTP 404), an unreadable repository. Refused downloads and repositories
+  are one cause each instead of one line per file or path.
+
 ## 1.0.0-beta.53 — 2026-11-21
 
 Run the plugin migrations (26) before restarting Redmine and the worker.

@@ -336,8 +336,21 @@ module MirrorHelper
     when "deletions"
       guide[:text] = l(:text_mirror_guide_deletions)
       add.call(:label_mirror_guide_overview, mirror_page_path(@project))
+    when "assignee_not_assignable", "watcher_no_access"
+      guide[:name] = params["name"]
+      guide[:text] = l("text_mirror_guide_#{code}".to_sym, name: params["name"] || l(:label_mirror_guide_unnamed_user))
+      add.call(:label_mirror_add_member, User.current.allowed_to?(:manage_members, @project) && settings_project_path(@project, tab: "members"))
+      add.call(:label_mirror_fix_mapping, manager && mirror_configuration_path(@project, "users"))
+    when "repository_unreadable"
+      guide[:text] = l(:text_mirror_guide_repository_unreadable)
+      add.call(:label_mirror_fix_repository_paths, manager && mirror_configuration_path(@project, "repositories"))
+    when "issue_not_imported", "wiki_parent_missing", "source_file_missing"
+      guide[:text] = l("text_mirror_guide_#{code}".to_sym)
     end
-    guide[:text] = [guide[:text], l(:text_mirror_guide_ask)].compact.join(" ") if guide[:actions].empty? && code != "source_permission"
+    # Nothing to ask for: a source permission or file, or objects that follow another fix.
+    unless %w[source_permission source_file_missing issue_not_imported wiki_parent_missing].include?(code)
+      guide[:text] = [guide[:text], l(:text_mirror_guide_ask)].compact.join(" ") if guide[:actions].empty?
+    end
     guide
   end
 

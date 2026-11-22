@@ -370,9 +370,9 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     assert_text "Execution queued"
     run = run_worker
     assert_equal "partial", run.status, run.error_message
-    visit "/projects/#{PROJECT}/mirror/synchronizations/#{run.id}"
+    visit "/projects/#{PROJECT}/mirror/synchronizations/#{run.id}?tab=attention"
     assert_selector "#mirror-error-causes .mirror-guide"
-    screenshot "36-guided-errors", "#mirror-run-summary"
+    screenshot "36-guided-errors", "#mirror-run-attention"
   end
 
   # A source project that shares Users (Mirror source): a source user without an account

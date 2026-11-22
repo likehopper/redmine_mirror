@@ -126,6 +126,15 @@ module RedmineMirror
         fields.priority_for(value, source_id: source_id, project: project)
       end
 
+      # Redmine refuses an assignee who is not a member of the project with an assignable
+      # role, without naming the account: the run page then says whom to add.
+      def explain_refusal(error, payload)
+        return error unless error.details.nil? && error.message.include?("Assignee is invalid") && payload.is_a?(Hash)
+        user = Principal.find_by(id: payload["assigned_to_id"])
+        return error unless user
+        Error.new(error.message, details: { "code" => "assignee_not_assignable", "id" => user.id.to_s, "name" => user.name })
+      end
+
       # Redmine's REST API refuses a locked assignee and a version that is not open,
       # although an existing issue keeps both when they are locked or closed later.
       # Those references are held back from the API write and restored locally.

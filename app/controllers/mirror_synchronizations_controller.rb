@@ -94,10 +94,19 @@ class MirrorSynchronizationsController < ApplicationController
     end
     @event_count = scope.count
     @event_pages = Paginator.new(@event_count, 50, params[:page])
-    @events = scope.order(:id).offset(@event_pages.offset).limit(50).map(&:to_event)
+    # Grouped rows are ordered by their group first, as in Redmine's issue list.
+    @group_by = params[:group_by].presence_in(LOG_GROUPS)
+    @group_counts = @group_by ? scope.group(@group_by).count : {}
+    order = @group_by ? [@group_by, :id] : [:id]
+    @events = scope.order(*order).offset(@event_pages.offset).limit(50).map(&:to_event)
+    # A filtered or paged journal opens on its own tab.
+    log_params = %i[module_key action_filter source_id flag warning reason group_by page]
+    @tab = params[:tab].presence || (log_params.any? { |name| params[name].present? } ? "log" : "summary")
   end
 
   private
+
+  LOG_GROUPS = %w[module_key action reason].freeze
 
   # Causes that differ only by the source object ID are one cause.
   def mirror_connection_key

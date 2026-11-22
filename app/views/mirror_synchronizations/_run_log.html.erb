@@ -1,0 +1,54 @@
+<%#
+File: redmine_mirror/app/views/mirror_synchronizations/_run_log.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Execution journal tab: filters, optional grouping and the paginated objects.
+%><%= form_tag project_mirror_run_path(@project, @run), method: :get, id: "mirror-log-filters" do %>
+<%= hidden_field_tag :tab, "log" %>
+<fieldset><legend><%= l(:label_filter_plural) %></legend>
+<%= label_tag :module_key, l(:label_mirror_modules) %>
+<%= select_tag :module_key, options_for_select([[l(:label_all), ""]] + @module_keys.map { |key| [mirror_module_label(key), key] }, params[:module_key]) %>
+<%= label_tag :action_filter, l(:label_mirror_action) %>
+<%= select_tag :action_filter, options_for_select([[l(:label_all), ""]] + %w[create update delete unchanged ignored note error].map { |key| [mirror_module_label(key), key] }, params[:action_filter]) %>
+<%= label_tag :source_id, l(:label_mirror_source) %><%= number_field_tag :source_id, params[:source_id], min: 1 %>
+<%= label_tag :flag, l(:label_mirror_special_cases) %>
+<%= select_tag :flag, options_for_select([[l(:label_all), ""], [l(:label_mirror_flag_any), "any"]] + @flag_counts.keys.sort.map { |flag| [mirror_flag_label(flag), flag] }, params[:flag]) %>
+<%= label_tag :group_by, l(:field_group_by) %>
+<%= select_tag :group_by, options_for_select([["", ""], [l(:label_mirror_modules), "module_key"], [l(:label_mirror_action), "action"], [l(:label_mirror_reason), "reason"]], @group_by) %>
+<%= hidden_field_tag :reason, params[:reason] if params[:reason].present? %>
+<%= hidden_field_tag :warning, params[:warning] if params[:warning].present? %>
+<%= submit_tag l(:button_apply) %><%= link_to l(:button_clear), project_mirror_run_path(@project, @run, tab: "log") %>
+</fieldset>
+<% end %>
+<% if params[:warning].present? %>
+  <p id="mirror-warning-filter"><strong><%= l(:label_mirror_warning) %>:</strong> <%= params[:warning] %> — <%= link_to l(:button_clear), project_mirror_run_path(@project, @run, tab: "log") %></p>
+<% end %>
+<% if params[:reason].present? %>
+  <p id="mirror-reason-filter"><strong><%= l(:label_mirror_error_cause) %>:</strong> <%= @error_groups.find { |group| group[:key] == params[:reason] }&.dig(:reason) || params[:reason] %> — <%= link_to l(:button_clear), project_mirror_run_path(@project, @run, action_filter: "error") %></p>
+<% end %>
+<table class="list" id="mirror-log"><thead><tr><th><%= l(:label_mirror_modules) %></th><th><%= l(:label_mirror_remote_id) %></th><th><%= l(:label_mirror_local_id) %></th><th><%= l(:label_mirror_action) %></th><th><%= l(:label_mirror_to_check) %></th><th><%= l(:label_mirror_reason) %></th></tr></thead><tbody>
+<% previous_group = nil %>
+<% @events.each_with_index do |event, index| %>
+<% if @group_by %>
+  <% group = { "module_key" => event["module"], "action" => event["action"], "reason" => event["reason"] }[@group_by] %>
+  <% if index.zero? || group != previous_group %>
+    <tr class="group open"><td colspan="6"><span class="name"><%= @group_by == "reason" ? (group.present? ? mirror_reason(group) : "—") : mirror_module_label(group) %></span> <span class="badge badge-count count"><%= @group_counts[group] %></span></td></tr>
+  <% end %>
+  <% previous_group = group %>
+<% end %>
+<tr><td><%= mirror_module_label(event["module"]) %></td><td><%= mirror_object_link(event["module"], event["source_id"], source_url: @source_url) %></td><td><%= mirror_object_link(event["module"], event.key?("destination_id") ? event["destination_id"] : @object_mappings[[event["module"], event["source_id"].to_i]]) %></td><td><%= event["action"] %></td><td><%= safe_join(Array(event["flags"]).map { |flag| content_tag(:span, mirror_flag_label(flag), class: "mirror-flag") }, " ") %></td><td><%= mirror_reason(event["reason"], event["details"]) %><% Array(event["warnings"]).each do |warning| %><div class="mirror-warning"><%= mirror_reason(warning) %></div><% end %><% if event["remote_issue_id"] %> — #<%= mirror_object_link("issue_tracking", event["remote_issue_id"], source_url: @source_url) %><% end %></td></tr>
+<% end %>
+</tbody></table>
+
+<span class="pagination"><%= pagination_links_full @event_pages, @event_count %></span>
