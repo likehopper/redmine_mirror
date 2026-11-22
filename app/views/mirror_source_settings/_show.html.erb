@@ -63,6 +63,39 @@ Mirror source tab of the project settings: authorized clients and shared data.
   <h3 id="mirror-source-subprojects"><%= l(:label_mirror_subprojects) %></h3>
   <% children = @project.descendants.where.not(status: Project::STATUS_ARCHIVED).visible.to_a %>
   <p><%= l(:text_mirror_source_subprojects_state, count: children.size, enabled: children.count { |child| child.module_enabled?(:mirror_source) }) %></p>
+  <table class="list" id="mirror-source-subprojects-summary">
+    <thead><tr>
+      <th><%= l(:field_project) %></th><th><%= l(:label_mirror_source_client_addresses) %></th><th><%= l(:label_mirror_source_authorized_users) %></th>
+      <th><%= l(:label_mirror_source_client_key) %></th><th><%= l(:label_mirror_source_shared) %></th><th><%= l(:label_mirror_source_last_access) %></th>
+    </tr></thead>
+    <tbody>
+    <% RedmineMirror::Source.subproject_summary(@project).each do |row| %>
+      <% child = row[:project] %>
+      <tr id="mirror-source-subproject-<%= child.id %>">
+        <td class="name"><%= link_to child.name, settings_project_path(child, tab: "mirror_source") %></td>
+        <% if row[:enabled] %>
+          <% %i[addresses accounts key modules].each do |part| %>
+            <td class="mirror-source-<%= part %> mirror-source-<%= row[part] %>"><%= l("label_mirror_source_setting_#{row[part]}".to_sym) %></td>
+          <% end %>
+        <% else %>
+          <td colspan="4" class="mirror-source-disabled"><%= l(child.closed? ? :text_mirror_source_subproject_closed : :text_mirror_source_subproject_disabled) %></td>
+        <% end %>
+        <td class="mirror-source-last-access">
+          <% if (access = row[:last_access]) %>
+            <%= link_to format_time(access.created_at), project_mirror_source_log_path(child) %> —
+            <% if access.action == "refused" %>
+              <span class="mirror-source-missing"><%= l(:label_mirror_source_access_refused, reason: l("text_mirror_source_refusal_#{access.reason}".to_sym, default: access.reason.to_s)) %></span>
+            <% else %>
+              <span class="mirror-source-same"><%= l(:label_mirror_source_access_served) %></span>
+            <% end %>
+          <% else %>
+            <%= l(:label_mirror_source_never_accessed) %>
+          <% end %>
+        </td>
+      </tr>
+    <% end %>
+    </tbody>
+  </table>
   <%= button_to l(:button_mirror_source_apply_to_subprojects), project_mirror_source_subprojects_path(@project), method: :post, id: "mirror-source-apply-subprojects" %>
   <p><em class="info"><%= l(:text_mirror_source_apply_to_subprojects) %></em></p>
 <% end %>

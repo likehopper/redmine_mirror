@@ -290,6 +290,31 @@ module RedmineMirror
         children_out_of_sync: children.count { |child| !same_clients?(child.mirror_source_setting, setting) } }
     end
 
+    # One row per subproject the person sees: whether its addresses, accounts, key and
+    # shared data match this project's (:same), differ (:custom) or are empty (:missing),
+    # and the last destination access. Shared data are compared with what the subproject's
+    # own modules can hold, as "Apply to subprojects" sets them.
+    def subproject_summary(project)
+      parent = project.mirror_source_setting
+      children = project.descendants.where.not(status: Project::STATUS_ARCHIVED).visible.order(:lft).to_a
+      last_ids = MirrorSourceAccess.where(project_id: children.map(&:id)).group(:project_id).maximum(:id)
+      last_accesses = MirrorSourceAccess.where(id: last_ids.values).index_by(&:project_id)
+      compare = lambda do |mine, theirs|
+        next :missing if mine.blank?
+        mine == theirs ? :same : :custom
+      end
+      children.map do |child|
+        row = { project: child, enabled: child.module_enabled?(:mirror_source), last_access: last_accesses[child.id] }
+        setting = child.mirror_source_setting
+        next row unless row[:enabled]
+        expected = parent&.shared_modules.to_a - kinds_without_module(child)
+        row.merge(addresses: compare.call(setting&.client_addresses.to_s.split, parent&.client_addresses.to_s.split),
+                  accounts: compare.call(setting&.authorized_user_ids.to_a.sort, parent&.authorized_user_ids.to_a.sort),
+                  key: compare.call(setting&.client_key_digest, parent&.client_key_digest),
+                  modules: compare.call(setting&.shared_modules.to_a.sort, expected.sort))
+      end
+    end
+
     def account_problems(project, user, setting)
       return [[:locked, []]] unless user.active?
       return [[:admin, []]] if user.admin?

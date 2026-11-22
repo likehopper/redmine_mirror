@@ -121,6 +121,37 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
     assert_equal "a" * 64, child_setting.client_key_digest
   end
 
+  # Each subproject: what matches this project, what differs or is still missing, and
+  # its last destination access, with links to its settings and its access log.
+  def test_subprojects_summary_compares_each_setting_and_shows_the_last_access
+    @project.enable_module!(:mirror_source)
+    MirrorSourceSetting.create!(project: @project, shared_modules: %w[documents],
+      client_addresses: "192.0.2.10", authorized_user_ids: [2], client_key_digest: "a" * 64)
+    [3, 4].each { |id| %i[mirror_source documents].each { |name| Project.find(id).enable_module!(name) } }
+    MirrorSourceSetting.create!(project: Project.find(3), shared_modules: %w[documents],
+      client_addresses: "192.0.2.10", authorized_user_ids: [2], client_key_digest: "a" * 64)
+    MirrorSourceSetting.create!(project: Project.find(4), shared_modules: %w[documents],
+      client_addresses: "198.51.100.1", authorized_user_ids: [2])
+    log_access("refused", project: Project.find(3), reason: "client_key")
+    Project.find(6).update_column(:status, Project::STATUS_CLOSED)
+    log_user("admin", "admin")
+    get "/projects/ecookbook/settings/mirror_source"
+    assert_select "#mirror-source-subproject-3" do
+      assert_select "a[href='/projects/subproject1/settings/mirror_source']"
+      %w[addresses accounts key modules].each { |part| assert_select "td.mirror-source-#{part}.mirror-source-same" }
+      assert_select "td.mirror-source-last-access a[href='/projects/subproject1/mirror_source']"
+      assert_select "td.mirror-source-last-access", text: /Refused: Mirror application key not authorized/
+    end
+    assert_select "#mirror-source-subproject-4" do
+      assert_select "td.mirror-source-addresses.mirror-source-custom"
+      assert_select "td.mirror-source-accounts.mirror-source-same"
+      assert_select "td.mirror-source-key.mirror-source-missing"
+      assert_select "td.mirror-source-last-access", text: /No access yet/
+    end
+    assert_select "#mirror-source-subproject-5 td.mirror-source-disabled", text: "Mirror source not enabled"
+    assert_select "#mirror-source-subproject-6 td.mirror-source-disabled", text: /closed project/
+  end
+
   def test_subprojects_without_the_permissions_are_left_as_they_are
     @project.enable_module!(:mirror_source)
     MirrorSourceSetting.create!(project: @project, shared_modules: %w[documents])

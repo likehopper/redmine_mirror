@@ -567,7 +567,11 @@ only, and categories to their managers only, without sharing. On the source Redm
    there, among the data its own modules hold. Subprojects are
    not configured otherwise: a later change in the parent reaches them only when applied
    again, and the API account needs a role in each one (or the subproject inherits the
-   members).
+   members). Closed subprojects are skipped: Redmine forbids changing their modules.
+   The table below the button lists each subproject: whether its addresses, accounts,
+   key and shared data are the same as the parent's, customized or still to configure,
+   and its last destination access (served or refused, with the reason). The project
+   name opens its Mirror source settings; the date opens its access log.
    Custom field definitions and repository credentials are offered only when the
    administrator checked them under **Data projects may share**: they are never allowed
    by default. Even then, repository credentials are
