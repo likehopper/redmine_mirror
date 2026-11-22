@@ -1,0 +1,26 @@
+<%#
+File: redmine_mirror/app/views/mirror_conflicts/context_menu.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Context menu of the selected conflicts: each resolution applies to all of them.
+%><% ids = @conflicts.map(&:id) %>
+<ul>
+  <li><%= context_menu_link l(:button_mirror_take_source), project_mirror_conflicts_bulk_update_path(@project, ids: ids, resolution: "source", back_url: @back),
+        method: :patch, data: { confirm: l(:text_mirror_take_source_confirm, count: ids.size) }, class: "icon icon-reload" %></li>
+  <li><%= context_menu_link l(:button_mirror_keep_local), project_mirror_conflicts_bulk_update_path(@project, ids: ids, resolution: "ignore", back_url: @back),
+        method: :patch, data: { confirm: l(:text_mirror_keep_local_confirm) }, class: "icon icon-lock",
+        disabled: @conflicts.none?(&:destination_id) %></li>
+  <li><%= context_menu_link l(:button_mirror_recheck), project_mirror_conflicts_bulk_update_path(@project, ids: ids, resolution: "recheck", back_url: @back),
+        method: :patch, class: "icon icon-checked" %></li>
+</ul>

@@ -16,12 +16,17 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 Group operational items that require a decision or another project synchronization.
 %><section id="mirror-conflicts-section">
   <h3><%= l(:label_mirror_conflicts) %></h3>
-  <%= render "mirror/conflicts" %>
+  <p><%= l(:text_mirror_conflicts_summary) %></p>
+  <ul id="mirror-conflict-counts">
+    <% MirrorConflict::STATUSES.each do |status| %>
+      <li><%= link_to "#{l("label_mirror_conflict_#{status}")} (#{@conflict_counts.fetch(status, 0)})", mirror_conflicts_path(@project, status) %></li>
+    <% end %>
+  </ul>
+  <p><%= link_to l(:label_mirror_conflicts_list), mirror_conflicts_path(@project), class: "icon icon-list" %></p>
 </section>
 <section id="mirror-pending-section">
   <%= form_tag project_mirror_path(@project), method: :get do %>
     <%= hidden_field_tag :tab, "attention" %>
-    <%= hidden_field_tag :conflict_status, @conflict_status %>
     <%= label_tag :pending_status, l(:field_status), class: "hidden-for-sighted" %>
     <%= select_tag :pending_status, options_for_select([[l(:label_all), ""], [l(:label_mirror_relation_pending), "pending"], [l(:label_mirror_relation_blocked), "blocked"]], params[:pending_status]) %>
     <%= submit_tag l(:button_apply) %>

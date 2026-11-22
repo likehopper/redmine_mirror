@@ -157,6 +157,19 @@ class MirrorCoreTest < Minitest::Test
     assert_equal 1, @destination.records["issues"].size
   end
 
+  # A conflict resolved with the source version: the source wins for that object only.
+  def test_source_version_chosen_for_one_object_overwrites_only_that_object
+    runner = mirror_runner(2)
+    runner.run(@config, apply: true)
+    @destination.records["issues"].each { |issue| issue["subject"] = "Local edit" }
+    @store.define_singleton_method(:source_chosen?) { |key, id| key == "issue_tracking" && id == 1 }
+    first, second = runner.run(@config, apply: true)
+    assert_equal ["update", ["local_overwritten"]], [first[:action], first[:flags]]
+    assert_match(/Local modification/, second[:reason])
+    assert_equal ["Issue 1", "Local edit"], @destination.records["issues"].map { |issue| issue["subject"] }
+    refute RedmineMirror::Policy.source_wins?
+  end
+
   def test_source_deletions_are_verified_limited_and_confirmed
     runner = mirror_runner(30)
     config = @config.merge("source_wins" => true)

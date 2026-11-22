@@ -260,12 +260,13 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
     assert_equal "partial", run.status
     visit current_path
     screenshot "23-conflict-log", "#content", max_height: 460
-    visit "/projects/#{PROJECT}/mirror?tab=attention#mirror-conflicts-section"
-    assert_selector "#mirror-conflicts tbody tr", count: 1
+    visit "/projects/#{PROJECT}/mirror/conflicts"
+    assert_selector "#mirror-conflicts tbody tr.hascontextmenu", count: 1
+    find("#mirror-conflicts tbody tr.hascontextmenu td.module_key").right_click
     screenshot "24-conflicts", "#content"
-    accept_confirm { click_button "Keep local object" }
+    accept_confirm { within("#context-menu") { click_link "Keep local object" } }
     assert_selector "#flash_notice"
-    visit "/projects/#{PROJECT}/mirror?tab=attention&conflict_status=all#mirror-conflicts-section"
+    visit "/projects/#{PROJECT}/mirror/conflicts?set_filter=1&f[]="
     assert_selector "#mirror-conflicts td", text: "Kept locally"
     screenshot "25-conflict-kept", "#content"
 

@@ -25,10 +25,11 @@ class MirrorController < ApplicationController
   before_action :require_migrated_schema
 
   TABS = %w[overview history attention objects].freeze
-  LEGACY_TABS = { "conflicts" => ["attention", "mirror-conflicts-section"],
-                  "pending" => ["attention", "mirror-pending-section"] }.freeze
+  LEGACY_TABS = { "pending" => ["attention", "mirror-pending-section"] }.freeze
 
   def index
+    # Links saved before the conflicts got their own page keep their status filter.
+    return redirect_to(view_context.mirror_conflicts_path(@project, params[:conflict_status].presence || "open")) if params[:tab] == "conflicts"
     return redirect_legacy_tab if LEGACY_TABS.key?(params[:tab])
     @setting = @project.mirror_project_setting
     @tab = @setting && TABS.include?(params[:tab]) ? params[:tab] : "overview"
@@ -44,9 +45,7 @@ class MirrorController < ApplicationController
   def redirect_legacy_tab
     tab, anchor = LEGACY_TABS.fetch(params[:tab])
     query = request.query_parameters.except("tab")
-    if params[:tab] == "conflicts" && query["page"]
-      query["conflict_page"] = query.delete("page")
-    elsif params[:tab] == "pending" && query["page"]
+    if params[:tab] == "pending" && query["page"]
       query["relation_page"] = query.delete("page")
     end
     redirect_to project_mirror_path(@project, query.symbolize_keys.merge(tab: tab, anchor: anchor))
@@ -56,18 +55,9 @@ class MirrorController < ApplicationController
     render_error message: l(:text_mirror_pending_migrations), status: 503 unless MirrorProjectSetting.schema_current?
   end
 
-  # Open conflicts are the ones to handle: the tab lists them unless another status is chosen.
-  def prepare_conflicts
-    @conflict_status = %w[open ignored resolved all].include?(params[:conflict_status]) ? params[:conflict_status] : "open"
-    @conflicts = @project.mirror_conflicts.order(updated_at: :desc)
-    @conflicts = @conflicts.where(status: @conflict_status) unless @conflict_status == "all"
-    @conflict_count = @conflicts.count
-    @conflict_pages = Paginator.new(@conflict_count, 25, params[:conflict_page], :conflict_page)
-    @conflicts = @conflicts.limit(25).offset(@conflict_pages.offset)
-  end
-
+  # The tab counts conflicts by status; their list is a query page of its own.
   def prepare_attention
-    prepare_conflicts
+    @conflict_counts = @project.mirror_conflicts.group(:status).count
     prepare_pending
   end
 

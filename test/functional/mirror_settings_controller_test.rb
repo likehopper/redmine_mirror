@@ -44,7 +44,7 @@ class MirrorSettingsControllerTest < ActionController::TestCase
     get :show, params: { project_id: @project.identifier, tab: "synchronization" }
     assert_redirected_to "/projects/ecookbook/mirror"
     get :show, params: { project_id: @project.identifier, tab: "conflicts", conflict_status: "open" }
-    assert_redirected_to "/projects/ecookbook/mirror?conflict_status=open&tab=attention#mirror-conflicts-section"
+    assert_redirected_to project_mirror_conflicts_path(@project, set_filter: 1, f: ["status"], op: { status: "=" }, v: { status: ["open"] })
   end
 
   def test_relation_policy_is_saved_per_project

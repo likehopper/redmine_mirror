@@ -549,8 +549,13 @@ users who can configure Mirror see a **Mirror source issue** link.
 
 Mirror stores a fingerprint of the managed fields of every imported object. When a local
 value differs, the run stops at the first conflict and records it in
-**Conflicts** (module, remote and local IDs, reason, status).
+**Conflicts**, a Redmine query list of the project (module, remote and local IDs, reason,
+status, detection and last check dates, handled by) with filters, sorting and grouping.
+Its context menu resolves every selected conflict at once:
 
+- **Take the source version**: the next run imports this object as in mirror mode: the
+  local changes are replaced (a deleted object is created again), for this object only.
+  The conflict is then marked resolved. The replaced local values are not kept.
 - **Keep local object**: excludes this object, for this module and project only. The
   correspondence stays for dependencies; other modules (notes, attachments, watchers,
   custom fields) remain active. Each exclusion is logged.
@@ -558,8 +563,8 @@ value differs, the run stops at the first conflict and records it in
   conflict for the next run. Fingerprints are not reset: a remaining difference blocks
   again. A successful import marks the conflict resolved.
 
-Both require *Run Mirror synchronizations and resolve conflicts* and are refused while a run
-is queued or running.
+They require *Run Mirror synchronizations and resolve conflicts* and are refused while a run
+is queued or running. Viewers see the list without selection.
 There is no field merge. [Mirror mode](#mirror-mode) overwrites local changes instead of
 reporting them. This tracking applies to project runs (UI,
 worker or `MIRROR_PROJECT_ID`), not to the standalone JSON mode.

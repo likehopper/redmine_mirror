@@ -21,6 +21,13 @@ module MirrorHelper
   end
 
   # The Mirror page of the project menu: overview, history, attention and synchronized objects.
+  # The conflicts query page, filtered on one status ("all": no filter).
+  def mirror_conflicts_path(project, status = nil)
+    return project_mirror_conflicts_path(project) unless status
+    return project_mirror_conflicts_path(project, set_filter: 1, f: [""]) if status == "all"
+    project_mirror_conflicts_path(project, set_filter: 1, f: ["status"], op: { status: "=" }, v: { status: [status] })
+  end
+
   def mirror_page_path(project, tab = nil, **options)
     project_mirror_path(project, { tab: tab }.compact.merge(options))
   end
@@ -141,6 +148,16 @@ module MirrorHelper
 
   # Administration overview cells: the project links to its Mirror page, durations read
   # in hours and minutes; other cells use Redmine's query formatting.
+  # A conflict row: objects link to both sides, the reason is shown translated.
+  def mirror_conflict_column_content(column, conflict)
+    case column.name
+    when :source_id then mirror_object_link(conflict.module_key, conflict.source_id, source_url: @setting.source_url)
+    when :destination_id then mirror_object_link(conflict.module_key, conflict.destination_id)
+    when :message then mirror_reason_label(conflict.message)
+    else column_content(column, conflict)
+    end
+  end
+
   def mirror_admin_column_content(column, setting)
     case column.name
     when :project
@@ -379,7 +396,7 @@ module MirrorHelper
       add.call(:label_mirror_fix_mapping, manager && mirror_configuration_path(@project, "issue_custom_fields"))
     when "conflict"
       guide[:text] = l(:text_mirror_guide_conflict)
-      add.call(:label_mirror_fix_conflict, mirror_page_path(@project, "attention", anchor: "mirror-conflicts-section"))
+      add.call(:label_mirror_fix_conflict, mirror_conflicts_path(@project))
     when "attachment_size"
       guide[:text] = l(:text_mirror_guide_attachment_size)
       add.call(:label_mirror_fix_attachment_size, User.current.admin? && settings_path(tab: "attachments"))

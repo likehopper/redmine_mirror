@@ -38,10 +38,10 @@ Redmine::Plugin.register :redmine_mirror do
   # to enable the project's modules includes configuring (RedmineMirror.manager?).
   unless RedmineMirror.source_only?
     project_module :mirror do
-      permission :view_mirror, { mirror: [:index], mirror_synchronizations: [:show] }, read: true, require: :member
-      permission :run_mirror, { mirror: [:index], mirror_synchronizations: [:show, :create, :cancel], mirror_conflicts: [:update] }, require: :member
+      permission :view_mirror, { mirror: [:index], mirror_synchronizations: [:show], mirror_conflicts: [:index] }, read: true, require: :member
+      permission :run_mirror, { mirror: [:index], mirror_synchronizations: [:show, :create, :cancel], mirror_conflicts: [:index, :context_menu, :update, :bulk_update] }, require: :member
       permission :manage_mirror, { projects: [:settings], mirror: [:index], mirror_synchronizations: [:show, :create, :cancel, :update],
-        mirror_conflicts: [:update], mirror_settings: [:show, :update_connection, :check_connection, :update_subprojects, :refresh_subprojects, :update_mappings, :refresh, :request_ai, :update_defaults, :apply_defaults, :fix_setup] }, require: :member
+        mirror_conflicts: [:index, :context_menu, :update, :bulk_update], mirror_settings: [:show, :update_connection, :check_connection, :update_subprojects, :refresh_subprojects, :update_mappings, :refresh, :request_ai, :update_defaults, :apply_defaults, :fix_setup] }, require: :member
     end
   end
   # Mirror source, when this Redmine is a source: project settings configure clients and

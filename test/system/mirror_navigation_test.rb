@@ -231,7 +231,7 @@ end
 class MirrorConflictSystemTest < ApplicationSystemTestCase
   fixtures :projects, :users, :email_addresses, :roles, :members, :member_roles, :enabled_modules, :trackers, :projects_trackers,
     :issue_statuses, :enumerations, :versions, :issue_categories, :boards, :repositories, :custom_fields, :workflows
-  def test_admin_can_keep_local_object_and_recheck
+  def test_admin_resolves_conflicts_from_the_context_menu
     project = Project.find(1)
     project.enable_module!(:mirror)
     setting = MirrorProjectSetting.new(project: project, source_url: "https://source.example", source_project_id: 12)
@@ -241,23 +241,29 @@ class MirrorConflictSystemTest < ApplicationSystemTestCase
     MirrorMapping.create!(project_id: project.id, connection_key: "test", module_key: "issue_tracking", source_id: 99, destination_id: 1, source_fingerprint: "a", destination_fingerprint: "b")
     conflict = project.mirror_conflicts.create!(connection_key: "test", module_key: "issue_tracking", source_id: 99, destination_id: 1, message: "Local modification detected")
     log_user("admin", "admin")
-    visit "/projects/ecookbook/mirror?tab=attention"
+    visit "/projects/ecookbook/mirror/conflicts"
     assert_text "Local modification detected"
-    accept_confirm { click_button "Keep local object" }
+    find("#mirror-conflict-#{conflict.id} td.module_key").right_click
+    accept_confirm { within("#context-menu") { click_link "Keep local object" } }
     assert_selector "#flash_notice"
-    # The tab lists open conflicts by default: the kept one is under its own status.
-    assert_no_text "Local modification detected"
+    # The list shows open conflicts by default: the kept one is under its own status.
+    assert_no_selector "#mirror-conflict-#{conflict.id}"
     assert_equal "ignored", conflict.reload.status
-    select "Kept locally", from: "conflict_status"
-    within("#mirror-conflicts-section") { click_button "Apply" }
-    assert_selector "#mirror-conflicts td", text: "Kept locally"
-    click_button "Recheck after correction"
-    assert_current_path(/conflict_status=ignored/)
-    assert_no_text "Local modification detected"
-    select "Open", from: "conflict_status"
-    within("#mirror-conflicts-section") { click_button "Apply" }
-    assert_text "Open"
+    visit "/projects/ecookbook/mirror?tab=attention"
+    click_link "Kept locally (1)"
+    find("#mirror-conflict-#{conflict.id} td.module_key").right_click
+    within("#context-menu") { click_link "Recheck after correction" }
+    assert_selector "#flash_notice"
+    # Back on the list the user was looking at, with its status filter.
+    assert_current_path(/v%5Bstatus%5D%5B%5D=ignored/)
+    assert_no_selector "#mirror-conflict-#{conflict.id}"
     assert_equal "open", conflict.reload.status
+    visit "/projects/ecookbook/mirror/conflicts"
+    find("#mirror-conflict-#{conflict.id} td.checkbox input").click
+    find("#mirror-conflict-#{conflict.id} td.module_key").right_click
+    accept_confirm { within("#context-menu") { click_link "Take the source version" } }
+    assert_selector "#flash_notice"
+    assert_equal "source", conflict.reload.status
     assert_no_text "hidden-conflict-key"
   end
 end

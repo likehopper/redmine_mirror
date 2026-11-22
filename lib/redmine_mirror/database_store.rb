@@ -43,6 +43,14 @@ module RedmineMirror
       MirrorMapping.where(connection_key: @connection_key, module_key: module_key).pluck(:source_id, :destination_id)
     end
 
+    # The source version was chosen for this object: it overwrites the local one. Read once
+    # per run: resolutions are refused while a run is queued or running.
+    def source_chosen?(module_key, source_id)
+      return false unless @project_id
+      @source_chosen ||= MirrorConflict.where(project_id: @project_id, connection_key: @connection_key, status: "source").pluck(:module_key, :source_id).to_set
+      @source_chosen.include?([module_key, source_id.to_i])
+    end
+
     def excluded?(module_key, source_id)
       return false unless @project_id
       MirrorConflict.exists?(project_id: @project_id, connection_key: @connection_key, module_key: module_key, source_id: source_id, status: "ignored")
@@ -59,7 +67,7 @@ module RedmineMirror
 
     def resolve_conflict(module_key, source_id)
       return unless @project_id
-      MirrorConflict.where(project_id: @project_id, connection_key: @connection_key, module_key: module_key, source_id: source_id, status: "open").update_all(status: "resolved", checked_at: Time.current, updated_at: Time.current)
+      MirrorConflict.where(project_id: @project_id, connection_key: @connection_key, module_key: module_key, source_id: source_id, status: %w[open source]).update_all(status: "resolved", checked_at: Time.current, updated_at: Time.current)
     end
 
     def retries

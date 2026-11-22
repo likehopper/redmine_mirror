@@ -18,6 +18,9 @@
 class MirrorConflict < ActiveRecord::Base
   belongs_to :project
   belongs_to :resolved_by, class_name: "User", optional: true
-  validates :status, inclusion: { in: %w[open ignored resolved] }
+  # "source": the source version was chosen and replaces the local object at the next
+  # run; "ignored": the local object is kept and no longer synchronized in this module.
+  STATUSES = %w[open source ignored resolved].freeze
+  validates :status, inclusion: { in: STATUSES }
   validates :source_id, numericality: { only_integer: true, greater_than: 0 }
 end

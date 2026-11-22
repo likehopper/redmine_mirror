@@ -70,7 +70,7 @@ module RedmineMirror
       # records in later modules (history, time, watchers, relations...) are ignored with
       # them, not errors.
       ignored_issues = {}
-      process = lambda do |adapter, record|
+      process_record = lambda do |adapter, record|
         TextFormat.reset_flags
         if @mapping_store.respond_to?(:excluded?) && @mapping_store.excluded?(adapter.key, record.fetch("id"))
           event = { module: adapter.key, source_id: record.fetch("id"), destination_id: @mapping_store.find(adapter.key, record.fetch("id"))&.fetch("destination_id"), action: "ignored", reason: "Local object retained by project conflict resolution" }
@@ -210,6 +210,11 @@ module RedmineMirror
           results << event
           yield event if block_given?
         end
+      end
+      # A conflict resolved with the source version: the source wins for that object only.
+      process = lambda do |adapter, record|
+        chosen = @mapping_store.respond_to?(:source_chosen?) && @mapping_store.source_chosen?(adapter.key, record.fetch("id"))
+        Policy.with(source_wins: Policy.source_wins? || chosen) { process_record.call(adapter, record) }
       end
       seen = {}
       incremental_changes = Array(config["changes"])

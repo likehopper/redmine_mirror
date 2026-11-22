@@ -21,6 +21,11 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 - Accept a single-value source custom field mapped to a multiple-value destination field:
   the value is written as a one-element list, and its history is imported. A multiple
   source field mapped to a single-value field stays incompatible, as it would drop values.
+- Conflicts get their own page, a Redmine query list: filters, columns (detection and last
+  check dates, handled by), sorting, grouping, and a context menu that resolves every
+  selected conflict at once. New resolution **Take the source version**: the next run
+  replaces the local changes of that object only, as in mirror mode. **To review** now
+  counts conflicts by status and links to the list.
 - Show run errors and warnings in the user's language on the run page (banner, causes,
   warnings, journal): the most frequent reasons are translated, the recorded English text
   stays on hover, and messages written by the remote Redmine are kept as they are.

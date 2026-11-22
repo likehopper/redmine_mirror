@@ -106,7 +106,7 @@ see [AI usage](AI.md).
 | Permission | Allows |
 | --- | --- |
 | **View Mirror** | Mirror menu: status, execution history and logs, items to review, synchronized objects |
-| **Run Mirror synchronizations and resolve conflicts** | The above, plus synchronize now, stop a run, keep or recheck a conflict |
+| **Run Mirror synchronizations and resolve conflicts** | The above, plus synchronize now, stop a run, resolve conflicts (source version, keep local, recheck) |
 | **Configure Mirror** | The above, plus the **Settings → Mirror** tab: connection, schedule and mappings |
 
 Members who can enable the project's modules (*Select project modules*) can also
@@ -432,16 +432,19 @@ date.
 
 ## 12. Handle conflicts
 
-Mirror never overwrites a local change. Here, a destination user edited an imported
-issue's subject: the next run leaves it unchanged and reports it.
+Mirror does not overwrite a local change unless asked to. Here, a destination user
+edited an imported issue's subject: the next run leaves it unchanged and reports it.
 
 ![Run with a conflict](screenshots/configuration/23-conflict-log.png)
 
 **To review** groups conflicts and pending links; its counter shows their combined
-number. The conflicts section lists the object and the reason.
+number. It counts conflicts by status and links to **View and resolve the conflicts**, a
+Redmine query list: filters, columns (detection and last check dates, handled by),
+sorting and grouping. Select one or several conflicts and right click:
 
 ![Conflicts](screenshots/configuration/24-conflicts.png)
 
+- **Take the source version**: the next run replaces the local changes with the source.
 - **Keep local object**: excludes this object from this module, then synchronize again.
 - **Recheck after correction**: after restoring the data or fixing a mapping.
 

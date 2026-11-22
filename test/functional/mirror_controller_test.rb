@@ -188,7 +188,6 @@ class MirrorControllerTest < ActionController::TestCase
     get :index, params: { project_id: @project.id, tab: "attention", pending_status: "pending" }
     assert_response :success
     assert_select "select#pending_status", count: 1
-    assert_select "#mirror-conflicts-section form input[type=hidden][name=pending_status][value=pending]"
     assert_select "#mirror-pending-relations tbody tr", count: 1
     assert_select '#mirror-pending-relations a[href="/issues/34"]'
     assert_select '#mirror-pending-relations a[href="https://source.example/redmine/issues/1#relations"]', text: "10"
@@ -272,29 +271,24 @@ class MirrorControllerTest < ActionController::TestCase
     assert_select "#mirror-attention a", text: "1 open conflicts"
   end
 
-  def test_attention_tab_lists_open_conflicts_by_default
+  def test_attention_tab_counts_conflicts_by_status_and_links_to_their_list
     configure
     values = { connection_key: "test", module_key: "issue_tracking", destination_id: 1, message: "Local modification detected" }
     @project.mirror_conflicts.create!(values.merge(source_id: 98))
     @project.mirror_conflicts.create!(values.merge(source_id: 99, status: "ignored"))
     @request.session[:user_id] = 1
     get :index, params: { project_id: @project.identifier, tab: "attention" }
-    assert_select "#mirror-conflicts tbody tr", count: 1
-    assert_select "select#conflict_status option[selected]", text: "Open"
-    assert_select "#mirror-conflicts input[name=conflict_status][value=open]"
-    get :index, params: { project_id: @project.identifier, tab: "attention", conflict_status: "all" }
-    assert_select "#mirror-conflicts tbody tr", count: 2
-    assert_select "#mirror-pending-section input[type=hidden][name=conflict_status][value=all]"
-    get :index, params: { project_id: @project.identifier, tab: "attention", conflict_status: "resolved" }
-    assert_select "#mirror-conflicts tbody tr", count: 0
-    assert_select "p.nodata"
+    assert_select "#mirror-conflict-counts li", count: MirrorConflict::STATUSES.size
+    assert_select "#mirror-conflict-counts a[href*='v%5Bstatus%5D%5B%5D=open']", text: "Open (1)"
+    assert_select "#mirror-conflict-counts a[href*='v%5Bstatus%5D%5B%5D=ignored']", text: "Kept locally (1)"
+    assert_select "#mirror-conflicts-section a[href='/projects/#{@project.identifier}/mirror/conflicts']"
   end
 
   def test_legacy_operational_tabs_redirect_with_their_filters
     configure
     @request.session[:user_id] = 1
     get :index, params: { project_id: @project.identifier, tab: "conflicts", conflict_status: "ignored", page: 2 }
-    assert_redirected_to project_mirror_path(@project, tab: "attention", conflict_status: "ignored", conflict_page: 2, anchor: "mirror-conflicts-section")
+    assert_redirected_to project_mirror_conflicts_path(@project, set_filter: 1, f: ["status"], op: { status: "=" }, v: { status: ["ignored"] })
     get :index, params: { project_id: @project.identifier, tab: "pending", pending_status: "blocked", page: 3 }
     assert_redirected_to project_mirror_path(@project, tab: "attention", pending_status: "blocked", relation_page: 3, anchor: "mirror-pending-section")
   end

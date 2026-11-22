@@ -48,6 +48,9 @@ post "projects/:project_id/mirror/synchronizations", to: "mirror_synchronization
 get "projects/:project_id/mirror/synchronizations/:id", to: "mirror_synchronizations#show", as: "project_mirror_run"
 patch "projects/:project_id/mirror/synchronizations/:id/cancel", to: "mirror_synchronizations#cancel", as: "project_mirror_run_cancel"
 
+get "projects/:project_id/mirror/conflicts", to: "mirror_conflicts#index", as: "project_mirror_conflicts"
+get "projects/:project_id/mirror/conflicts/context_menu", to: "mirror_conflicts#context_menu", as: "project_mirror_conflicts_context_menu"
+patch "projects/:project_id/mirror/conflicts", to: "mirror_conflicts#bulk_update", as: "project_mirror_conflicts_bulk_update"
 patch "projects/:project_id/mirror/conflicts/:id", to: "mirror_conflicts#update", as: "project_mirror_conflict"
 
 # Mirror source: project settings and the separate operational access log.
