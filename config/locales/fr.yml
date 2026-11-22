@@ -504,6 +504,7 @@ fr:
   label_mirror_step_schedule: "Programmer la synchronisation automatique (facultatif)"
   text_mirror_step_connection: "Paramètres du projet, onglet Mirror : URL source, projet, clé d'API et modules."
   text_mirror_step_references: "Le worker lit les trackers, statuts, utilisateurs et champs utilisés par le projet source."
+  text_mirror_step_references_refreshing: "Mise à jour en cours : les références déjà lues restent utilisées en attendant."
   text_mirror_step_mappings: "Ouvrez Modules et correspondances dans les paramètres du projet pour compléter les associations restantes."
   text_mirror_step_sync: "Importe dans ce projet, puis met à jour ce qui a changé à chaque exécution suivante."
   text_mirror_step_schedule: "Maintient le projet à jour sans lancement manuel."

@@ -82,6 +82,28 @@ class MirrorControllerTest < ActionController::TestCase
     assert_no_match "private-api-key", response.body
   end
 
+  # The worker reads the references again after a configuration change or a new source
+  # value: the references already read keep the steps done meanwhile.
+  def test_reference_refresh_keeps_the_steps_already_done
+    configure
+    @setting.update_columns(catalog_status: "refreshing",
+      source_catalog: JSON.generate(@setting.source_catalog.merge("source_inventory" => {})))
+    @request.session[:user_id] = 1
+    get :index, params: { project_id: @project.identifier }
+    assert_select "#mirror-step-references.mirror-step-done .mirror-step-detail", text: /Update in progress/
+    assert_select "#mirror-step-mappings.mirror-step-current"
+  end
+
+  # Before any reference was read, the refresh is the step in progress.
+  def test_first_reference_refresh_is_the_step_in_progress
+    configure
+    @setting.update_columns(catalog_status: "pending")
+    @request.session[:user_id] = 1
+    get :index, params: { project_id: @project.identifier }
+    assert_select "#mirror-step-references.mirror-step-waiting.mirror-step-current"
+    assert_select "#mirror-step-mappings.mirror-step-todo"
+  end
+
   def test_getting_started_disappears_after_a_first_synchronization
     configure
     { "tracker" => [1, 1], "status" => [1, 1], "priority" => [1, IssuePriority.first.id], "user" => [7, 2], "activity" => [9, TimeEntryActivity.first.id] }.each do |kind, (source, local)|

@@ -164,6 +164,8 @@ Saving checks the connection; the worker then loads the source references, which
 take a few minutes on large projects. The page shows its progress and refreshes until
 it has finished. The URL and project cannot be changed afterwards. **Refresh source
 references** reloads them after new users, statuses or activities appear on the source.
+The references already read stay in use meanwhile, and Getting started keeps its steps
+done. A read interrupted by a worker restart starts again two minutes later.
 When both plugins are recent and the source runs Localizable, this refresh also reads
 the original and translated names of references available to the project. They are
 matching aliases only: Mirror neither imports nor synchronizes Localizable settings.

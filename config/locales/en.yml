@@ -504,6 +504,7 @@ en:
   label_mirror_step_schedule: "Schedule automatic synchronization (optional)"
   text_mirror_step_connection: "Project settings, Mirror tab: source URL, project, API key and modules."
   text_mirror_step_references: "The worker reads the trackers, statuses, users and fields used by the source project."
+  text_mirror_step_references_refreshing: "Update in progress: the references already read stay in use meanwhile."
   text_mirror_step_mappings: "Open Modules and mappings in the project settings to complete the remaining correspondences."
   text_mirror_step_sync: "Imports into this project, then updates what changed at each later execution."
   text_mirror_step_schedule: "Keeps the project up to date without manual launches."

@@ -88,16 +88,31 @@ module RedmineMirror
     # the worker runs, including long reads that report no object (module listings,
     # deletion checks). Returns the thread, killed by execute when it ends.
     def self.start_heartbeat(run_id)
+      beat(MirrorSyncRun.where(id: run_id, status: "running"))
+    end
+
+    # The same heartbeat for a reference refresh, on the project setting's updated_at.
+    def self.start_catalog_heartbeat(setting_id)
+      beat(MirrorProjectSetting.where(id: setting_id, catalog_status: "refreshing"))
+    end
+
+    def self.beat(records)
       Thread.new do
         loop do
           sleep heartbeat_interval
-          ActiveRecord::Base.connection_pool.with_connection do
-            MirrorSyncRun.where(id: run_id, status: "running").update_all(updated_at: Time.current)
-          end
+          ActiveRecord::Base.connection_pool.with_connection { records.update_all(updated_at: Time.current) }
         end
       rescue StandardError
         nil
       end
+    end
+
+    # A reference refresh whose worker is gone (no heartbeat for WORKER_SILENCE seconds:
+    # killed process, server restart) is requested again; only "pending" ones are
+    # claimed, so it would otherwise stay "refreshing" forever.
+    def self.requeue_abandoned_catalogs(now = Time.current)
+      MirrorProjectSetting.where(catalog_status: "refreshing").where("updated_at < ?", now - WORKER_SILENCE)
+        .update_all(catalog_status: "pending", catalog_progress: nil)
     end
 
     def self.heartbeat_interval
@@ -107,14 +122,17 @@ module RedmineMirror
     # Source references requested from the web UI, refreshed before any run so that a
     # preview queued right after a configuration change uses them.
     def self.refresh_catalogs
+      requeue_abandoned_catalogs
       MirrorProjectSetting.where(catalog_status: "pending").find_each do |setting|
         claimed = false
         setting.with_lock do
           next unless setting.catalog_status == "pending"
-          setting.update_columns(catalog_status: "refreshing", catalog_progress: nil)
+          # updated_at starts the heartbeat read by requeue_abandoned_catalogs.
+          setting.update_columns(catalog_status: "refreshing", catalog_progress: nil, updated_at: Time.current)
           claimed = true
         end
         next unless claimed
+        heartbeat = start_catalog_heartbeat(setting.id)
         begin
           client = setting.source_client(purpose: "references")
           # Progress is saved at most every 2 seconds, for the configuration page.
@@ -140,6 +158,8 @@ module RedmineMirror
           # Unexpected exception text can contain URLs, credentials or private records.
           message = error.is_a?(Error) ? error.message : "Internal error (#{error.class.name})"
           setting.update_columns(catalog_status: "failed", catalog_error: message)
+        ensure
+          heartbeat.kill
         end
       end
     end

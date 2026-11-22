@@ -87,6 +87,12 @@ class MirrorProjectSetting < ActiveRecord::Base
     %w[pending refreshing].include?(catalog_status)
   end
 
+  # A reference refresh succeeded at least once: every catalog it writes lists the
+  # source inventory, unlike the module list saved with the connection.
+  def source_catalog_loaded?
+    source_catalog.key?("source_inventory")
+  end
+
   def source_catalog=(value)
     self[:source_catalog] = JSON.generate(value)
   end

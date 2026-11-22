@@ -180,6 +180,32 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     assert_equal [run], @project.mirror_sync_runs.to_a
   end
 
+  # A reference refresh interrupted with its worker (a restart during the read) is read
+  # again once its heartbeat has been silent long enough, instead of staying in progress.
+  def test_tick_requests_again_a_reference_refresh_whose_worker_is_silent
+    @setting.update_columns(catalog_status: "refreshing", catalog_progress: JSON.generate("step" => 1), updated_at: 30.seconds.ago)
+    RedmineMirror::Synchronization.requeue_abandoned_catalogs
+    assert_equal "refreshing", @setting.reload.catalog_status
+    @setting.update_columns(updated_at: 5.minutes.ago)
+    RedmineMirror::Synchronization.requeue_abandoned_catalogs
+    assert_equal "pending", @setting.reload.catalog_status
+    assert_empty @setting.catalog_progress
+  end
+
+  def test_reference_refresh_beats_while_reading_and_stops_beating
+    @setting.update_columns(catalog_status: "pending", updated_at: 1.hour.ago)
+    heartbeat = HeartbeatDouble.new
+    started = nil
+    catalog = Object.new
+    catalog.define_singleton_method(:fetch) { |progress: nil| raise RedmineMirror::Error, "Source unavailable" }
+    RedmineMirror::Synchronization.stub(:start_catalog_heartbeat, ->(id) { started = id; heartbeat }) do
+      RedmineMirror::SourceCatalog.stub(:new, catalog) { RedmineMirror::Synchronization.refresh_catalogs }
+    end
+    assert_equal @setting.id, started
+    assert heartbeat.killed
+    assert_equal "failed", @setting.reload.catalog_status
+  end
+
   def test_run_log_summarizes_actions_and_filters_special_cases
     run = log_mirror_events(@project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "succeeded"), [
       { "module" => "issue_tracking", "source_id" => 3, "destination_id" => 1, "action" => "create", "flags" => ["converted:textile>html", "issue_references"] },

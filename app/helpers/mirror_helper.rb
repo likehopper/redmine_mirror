@@ -83,17 +83,25 @@ module MirrorHelper
   def mirror_setup_steps(project, setting)
     connected = setting&.persisted?
     runs = connected ? project.mirror_sync_runs.where(status: %w[succeeded partial]) : nil
+    # References read before stay usable while the worker reads them again (after a
+    # configuration change or a synchronization meeting a new source value): the steps
+    # already done do not go back to "to do" meanwhile.
+    loaded = connected && setting.source_catalog_loaded?
     catalog = if !connected then :todo
-              elsif setting.catalog_refreshing? then :waiting
+              elsif setting.catalog_refreshing? then loaded ? :done : :waiting
               elsif setting.catalog_status == "failed" then :failed
               else :done
               end
+    detail = if catalog == :failed then setting.catalog_error
+             elsif catalog == :done && setting.catalog_refreshing? then l(:text_mirror_step_references_refreshing)
+             end
     unmapped = mirror_unmapped_counts(project, setting)
-    mappings = catalog != :done || setting.selected_modules.empty? || unmapped.any? ? :todo : :done
+    usable = catalog == :done || loaded
+    mappings = usable && setting.selected_modules.any? && unmapped.empty? ? :done : :todo
     synchronized = connected && runs.where(apply: true).exists?
     [
       [:connection, connected ? :done : :todo, nil, mirror_configuration_path(project)],
-      [:references, catalog, (setting.catalog_error if catalog == :failed), mirror_configuration_path(project)],
+      [:references, catalog, detail, mirror_configuration_path(project)],
       [:mappings, mappings, unmapped.map { |key, count| "#{mirror_module_label(key)} #{count}" }.join(", ").presence,
         mirror_configuration_path(project, "modules")],
       [:sync, synchronized ? :done : :todo, nil, mirror_page_path(project)],

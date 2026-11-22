@@ -20,6 +20,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 - Validate the destination container and attachment author before downloading a file;
   unchanged attachments continue to reuse their local file without another source transfer.
+- Read the source references again when their worker stopped during the read (server
+  restart, killed process): the refresh no longer stays "In progress" forever. The
+  worker beats every 30 seconds; after two minutes of silence, the next tick requests
+  the refresh again.
+- Keep the Getting started steps done while references already read are refreshed:
+  "Load source references" shows "Update in progress" instead of sending the project
+  back to step 2, and the mappings are checked against the references already read.
 
 ## 1.0.0-beta.56 — 2026-11-22
 
