@@ -21,6 +21,10 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 - The execution log shows the **Related objects** of every logged object that was not
   unchanged: its issue on the source and here, and its author or user as mapped here.
   Errors of issue attachments, notes and relations logged before show their issue too.
+- **File missing on the source** (Issue attachments module): when the source answers
+  HTTP 404 for a file, retry at every run (default), stop synchronizing it (logged as
+  ignored, not retried) or create a placeholder text file under the same name that keeps
+  the entry in the issue. The run page links the cause to this option.
 
 ## 1.0.0-beta.58 — 2026-11-22
 

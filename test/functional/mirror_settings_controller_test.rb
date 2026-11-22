@@ -60,6 +60,15 @@ class MirrorSettingsControllerTest < ActionController::TestCase
     assert_equal "note", @setting.reload.module_options.dig("issue_relations", "missing_target")
   end
 
+  def test_missing_file_choice_is_saved_and_unknown_values_fall_back_to_retry
+    @setting.update!(selected_modules: %w[issue_tracking issue_attachments])
+    patch :update_mappings, params: { project_id: @project.id, module_key: "issue_attachments", module_options: { missing_file: "placeholder" } }
+    assert_response :redirect
+    assert_equal "placeholder", @setting.reload.module_options.dig("issue_attachments", "missing_file")
+    patch :update_mappings, params: { project_id: @project.id, module_key: "issue_attachments", module_options: { missing_file: "invalid" } }
+    assert_equal "retry", @setting.reload.module_options.dig("issue_attachments", "missing_file")
+  end
+
   def test_saves_mapping_for_this_project
     tracker = @project.trackers.first
     patch :update_mappings, params: { project_id: @project.identifier, module_key: "issue_tracking",

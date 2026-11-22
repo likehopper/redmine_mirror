@@ -20,6 +20,14 @@ require "time"
 module RedmineMirror
   module Adapters
     class Attachments < IssueChildren
+      # What to do when the source no longer has an issue attachment's file (HTTP 404):
+      # retry at every run (default), stop synchronizing it, or write a placeholder file
+      # under the same name so that the issue keeps the entry.
+      MISSING_FILE = %w[retry skip placeholder].freeze
+
+      # The source has no file for this attachment and the project chose to stop asking.
+      class MissingSourceFile < Error; end
+
       def key; "issue_attachments"; end
       def association; "attachments"; end
       def catalog_statistics(record); { "bytes" => record["filesize"].to_i }.merge(file_size_statistics([record])); end
@@ -29,6 +37,18 @@ module RedmineMirror
         { "author_id" => author_id(record, mappings), "created_on" => Time.iso8601(record.fetch("created_on")).utc.iso8601,
           "filename" => record.fetch("filename"), "description" => record["description"].to_s,
           "content_type" => record.fetch("content_type"), "filesize" => Integer(record.fetch("filesize")) }
+      end
+
+      def configuration_options(input, _project)
+        raise Error, "Unsupported attachment options" unless (input.keys - ["missing_file"]).empty?
+        { "missing_file" => input["missing_file"].presence_in(MISSING_FILE) || "retry" }
+      end
+
+      # Ignored instead of failing: the object is not retried and its issue is not blocked.
+      def synchronize(record, **options)
+        super
+      rescue MissingSourceFile => error
+        { module: key, source_id: record.fetch("id"), action: "ignored", reason: error.message }
       end
 
       def find_target(id, issue)
@@ -66,18 +86,48 @@ module RedmineMirror
         if attributes.fetch("filesize") > limit
           raise Error, "Attachment #{attributes['filename']} (#{attributes.fetch('filesize') / 1024} KB) exceeds the destination's maximum attachment size (#{limit / 1024} KB)"
         end
-        bytes = path ? source.download_attachment(record.fetch("id"), max_bytes: limit, path: path) : source.download_attachment(record.fetch("id"), max_bytes: limit)
-        raise Error, "Attachment size mismatch" unless bytes.bytesize == attributes.fetch("filesize")
+        placeholder = false
+        bytes = begin
+          path ? source.download_attachment(record.fetch("id"), max_bytes: limit, path: path) : source.download_attachment(record.fetch("id"), max_bytes: limit)
+        rescue Error => error
+          # Only issue attachments read through the attachments API follow the module option.
+          raise unless path.nil? && issue.is_a?(Issue) && error.message.match?(/HTTP 404 for GET \S*attachments\/download/)
+          case missing_file_choice(issue)
+          when "skip" then raise MissingSourceFile, "Source file missing: not synchronized, as chosen in the module options"
+          when "placeholder" then placeholder = true
+          else raise
+          end
+          placeholder_text(attributes)
+        end
+        raise Error, "Attachment size mismatch" unless placeholder || bytes.bytesize == attributes.fetch("filesize")
         Tempfile.create("mirror-attachment") do |file|
           file.binmode
           file.write(bytes)
           file.rewind
           attachment = issue.attachments.new(attributes.except("filesize"))
+          if placeholder
+            attachment.content_type = "text/plain"
+            attachment.description = [::I18n.t(:text_mirror_missing_file_description, locale: Setting.default_language, default: "File not available on the source"),
+              attributes["description"].presence].compact.join(" — ")
+          end
           attachment.file = file
           attachment.filename = attributes.fetch("filename")
           attachment.save!
+          TextFormat.note("missing_file_placeholder") if placeholder
           attachment
         end
+      end
+
+      private
+
+      def missing_file_choice(issue)
+        issue.project.mirror_project_setting&.module_options.to_h.fetch(key, {})["missing_file"].presence_in(MISSING_FILE) || "retry"
+      end
+
+      # Same name, so that links and inline references in the issue still find it.
+      def placeholder_text(attributes)
+        ::I18n.t(:text_mirror_missing_file_content, locale: Setting.default_language, filename: attributes.fetch("filename"),
+          size: attributes.fetch("filesize"), default: "This file was not available on the source Redmine when it was imported: %{filename} (%{size} bytes).") + "\n"
       end
     end
   end

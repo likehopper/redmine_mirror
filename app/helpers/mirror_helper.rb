@@ -416,7 +416,10 @@ module MirrorHelper
     when "repository_unreadable"
       guide[:text] = l(:text_mirror_guide_repository_unreadable)
       add.call(:label_mirror_fix_repository_paths, manager && mirror_configuration_path(@project, "repositories"))
-    when "issue_not_imported", "wiki_parent_missing", "source_file_missing"
+    when "source_file_missing"
+      guide[:text] = l(:text_mirror_guide_source_file_missing)
+      add.call(:label_mirror_fix_missing_file, manager && mirror_configuration_path(@project, "issue_attachments"))
+    when "issue_not_imported", "wiki_parent_missing"
       guide[:text] = l("text_mirror_guide_#{code}".to_sym)
     end
     # Nothing to ask for: a source permission or file, or objects that follow another fix.

@@ -206,6 +206,13 @@ size, Administration → Files) with their
 description, author and date. Downloads use a path built from the source URL: Mirror
 never follows redirects or sends the key to a URL supplied by the source.
 
+**File missing on the source** (module tab) decides what happens when the source answers
+HTTP 404 for a file: *Retry at every synchronization* (default, the attachment is an
+error), *Stop synchronizing it* (logged as ignored, not retried; a complete pass asks the
+source again) or *Create a placeholder file with the same name* (a short text file that
+says the file was not available keeps the entry and the links in the issue; it is then
+the synchronized version, and is not replaced if the file comes back on the source).
+
 Both write through local models, so the worker must share the destination's database
 and attachment storage. New source journals and files are added on later runs. A journal
 or file changed on the source (an edited note, a text converted differently) is updated

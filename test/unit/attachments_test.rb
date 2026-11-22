@@ -56,6 +56,45 @@ class MirrorAttachmentsTest < ActiveSupport::TestCase
       lookup: ->(key, _id) { issue_id if key == "issue_tracking" }, store: @store, source: @source, apply: true)
   end
 
+  class MissingSource < Source
+    def download_attachment(id, max_bytes:, path: nil)
+      @downloads << [id, max_bytes, path]
+      raise RedmineMirror::Error, "Redmine API returned HTTP 404 for GET attachments/download/#{id}"
+    end
+  end
+
+  def missing_file(choice)
+    setting = MirrorProjectSetting.new(project: @issue.project, source_url: "https://source.example", source_project_id: 99)
+    setting.api_key = "unit-test-key"
+    setting.module_options = { "issue_attachments" => { "missing_file" => choice } }
+    setting.save!
+    @source = MissingSource.new
+  end
+
+  def test_a_file_missing_on_the_source_follows_the_module_option
+    with_settings attachment_max_size: 1024, default_language: "en" do
+      missing_file("retry")
+      assert_raises(RedmineMirror::Error) { synchronize }
+      @issue.project.mirror_project_setting.update!(module_options: { "issue_attachments" => { "missing_file" => "skip" } })
+      event = synchronize
+      assert_equal ["ignored", nil], [event[:action], event[:destination_id]]
+      assert_match(/Source file missing/, event[:reason])
+      assert_equal 0, @issue.reload.attachments.where(filename: "proof.txt").count
+      @issue.project.mirror_project_setting.update!(module_options: { "issue_attachments" => { "missing_file" => "placeholder" } })
+      event = synchronize
+      attachment = @issue.reload.attachments.find(event[:destination_id])
+      assert_equal ["create", "proof.txt", "text/plain"], [event[:action], attachment.filename, attachment.content_type]
+      assert_includes File.read(attachment.diskfile), "not available on the source"
+      assert_equal "File not available on the source", attachment.description
+      # The placeholder is now the synchronized version: the next run leaves it alone.
+      assert_equal "unchanged", synchronize[:action]
+    end
+  end
+
+  def test_related_objects_are_the_issue_and_the_author
+    assert_equal [["issue_tracking", 1], ["user", 7]], @adapter.related_references(@record)
+  end
+
   def test_missing_issue_or_author_never_downloads_the_file
     with_settings attachment_max_size: 1024 do
       issue_error = assert_raises(RedmineMirror::Error) { synchronize(issue_id: nil) }
