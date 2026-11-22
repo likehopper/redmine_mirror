@@ -17,8 +17,8 @@
 
 module RedmineMirror
   class SourceCatalog
-    def initialize(client:, project_id:, adapters:)
-      @client, @project_id, @adapters = client, project_id, adapters
+    def initialize(client:, project_id:, adapters:, destination_project: nil)
+      @client, @project_id, @adapters, @destination_project = client, project_id, adapters, destination_project
     end
 
     # Adapters declare their mapping tables before contributing references.
@@ -207,7 +207,9 @@ module RedmineMirror
     end
 
     def local_addresses
-      EmailAddress.pluck(:address)
+      return EmailAddress.pluck(:address) unless @destination_project
+      users = MappingTable.new("user").local_records(@destination_project)
+      EmailAddress.where(user_id: users.reorder(nil).select(:id)).pluck(:address)
     end
   end
 end

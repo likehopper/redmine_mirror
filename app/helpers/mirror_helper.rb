@@ -16,6 +16,10 @@
 # Build native and remote object links without exposing configured API credentials.
 
 module MirrorHelper
+  def mirror_source_session_params(row)
+    { session: row.session_key, user_id: row.user_id, remote_ip: row.remote_ip, purpose: row.purpose || "-" }
+  end
+
   # The Mirror page of the project menu: overview, history, attention and synchronized objects.
   def mirror_page_path(project, tab = nil, **options)
     project_mirror_path(project, { tab: tab }.compact.merge(options))

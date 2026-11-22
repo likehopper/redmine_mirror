@@ -32,14 +32,14 @@ class MirrorSourceController < ApplicationController
     @session_key = params[:session].to_s
 
     if @session_key.match?(RedmineMirror::Source::SESSION)
-      @accesses = base.where(session_key: @session_key).order(:created_at, :id).preload(:user).to_a
+      @accesses = session_accesses(base).order(:created_at, :id).preload(:user).to_a
       return
     end
 
     scope = filtered(base)
     grouped = @group_by == "destination" ? scope.destinations : scope.sessions
     grouped = grouped.having("SUM(CASE WHEN action = 'refused' THEN 1 ELSE 0 END) > 0") if params[:refused] == "1"
-    @row_count = grouped.except(:select, :order).count.size
+    @row_count = MirrorSourceAccess.group_count(grouped)
     @pages = Paginator.new(@row_count, PER_PAGE, params[:page])
     @rows = grouped.offset(@pages.offset).limit(@pages.per_page).to_a
   end
@@ -50,6 +50,14 @@ class MirrorSourceController < ApplicationController
     scope = scope.where(user_id: params[:user_id]) if params[:user_id].present?
     scope = scope.where(remote_ip: params[:remote_ip]) if params[:remote_ip].present?
     scope = scope.where(purpose: params[:purpose]) if RedmineMirror::Source::PURPOSES.include?(params[:purpose])
+    scope
+  end
+
+  def session_accesses(scope)
+    scope = scope.where(session_key: @session_key)
+    scope = scope.where(user_id: params[:user_id]) if params.key?(:user_id)
+    scope = scope.where(remote_ip: params[:remote_ip]) if params.key?(:remote_ip)
+    scope = scope.where(purpose: params[:purpose] == "-" ? nil : params[:purpose]) if params.key?(:purpose)
     scope
   end
 

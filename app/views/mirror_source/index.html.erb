@@ -50,7 +50,7 @@ Project Mirror source access log, separate from its configuration.
     <%= render "mirror_source_settings/destinations", destinations: @rows %>
   <% else %>
     <%= render "mirror_source_settings/sessions", sessions: @rows, show_project: false,
-      details_path: ->(row) { project_mirror_source_log_path(@project, session: row.session_key) } %>
+      details_path: ->(row) { project_mirror_source_log_path(@project, mirror_source_session_params(row)) } %>
   <% end %>
   <span class="pagination"><%= pagination_links_full @pages, @row_count %></span>
   <p><em class="info"><%= l(:text_mirror_source_retention, days: RedmineMirror::Source.retention_days) %></em></p>

@@ -82,4 +82,4 @@ SettingsController.include(RedmineMirror::SettingsControllerPatch) unless Settin
 # capture a prepended method and break its call to super.
 ProjectsController.helper(MirrorHelper) unless ProjectsController._helpers < MirrorHelper
 ProjectsController.helper(RedmineMirror::ProjectsHelperPatch) unless ProjectsController._helpers < RedmineMirror::ProjectsHelperPatch
-Rails.application.config.filter_parameters += [:api_key, :encrypted_api_key, :source_application_key, :encrypted_source_application_key]
+Rails.application.config.filter_parameters += [:api_key, :encrypted_api_key, :source_application_key, :encrypted_source_application_key, :digests]

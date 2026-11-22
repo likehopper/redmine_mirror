@@ -16,6 +16,20 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+- Bound JSON responses as file downloads already were, so an unexpectedly large source
+  response cannot exhaust the worker's memory.
+- Keep source access sessions separate by API account, address and purpose even if two
+  clients reuse the same session header; count paginated groups in SQL.
+- Read large execution diagnostics in batches, load only the object correspondences of
+  the visible page, and persist live event counters every 25 objects instead of once per
+  object.
+- Send hidden-email fingerprints only for destination accounts available to the project,
+  and filter those fingerprints from Rails request logs.
+- Normalize authorized source accounts and refuse newly submitted administrator IDs,
+  consistently with the source API.
+
 ## 1.0.0-beta.54 — 2026-11-22
 
 Security release for Mirror source. Run the plugin migrations (27) before restarting

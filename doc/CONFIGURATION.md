@@ -56,6 +56,13 @@ Use the key of a dedicated, non-administrator source account, member of the sour
 projects with a read-only role. Mirror source refuses administrators' keys: an
 administrator sees every project, private issue and note.
 
+Mirror first uses the additional routes provided by **Mirror source**, then falls back
+to Redmine's native REST API for data Redmine already exposes and when the incremental
+journal is unavailable. The Mirror source address, authorized-account and application-key
+locks protect only its `/mirror/source/` routes; native routes retain Redmine's own API
+key, visibility and permission controls. Restrict the whole REST API at the network or
+reverse-proxy layer when the source must accept calls only from the destination network.
+
 | Source permission | Needed for |
 | --- | --- |
 | View issues, issues visibility **All issues** | Issues, private issues, history, relations, hierarchy, versions |
@@ -231,9 +238,12 @@ each source user shows its login, email and company, and a local account with th
 email is preselected before one with the same name. Redmine's users API gives emails to
 administrators only; Mirror source lets a project manager use them. An email its owner
 hides (*My account → Hide my email address*) is never sent: the destination sends the
-SHA-256 digests of its own addresses, and the source answers which of them the account
-owns, so the matching local account is still preselected. Without a match, **Accounts to
-create** asks for the email of such a user, and the account keeps it hidden.
+SHA-256 digests of the addresses of accounts available to this project's mapping, and
+the source answers which of them the account owns, so the matching local account is still
+preselected. The fingerprints are filtered from Rails request logs. This assumes the
+explicitly authorized Mirror destination is trusted: an authorized client can test a
+guessed address by its fingerprint. Without a match, **Accounts to create** asks for the
+email of such a user, and the account keeps it hidden.
 
 **Accounts to create**, below the table, lists the unmapped source users whose email has
 no account here. Check them, optionally check roles to add them as members, and click

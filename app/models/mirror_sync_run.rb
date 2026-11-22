@@ -16,6 +16,7 @@
 # Persist execution state, totals and filtered object-level events.
 
 class MirrorSyncRun < ActiveRecord::Base
+  EVENT_PROGRESS_BATCH = 25
   belongs_to :project
   belongs_to :requested_by, class_name: "User", optional: true
   belongs_to :stop_requested_by, class_name: "User", optional: true
@@ -98,7 +99,13 @@ class MirrorSyncRun < ActiveRecord::Base
   def append_event(event)
     # Not through log_entries: the association would keep every created row in memory.
     MirrorSyncRunEvent.create!(MirrorSyncRunEvent.attributes_for(id, event))
+    self.processed_records += 1
+    flush_event_progress! if (processed_records % EVENT_PROGRESS_BATCH).zero?
+  end
+
+  # Persist live counters in batches; finish!/update! writes any remaining dirty count.
+  def flush_event_progress!
     # updated_at doubles as the heartbeat read by end_abandoned_stops.
-    update_columns(processed_records: processed_records + 1, updated_at: Time.current)
+    update_columns(processed_records: processed_records, updated_at: Time.current)
   end
 end

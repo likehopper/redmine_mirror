@@ -27,8 +27,8 @@ class MirrorSourceSettingsController < ApplicationController
     allowed = RedmineMirror::Source.allowed_kinds
     setting.shared_modules = (Array(params.fetch(:shared_modules, [])).map(&:to_s) & allowed) | (setting.shared_modules - allowed)
     setting.client_addresses = params[:client_addresses]
-    eligible = (@project.users.active.to_a + User.active.where(admin: true).to_a).uniq(&:id)
-    setting.authorized_user_ids = Array(params[:authorized_user_ids]).map(&:to_i) & eligible.map(&:id)
+    eligible = @project.users.active.where(admin: false).pluck(:id)
+    setting.authorized_user_ids = Array(params[:authorized_user_ids]).map(&:to_i) & eligible
     if setting.save
       flash[:notice] = l(:notice_successful_update)
     else

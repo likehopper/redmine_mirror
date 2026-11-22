@@ -47,7 +47,7 @@ details_path leads to its own session page.
           <td><%= row.documents %></td>
           <td><%= row.files %><% if row.bytes.to_i.positive? %> (<%= number_to_human_size(row.bytes) %>)<% end %></td>
           <td><%= row.refused %></td>
-          <td><%= link_to l(:label_mirror_source_details), local_assigns[:details_path] ? details_path.call(row) : project_mirror_source_log_path(project, session: row.session_key) if project %></td>
+          <td><%= link_to l(:label_mirror_source_details), local_assigns[:details_path] ? details_path.call(row) : project_mirror_source_log_path(project, mirror_source_session_params(row)) if project %></td>
         </tr>
       <% end %>
     </tbody>

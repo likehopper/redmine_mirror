@@ -68,29 +68,42 @@ class MirrorSynchronizationsController < ApplicationController
     return render_404 unless @run
     @source_url = @run.source_url.presence || @setting.source_url
     key = @run.connection_key.presence || mirror_connection_key
-    @object_mappings = key ? MirrorMapping.where(connection_key: key).to_a.to_h { |row| [[row.module_key, row.source_id], row.destination_id] } : {}
     entries = @run.log_entries
     # Review summary: actions per module, and objects per special case to check.
     @action_counts = {}
     entries.group(:module_key, :action).count.each { |(module_key, action), count| (@action_counts[module_key] ||= {})[action] = count }
     @module_keys = @action_counts.keys
     # Flags, warnings and error details live in data: only rows carrying some are read.
-    detailed = entries.where.not(data: nil).pluck(:id, :data).map { |id, data| [id, JSON.parse(data)] }
-    @flag_counts = detailed.flat_map { |_, data| Array(data["flags"]) }.tally
-    @warning_counts = detailed.flat_map { |_, data| Array(data["warnings"]) }.tally.sort_by { |_, count| -count }
+    @flag_counts = Hash.new(0)
+    warning_counts = Hash.new(0)
+    flag_ids = []
+    warning_ids = []
+    entries.where.not(data: nil).select(:id, :data).find_each do |entry|
+      data = JSON.parse(entry.data)
+      flags = Array(data["flags"])
+      warnings = Array(data["warnings"])
+      flags.each { |flag| @flag_counts[flag] += 1 }
+      warnings.each { |warning| warning_counts[warning] += 1 }
+      flag_ids << entry.id if params[:flag].present? && (params[:flag] == "any" ? flags.any? : flags.include?(params[:flag]))
+      warning_ids << entry.id if params[:warning].present? && warnings.include?(params[:warning])
+    end
+    @warning_counts = warning_counts.sort_by { |_, count| -count }
     # Errors grouped by cause, the largest first, each explained with its fix (Diagnosis).
-    errors = entries.where(action: "error").order(:id).to_a
-    @error_groups = RedmineMirror::Diagnosis.groups(errors.map(&:to_event))
+    errors = entries.where(action: "error")
+    @error_groups = RedmineMirror::Diagnosis.groups(errors.find_each.lazy.map(&:to_event))
     scope = entries
     scope = scope.where(module_key: params[:module_key]) if params[:module_key].present?
     scope = scope.where(action: params[:action_filter]) if params[:action_filter].present?
     scope = scope.where(source_id: params[:source_id].to_s) if params[:source_id].present?
     if params[:flag].present?
-      scope = scope.where(id: detailed.select { |_, data| params[:flag] == "any" ? Array(data["flags"]).any? : Array(data["flags"]).include?(params[:flag]) }.map(&:first))
+      scope = scope.where(id: flag_ids)
     end
-    scope = scope.where(id: detailed.select { |_, data| Array(data["warnings"]).include?(params[:warning]) }.map(&:first)) if params[:warning].present?
+    scope = scope.where(id: warning_ids) if params[:warning].present?
     if params[:reason].present?
-      scope = scope.where(id: errors.select { |entry| RedmineMirror::Diagnosis.group_key(entry.to_event) == params[:reason] }.map(&:id))
+      ids = errors.find_each.each_with_object([]) do |entry, matching|
+        matching << entry.id if RedmineMirror::Diagnosis.group_key(entry.to_event) == params[:reason]
+      end
+      scope = scope.where(id: ids)
     end
     @event_count = scope.count
     @event_pages = Paginator.new(@event_count, 50, params[:page])
@@ -99,6 +112,7 @@ class MirrorSynchronizationsController < ApplicationController
     @group_counts = @group_by ? scope.group(@group_by).count : {}
     order = @group_by ? [@group_by, :id] : [:id]
     @events = scope.order(*order).offset(@event_pages.offset).limit(50).map(&:to_event)
+    @object_mappings = mappings_for(@events, key)
     # A filtered or paged journal opens on its own tab.
     log_params = %i[module_key action_filter source_id flag warning reason group_by page]
     @tab = params[:tab].presence || (log_params.any? { |name| params[name].present? } ? "log" : "summary")
@@ -107,6 +121,17 @@ class MirrorSynchronizationsController < ApplicationController
   private
 
   LOG_GROUPS = %w[module_key action reason].freeze
+
+  def mappings_for(events, connection_key)
+    return {} unless connection_key
+    missing = events.reject { |event| event.key?("destination_id") }.group_by { |event| event["module"] }
+      .transform_values { |rows| rows.map { |event| event["source_id"] }.select { |id| id.is_a?(Integer) }.uniq }
+    return {} if missing.empty?
+    rows = MirrorMapping.where(connection_key: connection_key, module_key: missing.keys, source_id: missing.values.flatten)
+    rows.each_with_object({}) do |row, mappings|
+      mappings[[row.module_key, row.source_id]] = row.destination_id if missing.fetch(row.module_key, []).include?(row.source_id)
+    end
+  end
 
   # Causes that differ only by the source object ID are one cause.
   def mirror_connection_key

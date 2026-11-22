@@ -64,7 +64,7 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
     assert_select "#mirror-source-disabled"
     assert_select "#mirror-source-share-documents:not([checked])"
     patch "/projects/ecookbook/mirror_source", params: { shared_modules: ["", "documents", "unknown"],
-      client_addresses: "192.0.2.10\n2001:db8::/64", authorized_user_ids: [2] }
+      client_addresses: "192.0.2.10\n2001:db8::/64", authorized_user_ids: [2, 1] }
     assert_redirected_to "/projects/ecookbook/settings/mirror_source"
     setting = @project.reload.mirror_source_setting
     assert_equal %w[documents], setting.shared_modules
@@ -105,7 +105,7 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
   def test_sharing_applies_to_the_subprojects_the_person_manages
     @project.enable_module!(:mirror_source)
     MirrorSourceSetting.create!(project: @project, shared_modules: %w[documents news],
-      client_addresses: "192.0.2.10", authorized_user_ids: [1, 2], client_key_digest: "a" * 64)
+      client_addresses: "192.0.2.10", authorized_user_ids: [2, 1], client_key_digest: "a" * 64)
     Project.find(3).enable_module!(:documents)
     Project.find(3).disable_module!(:news)
     %i[documents news].each { |name| Project.find(5).enable_module!(name) }
@@ -219,6 +219,22 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
     end
   end
 
+  def test_same_client_session_key_keeps_distinct_accounts_and_addresses
+    @project.enable_module!(:mirror_source)
+    log_access("list", object_count: 2, details: JSON.generate("kind" => "documents"))
+    log_access("refused", user_id: 3, remote_ip: "198.51.100.8", reason: "client_key")
+    log_user("jsmith", "jsmith")
+
+    get "/projects/ecookbook/mirror_source"
+    assert_select "table.mirror-source-sessions tbody tr", count: 2
+    assert_select "a[href*='session=#{SESSION}'][href*='user_id=2'][href*='remote_ip=192.0.2.7']"
+    assert_select "a[href*='session=#{SESSION}'][href*='user_id=3'][href*='remote_ip=198.51.100.8']"
+
+    get "/projects/ecookbook/mirror_source", params: { session: SESSION, user_id: 3, remote_ip: "198.51.100.8", purpose: "preview" }
+    assert_select "table.mirror-source-accesses tbody tr", count: 1
+    assert_select "table.mirror-source-accesses td", text: "198.51.100.8"
+  end
+
   def test_generates_an_application_key_once_and_stores_only_its_digest
     @project.enable_module!(:mirror_source)
     log_user("jsmith", "jsmith")
@@ -306,9 +322,9 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
     end
     get "/admin/mirror/source", params: { project_id: @project.id }
     assert_select "table.mirror-source-sessions tbody tr", count: 1 do
-      assert_select "a[href='/admin/mirror/source?project_id=#{@project.id}&session=#{SESSION}']", text: "Details"
+      assert_select "a[href*='project_id=#{@project.id}'][href*='session=#{SESSION}'][href*='user_id=2']", text: "Details"
     end
-    get "/admin/mirror/source", params: { project_id: @project.id, session: SESSION }
+    get "/admin/mirror/source", params: { project_id: @project.id, session: SESSION, user_id: 2, remote_ip: "192.0.2.7", purpose: "preview" }
     assert_select "table.mirror-source-accesses tbody tr", count: 1
     assert_select "#mirror-source-no-address", count: 0
     with_settings(plugin_redmine_mirror: { "source_enabled" => "1" }) do

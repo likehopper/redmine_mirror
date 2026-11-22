@@ -129,8 +129,10 @@ these rules in full: data sent, setup, credit, security and limits.
   custom field definitions: Mirror maps them, it never creates them, except registered
   user accounts from a Mirror source when the administrator allows it.
 
-Validated with SQLite: destinations **Redmine 6.1.4 and 5.1.13**, sources **Redmine
-4.0.3, 4.2, 5.0 and 6.1**. Other versions and databases are not validated yet. See the
+End-to-end validation uses SQLite: destinations **Redmine 6.1.4 and 5.1.13**, sources
+**Redmine 4.0.3, 4.2, 5.0 and 6.1**. Redmine 6.1.4 unit, functional and integration
+suites also run on PostgreSQL 15, MySQL 8.0 and MariaDB 10.11, without an interinstance
+run on those databases. See the exact scope and known failures in the
 [compatibility matrix](test/compatibility/README.md) and the
 [validation record](test/environment/VALIDATION.md).
 

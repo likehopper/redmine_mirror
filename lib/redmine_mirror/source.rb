@@ -344,9 +344,10 @@ module RedmineMirror
 
     def log(project, request, user, action, object_count: 0, bytes: 0, reason: nil, kind: nil)
       key = session_key(request, user)
-      # A new session prunes the entries past the retention period.
-      unless MirrorSourceAccess.where(session_key: key).exists?
+      # At most once per process and day: retention must not add a query to every API call.
+      unless @access_log_pruned_on == Date.current
         MirrorSourceAccess.where("created_at < ?", retention_days.days.ago).delete_all
+        @access_log_pruned_on = Date.current
       end
       MirrorSourceAccess.create!(project: project, user_id: user.logged? ? user.id : nil, session_key: key,
         purpose: purpose(request), remote_ip: caller_address(request).to_s[0, 45], action: action, reason: reason,

@@ -57,10 +57,11 @@ class MirrorAdminController < ApplicationController
     @sharing = MirrorSourceSetting.preload(:project).where(project_id: EnabledModule.where(name: "mirror_source").select(:project_id)).to_a
     @module_projects = Project.where(id: EnabledModule.where(name: "mirror_source").select(:project_id)).sorted.to_a
     @last_access = MirrorSourceAccess.group(:project_id).maximum(:created_at)
-    @session_counts = MirrorSourceAccess.from(MirrorSourceAccess.select(:project_id, :session_key).distinct, :mirror_source_accesses).group(:project_id).count
+    session_groups = MirrorSourceAccess.sessions.except(:select, :order).select(*MirrorSourceAccess::SESSION_COLUMNS)
+    @session_counts = MirrorSourceAccess.from(session_groups, :mirror_source_groups).group(:project_id).count
     @session_key = params[:session].to_s
     if @session_key.match?(RedmineMirror::Source::SESSION) && (@session_project = Project.find_by(id: params[:project_id]))
-      @accesses = MirrorSourceAccess.where(project: @session_project, session_key: @session_key).order(:created_at, :id).preload(:user).to_a
+      @accesses = source_session_accesses(@session_project).order(:created_at, :id).preload(:user).to_a
       return
     end
     scope = MirrorSourceAccess.all
@@ -69,7 +70,7 @@ class MirrorAdminController < ApplicationController
     @refused_only = params[:refused] == "1"
     sessions = scope.sessions
     sessions = sessions.having("SUM(CASE WHEN action = 'refused' THEN 1 ELSE 0 END) > 0") if @refused_only
-    @session_count = MirrorSourceAccess.from(sessions.except(:order, :select).select(:project_id, :session_key), :mirror_source_accesses).count
+    @session_count = MirrorSourceAccess.group_count(sessions)
     @session_pages = Paginator.new(@session_count, SESSIONS_PER_PAGE, params["page"])
     @sessions = sessions.offset(@session_pages.offset).limit(@session_pages.per_page).to_a
   end
@@ -211,6 +212,14 @@ class MirrorAdminController < ApplicationController
   end
 
   private
+
+  def source_session_accesses(project)
+    scope = MirrorSourceAccess.where(project: project, session_key: @session_key)
+    scope = scope.where(user_id: params[:user_id]) if params.key?(:user_id)
+    scope = scope.where(remote_ip: params[:remote_ip]) if params.key?(:remote_ip)
+    scope = scope.where(purpose: params[:purpose] == "-" ? nil : params[:purpose]) if params.key?(:purpose)
+    scope
+  end
 
   def defaults_path(type, custom_field_id)
     mirror_admin_defaults_path(tab: type, custom_field_id: (custom_field_id.presence if type == "custom_field_value"))

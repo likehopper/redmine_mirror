@@ -46,7 +46,7 @@ class MirrorSourceSetting < ActiveRecord::Base
   end
 
   def authorized_user_ids=(value)
-    self[:authorized_user_ids] = JSON.generate(Array(value).map(&:to_i).select(&:positive?).uniq)
+    self[:authorized_user_ids] = JSON.generate(Array(value).map(&:to_i).select(&:positive?).uniq.sort)
   end
 
   def client_address_allowed?(address)

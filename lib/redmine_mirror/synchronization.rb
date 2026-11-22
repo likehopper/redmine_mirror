@@ -124,7 +124,8 @@ module RedmineMirror
             saved_at = Time.current
             setting.update_columns(catalog_progress: JSON.generate("step" => step, "steps" => steps, "module" => key, "records" => records, "at" => saved_at.iso8601))
           end
-          catalog = SourceCatalog.new(client: client, project_id: setting.source_project_id, adapters: setting.adapters).fetch(progress: progress)
+          catalog = SourceCatalog.new(client: client, project_id: setting.source_project_id, adapters: setting.adapters,
+            destination_project: setting.project).fetch(progress: progress)
           identifier = client.get("projects/#{Integer(setting.source_project_id)}.json").fetch("project")["identifier"]
           # AI proposals cost requests: keep them; the forms show only those still valid.
           previous = setting.reload.source_catalog["ai_suggestions"]

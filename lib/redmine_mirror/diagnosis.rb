@@ -69,11 +69,20 @@ module RedmineMirror
     # Errors grouped by cause, the largest first: fixing the first one unblocks the
     # most objects. Each group: {key:, code:, params:, reason:, count:, consequence:, modules:}.
     def groups(events)
-      events.select { |event| event["action"] == "error" }.group_by { |event| group_key(event) }.map do |key, rows|
-        code, params = cause(rows.first["reason"], rows.first["details"])
-        { key: key, code: code, params: params || {}, reason: generic_reason(rows.first["reason"]), count: rows.size,
-          consequence: CONSEQUENCES.include?(code), modules: rows.map { |row| row["module"] }.tally }
-      end.sort_by { |group| -group[:count] }
+      grouped = {}
+      events.each do |event|
+        next unless event["action"] == "error"
+        key = group_key(event)
+        group = grouped[key] ||= begin
+          code, params = cause(event["reason"], event["details"])
+          { key: key, code: code, params: params || {}, reason: generic_reason(event["reason"]), count: 0,
+            consequence: CONSEQUENCES.include?(code), modules: {} }
+        end
+        group[:count] += 1
+        module_key = event["module"]
+        group[:modules][module_key] = group[:modules].fetch(module_key, 0) + 1
+      end
+      grouped.values.sort_by { |group| -group[:count] }
     end
 
     # Errors of one cause share a key: the reason without the object it is about.

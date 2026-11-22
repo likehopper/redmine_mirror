@@ -70,6 +70,6 @@ enabled it and what they share, then every session across projects, or one sessi
     </fieldset>
   <% end %>
   <%= render "mirror_source_settings/sessions", sessions: @sessions, show_project: true,
-        details_path: ->(row) { mirror_admin_source_path(project_id: row.project_id, session: row.session_key) } %>
+        details_path: ->(row) { mirror_admin_source_path(mirror_source_session_params(row).merge(project_id: row.project_id)) } %>
   <span class="pagination"><%= pagination_links_full @session_pages, @session_count %></span>
 <% end %>

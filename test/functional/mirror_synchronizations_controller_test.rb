@@ -497,11 +497,21 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     run = @project.mirror_sync_runs.create!(trigger: "manual", status: "running", total_records: 2)
     assert_equal 0, run.progress_percentage
     run.append_event(module: "issue_tracking", source_id: 1, action: "create")
+    run.flush_event_progress!
     assert_equal 50, run.reload.progress_percentage
     run.append_event(module: "time_tracking", source_id: 2, action: "create")
+    run.flush_event_progress!
     assert_equal 99, run.progress_percentage
     run.update!(status: "succeeded")
     assert_equal 100, run.progress_percentage
+  end
+
+  def test_event_progress_is_persisted_in_batches
+    run = @project.mirror_sync_runs.create!(trigger: "manual", status: "running", total_records: 25)
+    24.times { |index| run.append_event(module: "issue_tracking", source_id: index + 1, action: "create") }
+    assert_equal 0, MirrorSyncRun.find(run.id).processed_records
+    run.append_event(module: "issue_tracking", source_id: 25, action: "create")
+    assert_equal 25, MirrorSyncRun.find(run.id).processed_records
   end
 
   def test_log_retains_local_id_and_remote_link
