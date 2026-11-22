@@ -532,7 +532,16 @@ only, and categories to their managers only, without sharing. On the source Redm
    list, and the account must still have the native Redmine permission for the requested
    data. After upgrading an existing installation through migration 27, access therefore
    remains closed until each shared project configures these client settings and each
-   destination saves the generated key.
+   destination saves the generated key. **Generate a new key** again replaces it: the old
+   key is refused at once, so copy the new one into every destination project (and apply
+   the sharing to the subprojects again).
+   The **Access of the destinations** box at the top of the tab lists each control, in
+   green when in place and in red when missing, and for each authorized account what it
+   lacks: an administrator account (refused), a locked account, a permission for the
+   shared data, or what the incremental feed requires (see all issues and all time
+   entries, view private notes, view members, view spent time). Without the latter,
+   destinations still synchronize but read the whole project at each run. It also counts
+   the subprojects whose addresses, accounts or key differ from this project.
    Then check **Documents**, **News**, **Tags**,
    **Scrum sprints**, **Saved queries**, **Users**, **Custom fields**, **Issue categories**, **Project
    enumerations**, **Repositories** and/or **Repository credentials** and save.

@@ -20,11 +20,13 @@ Mirror source tab of the project settings: authorized clients and shared data.
 <% source_setting = @project.mirror_source_setting %>
 <% shared = source_setting&.shared_modules.to_a %>
 <% authorized_user_ids = source_setting&.authorized_user_ids.to_a %>
-<% client_users = (@project.users.active.to_a + User.active.where(admin: true).to_a).uniq(&:id).sort_by(&:name) %>
+<%# Not administrators: Mirror source refuses their keys (MirrorSourceApiController#check_caller). %>
+<% client_users = (@project.users.active.where(admin: false).to_a + User.where(id: authorized_user_ids).to_a).uniq(&:id).sort_by(&:name) %>
 <% unless RedmineMirror::Source.enabled? %>
   <p class="warning" id="mirror-source-disabled"><%= l(:text_mirror_source_disabled) %></p>
 <% end %>
 <p><%= l(:text_mirror_source_help) %></p>
+<%= render "mirror_source_settings/client_status" if @project.module_enabled?(:mirror_source) %>
 <%= form_tag project_mirror_source_path(@project), method: :patch, id: "mirror-source-form" do %>
   <%= hidden_field_tag "shared_modules[]", "" %>
   <%# Only the data the administrator allows; the rest stays as saved (MirrorSourceSettingsController). %>

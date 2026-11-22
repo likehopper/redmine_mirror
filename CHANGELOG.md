@@ -16,7 +16,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.54 — 2026-11-22
+
+Security release for Mirror source. Run the plugin migrations (27) before restarting
+Redmine and the worker. After the migration, a source refuses every request for a
+project until its **Mirror source** settings list the client addresses, the authorized
+API accounts and a generated application key; then save that key in the connection of
+each destination project. Upgrade the sources first.
 
 - **Execution page in tabs**: Summary (actions per module, each count opens its objects),
   To check (errors by cause, warnings, special cases) and Execution log, which can now be
@@ -35,6 +41,15 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   request: configure them, and the application key on each destination, before the
   destinations run again. The administrator's allowed addresses and Redmine permissions
   still apply.
+- **Access status on the source**: the Mirror source tab of a project lists each
+  control (administrator switch, client addresses, application key, authorized accounts),
+  and for each account what it lacks: administrator or locked account, a permission for
+  the shared data, or what the incremental feed requires. It also counts subprojects whose
+  controls differ. Administrators are no longer offered as authorized accounts, since
+  Mirror source refuses their keys.
+- **Assignee who is not a member kept**: an issue assigned on the source to an active
+  user who is not an assignable member of the destination project is written without the
+  assignee through the API, then the assignee is restored locally, as for locked users.
 - **Source access logs keep only operational metadata**: no object titles, filenames or
   user names; migration 27 clears those details from existing rows and keeps the audit
   envelope. The logs move to a **Mirror source** project tab, filtered by account,

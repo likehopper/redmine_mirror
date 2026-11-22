@@ -51,6 +51,8 @@ class MirrorLockedReferencesTest < ActiveSupport::TestCase
     assert_equal ["fixed_version_id"], adapter.local_references(payload.merge("assigned_to_id" => 2, "fixed_version_id" => 2))
     open = payload.merge("assigned_to_id" => 2, "fixed_version_id" => 3)
     assert_same open, adapter.rest_attributes(open)
+    # An active user who is not a member, as when removed from the source project later.
+    assert_equal ["assigned_to_id"], adapter.local_references(open.merge("assigned_to_id" => 8))
   end
 
   def test_issue_rejects_a_version_not_shared_with_the_project

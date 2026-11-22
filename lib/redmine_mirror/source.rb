@@ -264,14 +264,48 @@ module RedmineMirror
     # dedicated reader whose role can see the full project; other clients use ordinary
     # full reads, where every endpoint applies Redmine's current visibility.
     def full_change_visibility?(project, user)
-      return true if user.admin?
+      change_visibility_gaps(project, user).empty?
+    end
+
+    # What an account lacks for the incremental feed of a project: [] when nothing.
+    def change_visibility_gaps(project, user)
+      return [] if user.admin?
       roles = user.roles_for_project(project)
-      issues = roles.any? { |role| role.respond_to?(:issues_visibility) && role.issues_visibility == "all" }
-      time = roles.any? do |role|
-        !role.respond_to?(:time_entries_visibility) || role.time_entries_visibility == "all"
+      gaps = []
+      gaps << :issues_visibility unless roles.any? { |role| role.respond_to?(:issues_visibility) && role.issues_visibility == "all" }
+      gaps << :time_entries_visibility unless roles.any? { |role| !role.respond_to?(:time_entries_visibility) || role.time_entries_visibility == "all" }
+      %i[view_private_notes view_members view_time_entries].each { |permission| gaps << permission unless user.allowed_to?(permission, project) }
+      gaps
+    end
+
+    # What keeps destinations out of a project, for its settings page: the project locks,
+    # what each authorized account lacks, and subprojects whose locks differ.
+    def client_status(project)
+      setting = project.mirror_source_setting
+      accounts = User.where(id: setting&.authorized_user_ids.to_a).order(:id).map do |user|
+        { user: user, problems: account_problems(project, user, setting) }
       end
-      issues && time && user.allowed_to?(:view_private_notes, project) &&
-        user.allowed_to?(:view_members, project) && user.allowed_to?(:view_time_entries, project)
+      children = project.descendants.where.not(status: Project::STATUS_ARCHIVED).to_a.select { |child| child.module_enabled?(:mirror_source) }
+      { addresses: setting&.client_addresses.to_s.split("\n").reject(&:empty?), key: setting&.client_key? || false, accounts: accounts,
+        children_out_of_sync: children.count { |child| !same_clients?(child.mirror_source_setting, setting) } }
+    end
+
+    def account_problems(project, user, setting)
+      return [[:locked, []]] unless user.active?
+      return [[:admin, []]] if user.admin?
+      problems = []
+      wanted = [:view_issues] + setting.shared_modules.map { |kind| PERMISSIONS[kind] }
+      missing = wanted.compact.uniq.reject { |permission| user.allowed_to?(permission, project) }
+      problems << [:permissions, missing] if missing.any?
+      gaps = changes_enabled? ? change_visibility_gaps(project, user) : []
+      problems << [:incremental, gaps] if gaps.any?
+      problems
+    end
+
+    def same_clients?(child, parent)
+      return parent.nil? if child.nil?
+      return false if parent.nil?
+      MirrorSourceSetting::CLIENT_COLUMNS.all? { |column| child[column].to_s == parent[column].to_s }
     end
 
     # Why a request is refused, or nil when it is served. The order tells the

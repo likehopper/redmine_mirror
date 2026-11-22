@@ -126,3 +126,8 @@ table.mirror-ai-usage { width: auto; min-width: 30em; }
 #mirror-checklist ul { margin: 0; }
 .mirror-module-checks { margin: .5em 0; padding-left: 0; list-style: none; }
 .mirror-module-checks li { margin: .3em 0; }
+
+/* Mirror source access status: each lock, green when in place, red when missing. */
+#mirror-source-status li.mirror-ok::marker { color: #2e7d32; }
+#mirror-source-status li.mirror-missing { color: #b71c1c; }
+#mirror-source-status .mirror-source-account-problem { margin-left: 1em; }

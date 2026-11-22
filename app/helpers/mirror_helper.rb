@@ -354,6 +354,15 @@ module MirrorHelper
     guide
   end
 
+  # A permission or a role visibility an account lacks on a Mirror source project.
+  def mirror_source_gap_label(name)
+    case name
+    when :issues_visibility then "#{l(:field_issues_visibility)} : #{l(:label_issues_visibility_all)}"
+    when :time_entries_visibility then "#{l_or_humanize(:time_entries_visibility, prefix: 'field_')} : #{l_or_humanize(:time_entries_visibility_all, prefix: 'label_')}"
+    else l_or_humanize(name, prefix: "permission_")
+    end
+  end
+
   # What to settle before a preview, found from the configuration alone: references
   # without correspondence (with those that only need enabling), disabled project modules
   # and mapped fields the project does not use. Each item: {text:, actions: [[label, path]]}.

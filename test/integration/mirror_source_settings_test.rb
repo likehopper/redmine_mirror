@@ -33,6 +33,27 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
       action: action, created_at: Time.current }.merge(attributes))
   end
 
+  # Each lock in place or missing, and what each authorized account lacks.
+  def test_access_status_names_each_missing_lock_and_account_gap
+    @project.enable_module!(:mirror_source)
+    Role.find(1).remove_permission!(:view_private_notes)
+    setting = MirrorSourceSetting.create!(project: @project, shared_modules: %w[documents], authorized_user_ids: [2, 1])
+    log_user("jsmith", "jsmith")
+    with_settings(plugin_redmine_mirror: Setting.plugin_redmine_mirror.merge("source_enabled" => "1", "source_allowed_addresses" => "127.0.0.1")) do
+      get "/projects/ecookbook/settings/mirror_source"
+      assert_select "#mirror-source-status-summary.warning"
+      assert_select "#mirror-source-status-addresses.mirror-missing"
+      assert_select "#mirror-source-status-key.mirror-missing"
+      assert_select "#mirror-source-status-accounts li", text: /administrator account/
+      assert_select "#mirror-source-status-accounts li", text: /incremental feed refused.*View private notes/m
+      setting.update!(client_addresses: "127.0.0.1", client_key: "a" * 43, authorized_user_ids: [2])
+      Role.find(1).add_permission!(:view_private_notes)
+      get "/projects/ecookbook/settings/mirror_source"
+      assert_select "#mirror-source-status-summary.mirror-source-open"
+      assert_select "#mirror-source-status-key.mirror-ok"
+    end
+  end
+
   def test_tab_appears_with_the_module_and_saves_the_shared_data
     log_user("jsmith", "jsmith")
     get "/projects/ecookbook/settings"
@@ -205,7 +226,8 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
     assert_response :success
     key = css_select("#mirror-source-client-key").first.text
     assert_operator key.length, :>=, 40
-    assert_equal "no-store", response.headers["Cache-Control"]
+    # Rails 5.2 (Redmine 4) adds "private".
+    assert_includes response.headers["Cache-Control"].to_s.split(/,\s*/), "no-store"
     setting = @project.reload.mirror_source_setting
     assert setting.client_key_matches?(key)
     refute_includes setting.client_key_digest, key
