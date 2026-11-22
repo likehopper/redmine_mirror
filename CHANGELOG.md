@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.58 — 2026-11-22
 
 - Accept a single-value source custom field mapped to a multiple-value destination field:
   the value is written as a one-element list, and its history is imported. A multiple
@@ -32,6 +32,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 - Show run errors and warnings in the user's language on the run page (banner, causes,
   warnings, journal): the most frequent reasons are translated, the recorded English text
   stays on hover, and messages written by the remote Redmine are kept as they are.
+- No migration since beta.54.
 
 ## 1.0.0-beta.57 — 2026-11-22
 
