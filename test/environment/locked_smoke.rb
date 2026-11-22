@@ -35,6 +35,7 @@ begin
   raise "Locked member not offered" unless RedmineMirror::MappingTable.new("user").local_records(project).include?(leaver)
   setting = MirrorProjectSetting.new(project: project, source_url: original.source_url, source_project_id: source_id)
   setting.api_key = original.api_key
+  setting.source_application_key = original.source_application_key
   setting.selected_modules = %w[project_versions issue_tracking time_tracking issue_journals issue_watchers]
   setting.source_catalog = RedmineMirror::SourceCatalog.new(client: setting.source_client, project_id: source_id, adapters: setting.adapters).fetch
   setting.save!

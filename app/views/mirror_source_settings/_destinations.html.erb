@@ -1,0 +1,50 @@
+<%#
+File: redmine_mirror/app/views/mirror_source_settings/_destinations.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Mirror source accesses grouped by observable destination identity.
+%><% if destinations.empty? %>
+  <p class="nodata"><%= l(:label_no_data) %></p>
+<% else %>
+  <% users = User.where(id: destinations.map(&:user_id).compact).index_by(&:id) %>
+  <table class="list mirror-source-destinations">
+    <thead><tr>
+      <th><%= l(:label_mirror_source_last_access) %></th>
+      <th><%= l(:label_mirror_source_account) %></th>
+      <th><%= l(:label_mirror_source_address) %></th>
+      <th><%= l(:label_mirror_source_sessions) %></th>
+      <th><%= l(:label_mirror_source_requests) %></th>
+      <th><%= l(:label_mirror_source_documents_listed) %></th>
+      <th><%= l(:label_mirror_source_files_sent) %></th>
+      <th><%= l(:label_mirror_source_refused) %></th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+      <% destinations.each do |row| %>
+        <tr class="<%= 'mirror-source-refused' if row.refused.to_i.positive? %>">
+          <td title="<%= l(:label_mirror_source_started, time: format_time(row.started_at)) %>"><%= format_time(row.ended_at) %></td>
+          <td><%= users[row.user_id] ? link_to_user(users[row.user_id]) : l(:label_user_anonymous) %></td>
+          <td><%= row.remote_ip %></td>
+          <td><%= row.sessions %></td>
+          <td><%= row.requests %></td>
+          <td><%= row.documents %></td>
+          <td><%= row.files %><% if row.bytes.to_i.positive? %> (<%= number_to_human_size(row.bytes) %>)<% end %></td>
+          <td><%= row.refused %></td>
+          <td><%= link_to l(:label_mirror_source_sessions), project_mirror_source_log_path(@project,
+            user_id: row.user_id, remote_ip: row.remote_ip, group_by: "session") %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% end %>

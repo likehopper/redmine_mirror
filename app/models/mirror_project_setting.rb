@@ -18,7 +18,7 @@
 class MirrorProjectSetting < ActiveRecord::Base
   SYNC_INTERVALS = [5, 15, 30, 60, 360, 1440].freeze
   # Columns of the latest migrations; extend this list with each new migration.
-  LATEST_COLUMNS = %w[source_project_identifier source_text_format on_error catalog_status source_wins ai_status use_default_mappings parent_setting_id source_change_cursor incremental_signature source_consumer_key incremental_mapping_state].freeze
+  LATEST_COLUMNS = %w[source_project_identifier source_text_format on_error catalog_status source_wins ai_status use_default_mappings parent_setting_id source_change_cursor incremental_signature source_consumer_key incremental_mapping_state encrypted_source_application_key].freeze
   ON_ERROR = %w[skip stop].freeze
 
   def self.schema_current?
@@ -116,10 +116,21 @@ class MirrorProjectSetting < ActiveRecord::Base
     self[:encrypted_api_key] = Redmine::Ciphering.encrypt_text(value)
   end
 
+  def source_application_key
+    return nil if self[:encrypted_source_application_key].blank?
+    raise RedmineMirror::Error, "Configure database_cipher_key in Redmine to use the stored Mirror application key" unless Redmine::Ciphering.cipher_key
+    Redmine::Ciphering.decrypt_text(self[:encrypted_source_application_key])
+  end
+
+  def source_application_key=(value)
+    raise RedmineMirror::Error, "Configure database_cipher_key in Redmine before saving a Mirror application key" unless Redmine::Ciphering.cipher_key
+    self[:encrypted_source_application_key] = Redmine::Ciphering.encrypt_text(value)
+  end
+
   # purpose: what a Mirror source logs this client's session for (Source::PURPOSES).
   def source_client(purpose: nil)
     RedmineMirror::Client.new(url: source_url, api_key: api_key,
-      allow_http: ENV["MIRROR_TEST_ENVIRONMENT"] == "disposable", purpose: purpose)
+      allow_http: ENV["MIRROR_TEST_ENVIRONMENT"] == "disposable", purpose: purpose, application_key: source_application_key)
   end
 
   def source_consumer_key!

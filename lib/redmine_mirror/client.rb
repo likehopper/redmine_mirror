@@ -35,7 +35,7 @@ module RedmineMirror
     # reference refresh), with what it is for (Source::PURPOSES).
     attr_reader :session
 
-    def initialize(url:, api_key:, allow_http: false, purpose: nil)
+    def initialize(url:, api_key:, allow_http: false, purpose: nil, application_key: nil)
       @base_uri = URI(url.to_s.end_with?("/") ? url : "#{url}/")
       unless @base_uri.host && (@base_uri.scheme == "https" || (allow_http && @base_uri.scheme == "http")) &&
              !@base_uri.userinfo && !@base_uri.query && !@base_uri.fragment
@@ -43,6 +43,8 @@ module RedmineMirror
       end
       raise Error, "Missing API key" if api_key.to_s.empty?
       @api_key = api_key
+      application_key = application_key.to_s
+      @application_key = application_key unless application_key.empty?
       @session = SecureRandom.hex(16)
       @purpose = purpose
     rescue URI::InvalidURIError
@@ -121,6 +123,7 @@ module RedmineMirror
       uri.query = URI.encode_www_form(params) unless params.empty?
       request = { get: Net::HTTP::Get, post: Net::HTTP::Post, put: Net::HTTP::Put }.fetch(method).new(uri)
       request["X-Redmine-API-Key"] = @api_key
+      request["X-Mirror-Application-Key"] = @application_key if @application_key
       request["X-Mirror-Session"] = @session
       request["X-Mirror-Purpose"] = @purpose if @purpose
       request["Content-Type"] = "application/json"
@@ -175,7 +178,10 @@ module RedmineMirror
     # modules do not read it as a missing permission on their data.
     CALLER_REFUSALS = {
       "address" => "The source Redmine refuses this Redmine's address: its administrator must add it to Mirror source's allowed addresses",
-      "api_key" => "The source Redmine accepts only the API key header for Mirror source"
+      "api_key" => "The source Redmine accepts only the API key header for Mirror source",
+      "client_address" => "The source project refuses this Redmine's address",
+      "client_user" => "The source project does not authorize this API account",
+      "client_key" => "The source project refuses this Mirror application key"
     }.freeze
 
     def caller_refusal(response)
@@ -185,7 +191,7 @@ module RedmineMirror
     # The lock a Mirror source names when it refuses (Source.refusal): a known word only.
     def refusal(response)
       reason = response["X-Mirror-Source-Refusal"].to_s
-      reason.match?(/\A[a-z_]{1,20}\z/) ? " (Mirror source: #{reason})" : ""
+      reason.match?(/\A[a-z_]{1,32}\z/) ? " (Mirror source: #{reason})" : ""
     end
   end
 end

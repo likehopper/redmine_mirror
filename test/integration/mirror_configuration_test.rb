@@ -27,6 +27,7 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     @setting = MirrorProjectSetting.new(project: @project, source_url: "https://source.example/redmine", source_project_id: 12)
     @setting.selected_modules = %w[issue_tracking time_tracking]
     @setting.api_key = "private-api-key"
+    @setting.source_application_key = "mirror-application-key"
     @setting.source_catalog = { "tracker" => { "1" => "Bug", "2" => "Remote tracker" }, "status" => { "1" => "Open" },
       "priority" => { "1" => "Normal" }, "user" => { "7" => "Remote Alice" }, "activity" => { "9" => "Development" },
       "activity_usage" => { "9" => { "current" => 12, "history" => 2 } } }
@@ -50,6 +51,7 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
       assert inputs.first["value"].blank?
     end
     assert_no_match "private-api-key", response.body
+    assert_no_match "mirror-application-key", response.body
     assert_select "a[href='/projects/ecookbook/mirror']", text: "Mirror page"
     settings("modules")
     assert_select "#mirror-module-list tbody tr", count: 3

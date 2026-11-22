@@ -27,6 +27,7 @@ setting = MirrorProjectSetting.new(project: project, source_url: config.fetch("s
   source_project_id: config.fetch("source_project_id"), on_error: "skip")
 setting.selected_modules = config.fetch("modules")
 setting.api_key = ENV.fetch("MIRROR_SOURCE_API_KEY")
+setting.source_application_key = ENV.fetch("MIRROR_SOURCE_APPLICATION_KEY", "disposable-mirror-application-key")
 setting.source_catalog = {}
 setting.module_options = {}
 setting.save!

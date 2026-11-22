@@ -39,7 +39,7 @@ class MirrorSettingsController < ApplicationController
   end
 
   def update_connection
-    input = params.require(:connection).permit(:source_url, :source_project_id, :api_key, :source_text_format, modules: [])
+    input = params.require(:connection).permit(:source_url, :source_project_id, :api_key, :source_application_key, :source_text_format, modules: [])
     url = input.fetch(:source_url).strip.sub(%r{/+\z}, "")
     reference = source_project_reference(input)
     check_source_allowed(url) unless @setting.persisted?
@@ -49,7 +49,9 @@ class MirrorSettingsController < ApplicationController
     end
     @setting.source_url = url
     previous_key = @setting[:encrypted_api_key]
+    previous_application_key = @setting[:encrypted_source_application_key]
     @setting.api_key = input[:api_key] if input[:api_key].present?
+    @setting.source_application_key = input[:source_application_key] if input[:source_application_key].present?
     raise RedmineMirror::Error, l(:text_mirror_api_key_missing) if @setting.api_key.blank?
     unless @setting.persisted? && [@setting.source_project_id.to_s, @setting.source_project_identifier].include?(reference)
       source = resolve_source_project(reference)
@@ -69,6 +71,10 @@ class MirrorSettingsController < ApplicationController
       if input[:api_key].present? && previous_key
         @setting.child_settings.where(encrypted_api_key: previous_key).update_all(encrypted_api_key: @setting[:encrypted_api_key])
       end
+      if input[:source_application_key].present? && previous_application_key
+        @setting.child_settings.where(encrypted_source_application_key: previous_application_key)
+          .update_all(encrypted_source_application_key: @setting[:encrypted_source_application_key])
+      end
       # The worker reads the source references; saving stays immediate.
       @setting.request_catalog_refresh!
       flash[:notice] = l(:text_mirror_catalog_requested)
@@ -86,7 +92,7 @@ class MirrorSettingsController < ApplicationController
   # Read the connection typed in the form without saving anything: mirror.js shows the
   # result in the form. A saved connection keeps its source and, left blank, its key.
   def check_connection
-    input = params.require(:connection).permit(:source_url, :source_project_id, :api_key)
+    input = params.require(:connection).permit(:source_url, :source_project_id, :api_key, :source_application_key)
     reference = source_project_reference(input)
     unless @setting.persisted?
       @setting.source_url = input.fetch(:source_url).strip.sub(%r{/+\z}, "")
@@ -97,6 +103,7 @@ class MirrorSettingsController < ApplicationController
       raise RedmineMirror::Error, l(:text_mirror_check_other_project_needs_key)
     end
     @setting.api_key = input[:api_key] if input[:api_key].present?
+    @setting.source_application_key = input[:source_application_key] if input[:source_application_key].present?
     raise RedmineMirror::Error, l(:text_mirror_api_key_missing) if @setting.api_key.blank?
     check = RedmineMirror::ConnectionCheck.new(client: @setting.source_client, project_reference: reference).run
     render partial: "mirror_settings/connection_check", locals: { check: check }

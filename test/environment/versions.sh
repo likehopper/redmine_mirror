@@ -54,10 +54,15 @@ for seed in "${seeds[@]}"; do
     "${compose[@]}" exec -T source timeout 300 bundle exec rails runner "/mirror-environment/$seed.rb" > /dev/null
 done
 # MIRROR_SOURCE_ACCOUNT=reader configures the connection with a non-administrator key.
-key_args=()
+key_args=(-e MIRROR_SOURCE_APPLICATION_KEY=disposable-mirror-application-key)
 if [ "${MIRROR_SOURCE_ACCOUNT:-admin}" = reader ]; then
   "${compose[@]}" exec -T source bundle exec rails runner /mirror-environment/reader_account.rb
-  key_args=(-e "MIRROR_SOURCE_API_KEY=$(printf '3%.0s' $(seq 40))")
+  key_args+=(-e "MIRROR_SOURCE_API_KEY=$(printf '3%.0s' $(seq 40))")
+fi
+if [ "${MIRROR_SOURCE_SECURITY_ONLY:-}" = 1 ]; then
+  script=source_security_smoke run "${key_args[@]}"
+  "${compose[@]}" exec -T source bundle exec rails runner /mirror-environment/source_security_source_check.rb
+  exit
 fi
 script=ui_smoke run "${key_args[@]}"
 script=ui_smoke run "${key_args[@]}" -e MIRROR_ENABLE_HISTORY=1 -e MIRROR_REFRESH_TEST=1 -e MIRROR_COMPLETE_STATUS_MAPPINGS=1

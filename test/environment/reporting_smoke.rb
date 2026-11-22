@@ -88,6 +88,7 @@ when "import"
   setting = MirrorProjectSetting.new(project: project, source_url: "http://source:3000", source_project_id: source_project.fetch("id"))
   setting.selected_modules = MODULES
   setting.api_key = "1" * 40
+  setting.source_application_key = ENV.fetch("MIRROR_SOURCE_APPLICATION_KEY", "disposable-mirror-application-key")
   setting.source_catalog = RedmineMirror::SourceCatalog.new(client: source, project_id: source_project.fetch("id"), adapters: setting.adapters).fetch
   setting.save!
   browser do |driver|

@@ -31,7 +31,10 @@ module RedmineMirror
       end
       new(cursor: cursor, changes: changes, full_required: false)
     rescue Error => error
-      raise unless error.message.include?("HTTP 404") && error.message.include?("mirror/source/changes")
+      unavailable = error.message.include?("HTTP 404") && error.message.include?("mirror/source/changes")
+      restricted = error.message.include?("Mirror source: incremental_visibility")
+      module_disabled = error.message.include?("Mirror source: module")
+      raise unless unavailable || restricted || module_disabled
       new(cursor: 0, changes: [], full_required: true, supported: false)
     end
 

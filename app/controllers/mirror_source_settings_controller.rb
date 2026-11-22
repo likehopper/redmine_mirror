@@ -26,9 +26,26 @@ class MirrorSourceSettingsController < ApplicationController
     # back in effect if the administrator allows it again.
     allowed = RedmineMirror::Source.allowed_kinds
     setting.shared_modules = (Array(params.fetch(:shared_modules, [])).map(&:to_s) & allowed) | (setting.shared_modules - allowed)
-    setting.save!
-    flash[:notice] = l(:notice_successful_update)
+    setting.client_addresses = params[:client_addresses]
+    eligible = (@project.users.active.to_a + User.active.where(admin: true).to_a).uniq(&:id)
+    setting.authorized_user_ids = Array(params[:authorized_user_ids]).map(&:to_i) & eligible.map(&:id)
+    if setting.save
+      flash[:notice] = l(:notice_successful_update)
+    else
+      flash[:error] = setting.errors.full_messages.to_sentence
+    end
     redirect_to settings_project_path(@project, tab: "mirror_source")
+  end
+
+  # A high-entropy shared secret proves that the caller is a configured Mirror client,
+  # independently of the Redmine account whose permissions still bound the data.
+  def rotate_client_key
+    setting = @project.mirror_source_setting || @project.build_mirror_source_setting
+    @client_key = SecureRandom.urlsafe_base64(32)
+    setting.client_key = @client_key
+    setting.save!
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
   end
 
   # Give each subproject this project's sharing: Mirror source enabled, and the same data
@@ -36,7 +53,8 @@ class MirrorSourceSettingsController < ApplicationController
   # (Select project modules) and configure Mirror source; the others are counted. A later
   # change here reaches the subprojects only when applied again.
   def apply_to_subprojects
-    shared = @project.mirror_source_setting&.shared_modules.to_a
+    source = @project.mirror_source_setting
+    shared = source&.shared_modules.to_a
     done = []
     skipped = 0
     @project.descendants.where.not(status: Project::STATUS_ARCHIVED).visible.order(:lft).each do |child|
@@ -47,6 +65,9 @@ class MirrorSourceSettingsController < ApplicationController
         raise ActiveRecord::Rollback unless User.current.allowed_to?(:manage_mirror_source, child)
         setting = child.mirror_source_setting || child.build_mirror_source_setting
         setting.shared_modules = shared - RedmineMirror::Source.kinds_without_module(child)
+        setting.client_addresses = source&.client_addresses
+        setting.authorized_user_ids = source&.authorized_user_ids
+        setting.client_key_digest = source&.client_key_digest
         setting.save!
         done << child
       end

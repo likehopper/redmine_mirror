@@ -316,16 +316,16 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
         action: action, created_at: Time.current - minutes.minutes }.merge(attributes))
     end
     refused, synchronized = "1" * 32, "2" * 32
-    log.call(refused, 30, "refused", purpose: "references", reason: "not_shared", details: JSON.generate("path" => "/projects/handbook/mirror/source/documents.json"))
+    log.call(refused, 30, "refused", purpose: "references", reason: "not_shared", details: JSON.generate("kind" => "documents"))
     log.call(synchronized, 12, "list", purpose: "synchronization", object_count: 2,
-      details: JSON.generate("documents" => documents.map { |document| { "id" => document.id, "title" => document.title, "files" => 1 } }))
-    [["architecture.pdf", 482_304], ["operations.pdf", 215_040]].each_with_index do |(filename, bytes), index|
+      details: JSON.generate("kind" => "documents"))
+    [482_304, 215_040].each_with_index do |bytes, index|
       log.call(synchronized, 11 - index, "download", purpose: "synchronization", object_count: 1, bytes: bytes,
-        details: JSON.generate("attachment" => { "id" => 900 + index, "filename" => filename, "document_id" => documents[index].id }))
+        details: JSON.generate("kind" => "documents"))
     end
-    visit "/projects/handbook/settings/mirror_source"
+    visit "/projects/handbook/mirror_source"
     assert_selector "table.mirror-source-sessions tbody tr", count: 2
-    screenshot "29-source-log", "#tab-content-mirror_source"
+    screenshot "29-source-log", "#main"
     within("table.mirror-source-sessions tbody tr:first-child") { click_link "Details" }
     assert_selector "table.mirror-source-accesses tbody tr", count: 3
     screenshot "30-source-session", "table.mirror-source-accesses"

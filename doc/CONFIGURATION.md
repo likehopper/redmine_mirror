@@ -128,6 +128,11 @@ a link to the page of the next one.
 - **Source Redmine URL**: chosen from the allowed sources;
 - **Source project**: its identifier, as in `<source>/projects/<identifier>`, or its numeric ID;
 - **Source API key**: stored encrypted and never displayed again;
+- **Source Mirror application key**: the one-time key generated in the source project's
+  Mirror source settings, also stored encrypted and never displayed again. It proves the
+  caller is a configured Mirror application; the API key still identifies the read-only
+  Redmine account and applies its permissions. It is required when selected data uses
+  Mirror source endpoints and left empty for a source without Mirror;
 - **Source text format**: *Auto* detects Textile, Markdown or HTML (CKEditor) for each
   text; choose a format to force it. Texts are converted to this Redmine's text format,
   and issue references point to the imported issues; the detected formats are shown
@@ -192,8 +197,8 @@ subproject has enabled.
 - creates it under its local parent (*Add subprojects* on that parent), or takes the
   existing one (*Select project modules* on it);
 - enables Mirror and the Redmine modules its Mirror modules need;
-- gives it a Mirror configuration taken from this one: same source and API key (a new
-  key saved here reaches it), same options, and this project's correspondences for the
+- gives it a Mirror configuration taken from this one: same source, API key and Mirror
+  application key (a new key saved here reaches it), same options, and this project's correspondences for the
   references it has none for, once its own references are read. Change them in its own
   Mirror tab to override them; members follow its user and role correspondences.
 
@@ -491,14 +496,28 @@ only, and categories to their managers only, without sharing. On the source Redm
 
    ![Mirror source allowed](screenshots/configuration/27-source-allowed.png)
 3. In the project: `Settings → Modules`, enable **Mirror source** (the **Mirror** module
-   is not needed), then in `Settings → Mirror source` check **Documents**, **News**, **Tags**,
+   is not needed), then in `Settings → Mirror source` enter the IP addresses or networks
+   (CIDR) of this project's destination clients, select the API accounts they use and
+   **Generate a new key**. Copy that one-time Mirror application key into the destination
+   project's connection. The source keeps only its SHA-256 digest; the destination stores
+   the key encrypted with Redmine's `database_cipher_key`. The application key identifies
+   a configured Mirror instance and is distinct from the API key identifying its Redmine
+   account.
+   All three controls are required: an empty address list, no selected account or no
+   application key refuses every request. The address must also pass the administrator-wide
+   list, and the account must still have the native Redmine permission for the requested
+   data. After upgrading an existing installation through migration 24, access therefore
+   remains closed until each shared project configures these client settings and each
+   destination saves the generated key.
+   Then check **Documents**, **News**, **Tags**,
    **Scrum sprints**, **Saved queries**, **Users**, **Custom fields**, **Issue categories**, **Project
    enumerations**, **Repositories** and/or **Repository credentials** and save.
    Data whose Redmine module the project has not enabled (Documents, News, Repository,
    Scrum, Issue tracking for tags and categories) is greyed.
    In a project with subprojects, **Apply this sharing to the subprojects** enables Mirror
    source in each subproject where you may enable modules and configure Mirror source,
-   and shares the same data there, among the data its own modules hold. Subprojects are
+   and copies the same authorized addresses, accounts, application key and shared data
+   there, among the data its own modules hold. Subprojects are
    not configured otherwise: a later change in the parent reaches them only when applied
    again, and the API account needs a role in each one (or the subproject inherits the
    members).
@@ -508,8 +527,9 @@ only, and categories to their managers only, without sharing. On the source Redm
    sent only to a destination that asks for them, to write a repository of a project
    that keeps them (**Keep the credentials** in its Repositories tab).
    Sharing Issue categories gives every category of the project with its default
-   assignee and, when the source has it, its sharing with subprojects. Sharing Saved queries shows the
-   destination every query of the project, private ones included. Sharing Users gives
+   assignee and, when the source has it, its sharing with subprojects. Sharing Saved queries
+   follows Redmine's visibility for the authorized API account: another user's private
+   query is not sent. Sharing Users gives
    the login, name, email and company (the user field chosen in the plugin settings, or
    named Company) of the users the destination asks for, only if they are members of the
    project or appear in its data (issues, notes, time entries, watchers, news, wiki, files).
@@ -521,20 +541,33 @@ only, and categories to their managers only, without sharing. On the source Redm
    no additional sharing choice, and no Localizable setting is transferred.
 
    ![Shared data](screenshots/configuration/28-source-sharing.png)
-4. Give the source API account *View documents* (Documents), *View news* (News) or
-   *View issues* (Tags, Saved queries, Users, Custom fields, Issue categories, Project enumerations),
+4. Give the source API account *View documents* (Documents), *View news* (News),
+   *View members* (Users) or *View issues* (Tags, Saved queries, Custom fields, Issue categories, Project enumerations),
    *Manage repository* (Repositories) or *View sprint board* (Scrum sprints) in that project. Anonymous access is refused, even on public projects.
+   Incremental synchronization is used only when this dedicated role has *All issues*,
+   *All time entries*, *View private notes*, *View members* and *View spent time*; otherwise
+   Mirror automatically performs permission-filtered full reads. This avoids disclosing
+   identifiers of private objects through deletion tombstones.
 
-The **Access log** below the sharing lists one session per destination run or reference
-refresh: account, address, purpose, objects listed, files sent and refusals. **Details**
-lists each request and what it sent. Refused requests name the lock that refused them.
+The project's **Mirror source** menu lists one session per destination run or reference
+refresh: account, address, purpose, object counts, bytes sent and refusals. It can filter
+sessions by account, address, purpose or refusal, and group them by session or by the
+observable destination (API account and client address). **Details** lists the resource
+type and count for each request. It deliberately stores no object
+title, filename, user name, email, request parameter, API key or application key. Refused
+requests name only the lock that refused them.
+Migration 24 clears the detailed JSON of older access rows because beta50 stored titles,
+user names and filenames there; their date, account, address, action, counters and byte
+volume remain available for audit.
 
 ![Access log](screenshots/configuration/29-source-log.png)
 
 ![Session details](screenshots/configuration/30-source-session.png)
 
-Entries are kept 180 days by default (plugin settings). Configuring the sharing and
-reading the log need the permission *Configure Mirror source and read its access log*.
+Entries are kept 180 days by default (plugin settings). Configuration remains in
+`Settings → Mirror source` and needs *Configure Mirror source*. Reading the operational
+project menu needs the separate
+*View Mirror source access log* permission; administrators retain the cross-project log.
 `Administration → Mirror → Source: shared resources` shows whether Mirror source is
 allowed, the projects that enabled the module with what they share, their last access
 and sessions, then the sessions of every project, filtered by project or to those with

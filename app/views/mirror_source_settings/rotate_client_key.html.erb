@@ -1,0 +1,5 @@
+<% content_for :header_tags do %><meta name="robots" content="noindex,nofollow"><% end %>
+<h2><%= l(:label_mirror_source_client_key) %></h2>
+<div class="flash warning"><%= l(:text_mirror_source_client_key_once) %></div>
+<p><code id="mirror-source-client-key"><%= @client_key %></code></p>
+<p><%= link_to l(:button_back), settings_project_path(@project, tab: "mirror_source") %></p>

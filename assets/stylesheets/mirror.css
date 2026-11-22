@@ -101,6 +101,7 @@ table.mirror-module-statistics td:first-child { text-align: left; }
 /* Mirror source: refused accesses stand out in the access log. */
 tr.mirror-source-refused td { color: #c22; }
 .mirror-module-hint { display: inline; }
+#mirror-source-filters fieldset label { margin-right: 1em; white-space: nowrap; }
 /* Connection tab: the subprojects table. */
 table.mirror-subprojects td { text-align: left; vertical-align: top; }
 table.mirror-subprojects details summary { cursor: pointer; }

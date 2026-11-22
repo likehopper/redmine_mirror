@@ -23,7 +23,7 @@ class MirrorSourceAccess < ActiveRecord::Base
   # Aggregates selected by .sessions, cast like columns on every database.
   attribute :started_at, :datetime
   attribute :ended_at, :datetime
-  %i[requests files documents refused].each { |name| attribute name, :integer }
+  %i[sessions requests files documents refused].each { |name| attribute name, :integer }
 
   # One row per session (a destination run or reference refresh), newest first.
   def self.sessions
@@ -33,6 +33,17 @@ class MirrorSourceAccess < ActiveRecord::Base
            "SUM(CASE WHEN action = 'list' THEN object_count ELSE 0 END) AS documents, " \
            "SUM(CASE WHEN action = 'refused' THEN 1 ELSE 0 END) AS refused")
       .group(:project_id, :session_key).order(Arel.sql("MAX(created_at) DESC"))
+  end
+
+  # The source does not retain the application key, so the observable destination
+  # identity is its authorized API account and client address.
+  def self.destinations
+    select("project_id, user_id, remote_ip, MIN(created_at) AS started_at, MAX(created_at) AS ended_at, " \
+           "COUNT(DISTINCT session_key) AS sessions, COUNT(*) AS requests, SUM(bytes) AS bytes, " \
+           "SUM(CASE WHEN action = 'download' THEN 1 ELSE 0 END) AS files, " \
+           "SUM(CASE WHEN action = 'list' THEN object_count ELSE 0 END) AS documents, " \
+           "SUM(CASE WHEN action = 'refused' THEN 1 ELSE 0 END) AS refused")
+      .group(:project_id, :user_id, :remote_ip).order(Arel.sql("MAX(created_at) DESC"))
   end
 
   def details

@@ -27,8 +27,10 @@ end
 # Mirror source: allowed by the administrator, module enabled, documents shared.
 Setting.plugin_redmine_mirror = Setting.plugin_redmine_mirror.to_h.merge("source_enabled" => "1")
 project.enable_module!(:mirror_source)
-(project.mirror_source_setting || project.build_mirror_source_setting).update!(shared_modules: %w[documents])
 Member.find_or_create_by!(project: project, user: alice) { |row| row.roles = [Role.find_by!(name: "Manager")] }
+source_setting = project.mirror_source_setting || project.build_mirror_source_setting
+source_setting.client_key = ENV.fetch("MIRROR_SOURCE_APPLICATION_KEY", "disposable-mirror-application-key")
+source_setting.update!(shared_modules: %w[documents], client_addresses: "0.0.0.0/0\n::/0", authorized_user_ids: [admin.id])
 unless project.documents.exists?
   technical = DocumentCategory.find_by!(name: "Technical documentation")
   user_docs = DocumentCategory.find_by!(name: "User documentation")

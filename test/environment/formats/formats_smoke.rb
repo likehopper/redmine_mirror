@@ -59,6 +59,7 @@ begin
     setting = MirrorProjectSetting.new(project: project, source_url: source_url, source_project_id: remote.fetch("id"),
       source_project_identifier: identifier, source_text_format: "auto")
     setting.api_key = "1" * 40
+    setting.source_application_key = ENV.fetch("MIRROR_SOURCE_APPLICATION_KEY", "disposable-mirror-application-key")
     setting.selected_modules = %w[issue_tracking issue_journals issue_attachments issue_custom_fields]
     setting.source_catalog = RedmineMirror::SourceCatalog.new(client: source, project_id: remote.fetch("id"), adapters: setting.adapters).fetch
     setting.save!

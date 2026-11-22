@@ -232,7 +232,7 @@ class MirrorAdminController < ApplicationController
   end
 
   def require_source_schema
-    return if MirrorSourceAccess.table_exists? && MirrorSourceSetting.table_exists?
+    return if MirrorSourceAccess.table_exists? && MirrorSourceSetting.client_schema_current?
     render_error message: l(:text_mirror_pending_migrations), status: 503
   end
 

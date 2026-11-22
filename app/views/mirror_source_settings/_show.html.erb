@@ -13,13 +13,14 @@ This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
-Mirror source tab of the project settings: the data shared with Mirror destinations,
-then the access log, by session, or one session's requests.
+Mirror source tab of the project settings: authorized clients and shared data.
 %><% content_for :header_tags do %>
   <%= stylesheet_link_tag "mirror", plugin: "redmine_mirror" %>
 <% end %>
 <% source_setting = @project.mirror_source_setting %>
 <% shared = source_setting&.shared_modules.to_a %>
+<% authorized_user_ids = source_setting&.authorized_user_ids.to_a %>
+<% client_users = (@project.users.active.to_a + User.active.where(admin: true).to_a).uniq(&:id).sort_by(&:name) %>
 <% unless RedmineMirror::Source.enabled? %>
   <p class="warning" id="mirror-source-disabled"><%= l(:text_mirror_source_disabled) %></p>
 <% end %>
@@ -30,6 +31,17 @@ then the access log, by session, or one session's requests.
   <% kinds = RedmineMirror::Source.allowed_kinds %>
   <% missing = RedmineMirror::Source.kinds_without_module(@project) %>
   <div class="box tabular">
+    <p><%= label_tag "mirror-source-client-addresses", l(:label_mirror_source_client_addresses) %>
+      <%= text_area_tag "client_addresses", source_setting&.client_addresses, rows: 3, cols: 40, id: "mirror-source-client-addresses", placeholder: "192.0.2.10\n2001:db8::10" %>
+      <em class="info"><%= l(:text_mirror_source_client_addresses) %></em></p>
+    <p><%= label_tag "mirror-source-authorized-users", l(:label_mirror_source_authorized_users) %>
+      <%= select_tag "authorized_user_ids[]", options_for_select(client_users.map { |user| ["#{user.name} (##{user.id})", user.id] }, authorized_user_ids), multiple: true, size: [client_users.size, 8].min, id: "mirror-source-authorized-users" %>
+      <em class="info"><%= l(:text_mirror_source_authorized_users) %></em></p>
+    <p><label><%= l(:label_mirror_source_client_key) %></label>
+      <%= source_setting&.client_key? ? l(:label_mirror_source_client_key_set) : content_tag(:span, l(:label_mirror_source_client_key_missing), class: "warning") %>
+      <%= button_tag l(:button_mirror_source_generate_client_key), type: "submit", formaction: project_mirror_source_client_key_path(@project),
+            formmethod: "post", data: { confirm: l(:text_mirror_source_generate_client_key_confirm) } %>
+      <em class="info"><%= l(:text_mirror_source_client_key) %></em></p>
     <p><label><%= l(:label_mirror_source_shared) %></label>
       <% kinds.each do |kind| %>
         <%# Greyed without the Redmine module holding the data; a checked one can still be unchecked. %>
@@ -50,15 +62,3 @@ then the access log, by session, or one session's requests.
   <%= button_to l(:button_mirror_source_apply_to_subprojects), project_mirror_source_subprojects_path(@project), method: :post, id: "mirror-source-apply-subprojects" %>
   <p><em class="info"><%= l(:text_mirror_source_apply_to_subprojects) %></em></p>
 <% end %>
-
-<h3 id="mirror-source-log"><%= l(:label_mirror_source_log) %></h3>
-<% session_key = params[:mirror_source_session].to_s %>
-<% if session_key.match?(RedmineMirror::Source::SESSION) %>
-  <% accesses = @project.mirror_source_accesses.where(session_key: session_key).order(:created_at, :id).preload(:user).to_a %>
-  <p><%= link_to l(:label_mirror_source_all_sessions), settings_project_path(@project, tab: "mirror_source", anchor: "mirror-source-log") %></p>
-  <%= render "mirror_source_settings/accesses", accesses: accesses %>
-<% else %>
-  <% sessions = @project.mirror_source_accesses.sessions.limit(50).to_a %>
-  <%= render "mirror_source_settings/sessions", sessions: sessions, show_project: false %>
-<% end %>
-<p><em class="info"><%= l(:text_mirror_source_retention, days: RedmineMirror::Source.retention_days) %></em></p>

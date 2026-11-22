@@ -33,26 +33,14 @@ One Mirror source session: each request, served or refused, and what it sent.
           <td><%= access.user ? link_to_user(access.user) : l(:label_user_anonymous) %></td>
           <td><%= access.remote_ip %></td>
           <td><%= l("label_mirror_source_action_#{access.action}".to_sym) %></td>
-          <td>
-            <% case access.action %>
-            <% when "refused" %>
-              <%= l("text_mirror_source_refusal_#{access.reason}".to_sym, default: access.reason.to_s) %>
-            <% when "download" %>
-              <% file = details.fetch("attachment", {}) %>
-              <%= file["filename"] %> (<%= number_to_human_size(access.bytes) %>)
-            <% else %>
-              <% if (tags = details["issue_tags"]).is_a?(Hash) %>
-                <strong><%= l(:label_mirror_module_issue_tags) %></strong> <%= l(:text_mirror_source_tags_listed, issues: tags["issues"].to_i, tags: tags["tags"].to_i) %>
-              <% end %>
-              <% if (scrum = details["scrum"]).is_a?(Hash) %>
-                <strong><%= l(:label_mirror_module_scrum) %></strong> <%= l(:text_mirror_source_scrum_listed, sprints: scrum["sprints"].to_i, issues: scrum["issues"].to_i) %>
-              <% end %>
-              <% %w[documents news queries users].each do |kind| %>
-                <% next if details.fetch(kind, []).empty? %>
-                <strong><%= l("label_mirror_module_#{kind}".to_sym) %></strong> <%= safe_join(details.fetch(kind).map { |row| "#{row['title']} (##{row['id']})" }, ", ") %>
-              <% end %>
-            <% end %>
-          </td>
+          <td><% if access.action == "refused" %>
+            <%= l("text_mirror_source_refusal_#{access.reason}".to_sym, default: access.reason.to_s) %>
+          <% else %>
+            <% kind = details["kind"] %>
+            <strong><%= l("label_mirror_module_#{kind}".to_sym, default: kind.to_s.humanize) %></strong>
+            <%= l(:text_mirror_source_objects_sent, count: access.object_count) %>
+            <% if access.bytes.to_i.positive? %> (<%= number_to_human_size(access.bytes) %>)<% end %>
+          <% end %></td>
         </tr>
       <% end %>
     </tbody>

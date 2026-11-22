@@ -43,6 +43,8 @@ Connection: source Redmine and project, API key, source text format and modules.
       <em class="info"><%= @setting.source_project_id ? l(:text_mirror_source_project_number, id: @setting.source_project_id) : l(:text_mirror_source_project_help) %></em></p>
     <p><%= label_tag "connection_api_key", l(:label_mirror_api_key), class: (@setting.persisted? ? nil : "required") %><%= password_field_tag "connection[api_key]", nil, autocomplete: "new-password" %>
       <em class="info"><%= @setting.persisted? ? l(:text_mirror_keep_api_key) : l(:text_mirror_api_key_account) %></em></p>
+    <p><%= label_tag "connection_source_application_key", l(:label_mirror_source_application_key) %><%= password_field_tag "connection[source_application_key]", nil, autocomplete: "new-password" %>
+      <em class="info"><%= @setting[:encrypted_source_application_key].present? ? l(:text_mirror_keep_source_application_key) : l(:text_mirror_source_application_key) %></em></p>
     <p><%= label_tag "connection_source_text_format", l(:label_mirror_source_text_format) %>
       <%= select_tag "connection[source_text_format]", options_for_select(RedmineMirror::TextFormat::SOURCE_FORMATS.map { |format| [l("label_mirror_text_format_#{format}"), format] }, @setting.source_text_format), id: "connection_source_text_format" %>
       <em class="info" id="mirror-text-formats"><%= l(:text_mirror_destination_text_format, name: mirror_text_format_name(RedmineMirror::TextFormat.destination_format(@project))) %>

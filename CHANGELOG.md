@@ -16,6 +16,22 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+- Restrict each Mirror source project to explicitly selected client IP addresses or
+  networks, API accounts and a generated Mirror application key. Empty project client
+  settings deny every request after migration 24; the administrator-wide address list
+  and native Redmine permissions remain additional controls.
+- Keep source access logs to operational metadata instead of object titles, filenames
+  and user names; migration 24 clears those details from existing access rows while
+  keeping their audit envelope. Their dedicated **Mirror source** project page filters
+  sessions by account, address, purpose or refusal and groups them by session or by the
+  observable destination (API account and client address); viewing it has its own project
+  permission. Saved-query sharing now
+  follows the API account's native Redmine visibility and excludes another user's
+  private queries. The incremental feed falls back to permission-filtered full reads
+  unless its dedicated account has full project visibility.
+
 ## 1.0.0-beta.50 — 2026-11-18
 
 - Allow several source memberships to map to one destination member without an

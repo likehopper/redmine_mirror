@@ -20,7 +20,8 @@ abort "Disposable test environment only" unless ENV["MIRROR_TEST_ENVIRONMENT"] =
 abort "Source instance only" unless ENV["MIRROR_ROLE"] == "source"
 role = Role.find_or_initialize_by(name: "Mirror reader")
 # Everything Mirror reads, nothing it could change.
-role.permissions = %i[view_issues view_private_notes view_time_entries view_issue_watchers view_wiki_pages view_wiki_edits]
+role.permissions = %i[view_issues view_private_notes view_time_entries view_issue_watchers view_members
+  view_wiki_pages view_wiki_edits view_documents view_files view_news]
 role.issues_visibility = "all"
 role.users_visibility = "all"
 role.time_entries_visibility = "all" if role.respond_to?(:time_entries_visibility=)
@@ -29,8 +30,9 @@ reader = User.find_by(login: "mirror-reader") || User.create!(login: "mirror-rea
   lastname: "Reader", mail: "mirror-reader@example.invalid", admin: false,
   password: "Mirror-test-2026!", password_confirmation: "Mirror-test-2026!")
 Project.where.not(status: Project::STATUS_ARCHIVED).find_each do |project|
-  next if Member.exists?(project: project, user_id: reader.id)
-  Member.create!(project: project, principal: reader, roles: [role])
+  Member.create!(project: project, principal: reader, roles: [role]) unless Member.exists?(project: project, user_id: reader.id)
+  next unless project.mirror_source_setting
+  project.mirror_source_setting.update!(authorized_user_ids: project.mirror_source_setting.authorized_user_ids | [reader.id])
 end
 token = Token.find_or_create_by!(user: reader, action: "api")
 token.update!(value: "3" * 40)
