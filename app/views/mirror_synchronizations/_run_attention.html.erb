@@ -25,7 +25,7 @@ Execution tab of what to check: errors by cause with their fix, warnings and spe
     <ul id="mirror-error-causes">
     <% causes.first(20).each do |group| %>
       <% guide = group[:code] ? mirror_guidance(group[:code], group[:params]) : nil %>
-      <li><%= group[:reason] %><%= " (#{guide[:name]})" if guide&.dig(:name) %> —
+      <li><%= mirror_reason_label(group[:reason]) %><%= " (#{guide[:name]})" if guide&.dig(:name) %> —
         <%= link_to l(:label_mirror_objects_count, count: group[:count]), project_mirror_run_path(@project, @run, action_filter: "error", reason: group[:key]) %>
         <% if guide %>
           <div class="mirror-guide"><%= guide[:text] %>

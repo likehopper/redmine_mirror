@@ -277,12 +277,55 @@ module MirrorHelper
     "user" => "users", "activity" => "time_tracking", "custom_field" => "issue_custom_fields",
     "role" => "project_members", "group" => "project_members", "document_category" => "documents" }.freeze
 
+  # Run reasons are recorded in English, the language of logs and support requests.
+  # Known forms are shown in the user's language; anything else, such as a message
+  # written by the remote Redmine, is shown as recorded.
+  MIRROR_REASON_FORMS = [
+    [/\A(?<count>\d+) object\(s\) not synchronized; first: (?<first>.+)\z/m, :text_mirror_reason_run_errors],
+    [/\A(?<reason>.+); the value was not imported\z/m, :text_mirror_reason_value_skipped],
+    [/\A(?<reason>.+); the history change was not imported\z/m, :text_mirror_reason_history_skipped],
+    [/\ARedmine API returned HTTP (?<status>\d+) for (?<request>[A-Z]+ \S+)(?<detail>.*)\z/m, :text_mirror_reason_http],
+    [/\AMissing (?<kind>\w+) mapping for source ID (?<id>\d+)\z/, :text_mirror_reason_missing_mapping],
+    [/\ALocal modification detected for (?<module>\w+) source ID (?<id>\d+)\z/, :text_mirror_reason_conflict],
+    [/\A(?<original>Local modification detected for (?<module>\w+) source ID (?<id>\d+): the destination \w+ was (?:moved or )?deleted)\z/, :text_mirror_reason_conflict_deleted],
+    [/\AMapped watcher cannot view destination issue\z/, :text_mirror_reason_watcher_no_access],
+    [/\ASource custom field #(?<id>\d+) and destination field "(?<name>.+)" have incompatible formats or multiplicity\z/, :text_mirror_reason_field_incompatible],
+    [/\ACustom field "(?<name>.+?)" is not enabled for destination tracker "(?<tracker>.*?)": enable it, or ignore source field #(?<id>\d+)\z/, :text_mirror_reason_field_not_on_tracker],
+    [/\AThe destination custom field mapped to source field #(?<id>\d+) is not enabled in this project\z/, :text_mirror_reason_field_not_in_project],
+    [/\AMissing value mapping for custom field source ID (?<id>\d+)\z/, :text_mirror_reason_missing_value_mapping],
+    [/\AEnable the (?<project_module>\w+) module on the destination project\z/, :text_mirror_reason_project_module],
+    [/\A(?<original>Missing (?:destination|owning) issue correspondence|Issue has no synchronized destination)\z/, :text_mirror_reason_issue_not_imported],
+    [/\AParent wiki page "(?<title>.*)" is not imported\z/, :text_mirror_reason_wiki_parent_missing]
+  ].freeze
+
+  def mirror_reason_text(reason)
+    text = reason.to_s
+    MIRROR_REASON_FORMS.each do |pattern, key|
+      match = pattern.match(text) or next
+      values = match.named_captures.transform_keys(&:to_sym)
+      values[:first] = mirror_reason_text(values[:first]) if values[:first]
+      values[:reason] = mirror_reason_text(values[:reason]) if values[:reason]
+      # Raw names keep the English text identical to the recorded one; labels serve other languages.
+      values[:kind_label] = l("label_mirror_mapping_#{values[:kind]}", default: values[:kind]) if values[:kind]
+      values[:module_label] = mirror_module_label(values[:module]) if values[:module]
+      values[:project_module_label] = l_or_humanize(values[:project_module].downcase, prefix: "project_module_") if values[:project_module]
+      return l(key, **values)
+    end
+    text
+  end
+
+  # The translated reason keeps the recorded text on hover, for support requests.
+  def mirror_reason_label(reason)
+    text = mirror_reason_text(reason)
+    text == reason.to_s ? text : content_tag(:span, text, title: reason.to_s)
+  end
+
   # An error or warning with, when known, the source reference name and a link to the
   # page that fixes it.
   def mirror_reason(reason, details = nil)
     text = reason.to_s
     name, label, path = mirror_fix(text, details)
-    parts = [text]
+    parts = [mirror_reason_label(text)]
     parts << " (#{name})" if name
     parts << " — " << link_to(label, path, class: "mirror-fix") if path
     safe_join(parts)

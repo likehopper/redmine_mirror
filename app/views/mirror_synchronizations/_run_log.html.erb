@@ -35,7 +35,7 @@ Execution journal tab: filters, optional grouping and the paginated objects.
   <p id="mirror-warning-filter"><strong><%= l(:label_mirror_warning) %>:</strong> <%= params[:warning] %> — <%= link_to l(:button_clear), project_mirror_run_path(@project, @run, tab: "log") %></p>
 <% end %>
 <% if params[:reason].present? %>
-  <p id="mirror-reason-filter"><strong><%= l(:label_mirror_error_cause) %>:</strong> <%= @error_groups.find { |group| group[:key] == params[:reason] }&.dig(:reason) || params[:reason] %> — <%= link_to l(:button_clear), project_mirror_run_path(@project, @run, action_filter: "error") %></p>
+  <p id="mirror-reason-filter"><strong><%= l(:label_mirror_error_cause) %>:</strong> <%= mirror_reason_label(@error_groups.find { |group| group[:key] == params[:reason] }&.dig(:reason) || params[:reason]) %> — <%= link_to l(:button_clear), project_mirror_run_path(@project, @run, action_filter: "error") %></p>
 <% end %>
 <table class="list" id="mirror-log"><thead><tr><th><%= l(:label_mirror_modules) %></th><th><%= l(:label_mirror_remote_id) %></th><th><%= l(:label_mirror_local_id) %></th><th><%= l(:label_mirror_action) %></th><th><%= l(:label_mirror_to_check) %></th><th><%= l(:label_mirror_reason) %></th></tr></thead><tbody>
 <% previous_group = nil %>
