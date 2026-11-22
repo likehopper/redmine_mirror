@@ -26,6 +26,9 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   selected conflict at once. New resolution **Take the source version**: the next run
   replaces the local changes of that object only, as in mirror mode. **To review** now
   counts conflicts by status and links to the list.
+- Rename the **Automatic synchronization** settings tab **Synchronization** and split it:
+  **The source wins** and **When an object fails** apply to every run, manual or
+  automatic (as they already did); the schedule has its own block.
 - Show run errors and warnings in the user's language on the run page (banner, causes,
   warnings, journal): the most frequent reasons are translated, the recorded English text
   stays on hover, and messages written by the remote Redmine are kept as they are.

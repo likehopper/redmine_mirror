@@ -502,7 +502,7 @@ destinations then receive a 404 and use their compatible mode, as without Mirror
 Switching it, or a journal error on the source, asks the destinations concerned for a
 complete pass at their next run, since the changes of that period were not recorded.
 
-**When an object fails** (Settings → Mirror → Automatic synchronization):
+**When an object fails** (Settings → Mirror → Synchronization, for every run):
 
 - *Skip it and synchronize the rest* (default): the failing object, and the objects that
   depend on it (its time entries, history…), are not written; everything else is. The run

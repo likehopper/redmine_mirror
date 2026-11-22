@@ -414,11 +414,12 @@ with conflicts. Import those projects, then synchronize this one again.
 
 ## 11. Schedule automatic runs
 
-In **Settings → Mirror → Automatic synchronization**, tick **Enable automatic
-synchronization**, choose a frequency (5 minutes to 1 day) and what to do when an object
-fails, then save. The next execution date is displayed.
+**Settings → Mirror → Synchronization** has two blocks. **Every synchronization, manual or
+automatic** sets what to do when an object fails and whether the source wins. **Automatic
+synchronization**: tick **Enable automatic synchronization**, choose a frequency
+(5 minutes to 1 day), then save. The next execution date is displayed.
 
-Tick **The source wins (mirror mode)** for an exact copy: local changes are overwritten,
+Tick **The source wins (mirror mode)** for an exact copy, for manual and automatic runs alike: local changes are overwritten,
 local deletions recreated and source deletions propagated (see the
 [module reference](MODULES.md#mirror-mode)). Leave it unticked when the project is also
 worked on locally: local changes are then reported as conflicts.

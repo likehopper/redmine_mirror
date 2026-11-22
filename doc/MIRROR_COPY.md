@@ -40,7 +40,7 @@ the modules and the last execution.
 
 ## 2. Turn mirror mode on
 
-In **Settings → Mirror → Automatic synchronization**:
+In **Settings → Mirror → Synchronization**:
 
 1. tick **Enable automatic synchronization** and choose a frequency;
 2. tick **The source wins (mirror mode)**;

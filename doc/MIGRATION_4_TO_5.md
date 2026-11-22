@@ -178,7 +178,7 @@ changed: here, a note added in Redmine 4.2 after the first import.
 
 ![New note imported](screenshots/migration/17-resync.png)
 
-Schedule it in **Settings → Mirror → Automatic synchronization**. With **The source wins
+Schedule it in **Settings → Mirror → Synchronization**. With **The source wins
 (mirror mode)**, local changes are overwritten and source deletions propagated, so the
 Redmine 5 project stays an exact copy (see [Keep an exact copy](MIRROR_COPY.md)).
 

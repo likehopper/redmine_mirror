@@ -398,7 +398,7 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     assert_select "#mirror-settings-subtabs a", count: 3
     assert_select "#mirror-settings-subtabs a.selected", text: "Connection"
     assert_select "#mirror-settings-subtabs a[href$='mirror_tab=modules']", text: /Modules and mappings/
-    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=schedule']", text: "Automatic synchronization"
+    assert_select "#mirror-settings-subtabs a[href$='mirror_tab=schedule']", text: "Synchronization"
     assert_select "#mirror-catalog-module-errors li", text: "Wiki: The source API key needs View wiki in the source project"
   end
 
