@@ -20,6 +20,9 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 - Validate the destination container and attachment author before downloading a file;
   unchanged attachments continue to reuse their local file without another source transfer.
+- List each subproject in the Mirror source settings: whether its addresses, accounts,
+  key and shared data match the parent's, are customized or still to configure, and its
+  last destination access (served or refused, with the reason).
 - Read the source references again when their worker stopped during the read (server
   restart, killed process): the refresh no longer stays "In progress" forever. The
   worker beats every 30 seconds; after two minutes of silence, the next tick requests
