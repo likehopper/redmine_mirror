@@ -399,6 +399,10 @@ for their other issue.
 Imported issues keep their author, dates, notes and attachments. Members who can view
 Mirror see a **Mirror source issue** link.
 
+Mirror downloads an attachment only after its destination container and local author
+exist. A recorded attachment whose source metadata and destination file are unchanged
+reuses the local file on later synchronizations instead of downloading it again.
+
 ![Imported issue](screenshots/configuration/19-imported-issue.png)
 
 Relations and parents in projects not mirrored yet wait under **To review**, together

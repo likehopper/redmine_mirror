@@ -16,6 +16,11 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+- Validate the destination container and attachment author before downloading a file;
+  unchanged attachments continue to reuse their local file without another source transfer.
+
 ## 1.0.0-beta.56 — 2026-11-22
 
 - Fix the "Generate a key" button of the Mirror source settings: it answered "Page not

@@ -59,6 +59,8 @@ module RedmineMirror
 
       # path: where a Mirror source serves the file, instead of the attachments API.
       def import(record, attributes, issue, source, path: nil)
+        raise Error, "Missing destination attachment container" unless issue&.persisted?
+        raise Error, "Missing destination attachment author" unless User.exists?(id: attributes.fetch("author_id"))
         # The destination's own limit (Administration > Files) is the one that matters.
         limit = Setting.attachment_max_size.to_i * 1024
         if attributes.fetch("filesize") > limit
