@@ -41,8 +41,9 @@ Mirror source tab of the project settings: authorized clients and shared data.
       <em class="info"><%= l(:text_mirror_source_authorized_users) %></em></p>
     <p><label><%= l(:label_mirror_source_client_key) %></label>
       <%= source_setting&.client_key? ? l(:label_mirror_source_client_key_set) : content_tag(:span, l(:label_mirror_source_client_key_missing), class: "warning") %>
-      <%= button_tag l(:button_mirror_source_generate_client_key), type: "submit", formaction: project_mirror_source_client_key_path(@project),
-            formmethod: "post", data: { confirm: l(:text_mirror_source_generate_client_key_confirm) } %>
+      <%# Submits the separate form below: inside this form the hidden _method=patch would win over formmethod. %>
+      <%= button_tag l(:button_mirror_source_generate_client_key), type: "submit", form: "mirror-source-client-key-form",
+            data: { confirm: l(:text_mirror_source_generate_client_key_confirm) } %>
       <em class="info"><%= l(:text_mirror_source_client_key) %></em></p>
     <p><label><%= l(:label_mirror_source_shared) %></label>
       <% kinds.each do |kind| %>
@@ -57,6 +58,7 @@ Mirror source tab of the project settings: authorized clients and shared data.
   </div>
   <%= submit_tag l(:button_save) %>
 <% end %>
+<%= form_tag project_mirror_source_client_key_path(@project), method: :post, id: "mirror-source-client-key-form" do %><% end %>
 <% if @project.descendants.where.not(status: Project::STATUS_ARCHIVED).exists? %>
   <h3 id="mirror-source-subprojects"><%= l(:label_mirror_subprojects) %></h3>
   <% children = @project.descendants.where.not(status: Project::STATUS_ARCHIVED).visible.to_a %>

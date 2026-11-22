@@ -238,6 +238,13 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
   def test_generates_an_application_key_once_and_stores_only_its_digest
     @project.enable_module!(:mirror_source)
     log_user("jsmith", "jsmith")
+    # The button sits in the PATCH settings form; it must submit its own POST form.
+    get "/projects/ecookbook/settings", params: { tab: "mirror_source" }
+    assert_select "#mirror-source-form button[form='mirror-source-client-key-form']"
+    assert_select "#mirror-source-form #mirror-source-client-key-form", count: 0
+    assert_select "form#mirror-source-client-key-form[action='/projects/ecookbook/mirror_source/client_key'][method=post]" do
+      assert_select "input[name=_method]", count: 0
+    end
     post "/projects/ecookbook/mirror_source/client_key"
     assert_response :success
     key = css_select("#mirror-source-client-key").first.text
