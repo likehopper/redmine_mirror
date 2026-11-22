@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.57 — 2026-11-22
 
 - Validate the destination container and attachment author before downloading a file;
   unchanged attachments continue to reuse their local file without another source transfer.
@@ -30,6 +30,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 - Keep the Getting started steps done while references already read are refreshed:
   "Load source references" shows "Update in progress" instead of sending the project
   back to step 2, and the mappings are checked against the references already read.
+- No migration since beta.54.
 
 ## 1.0.0-beta.56 — 2026-11-22
 
