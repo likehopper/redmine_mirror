@@ -82,6 +82,29 @@ class MirrorCustomFieldsTest < ActiveSupport::TestCase
     assert_match(/incompatible formats or multiplicity/, warnings.call.first)
   end
 
+  def test_single_source_value_fills_a_multiple_destination_field
+    @setting.source_catalog = @setting.source_catalog.deep_merge("custom_field_definitions" => { "901" => { "multiple" => false } })
+    @setting.save!
+    @record["custom_fields"][1]["value"] = "Remote A"
+    run_adapter
+    assert_equal ["Local B"], @issue.reload.custom_field_value(@list)
+    assert_equal "unchanged", run_adapter[:action]
+    @record["custom_fields"][1]["value"] = ""
+    assert_equal [], @adapter.imported_values(@record, project_id: @issue.project_id, mappings: @mappings, lookup: @lookup, issue: @issue).fetch(@list.id.to_s)
+    record = { "user" => { "id" => 7 }, "created_on" => "2026-01-01T12:00:00Z", "notes" => "",
+      "details" => [{ "property" => "cf", "name" => "901", "old_value" => nil, "new_value" => "Remote A" }] }
+    attributes = RedmineMirror::Adapters::Journals.new.imported_attributes(record,
+      @mappings.merge("user" => { "7" => "anonymous" }), lookup: @lookup, project: @issue.project)
+    assert_equal [["cf", @list.id.to_s, nil, "Local B"]], attributes.fetch("details")
+    # The reverse would drop values: a multiple source field stays incompatible with a single one.
+    single = IssueCustomField.create!(name: "Mirror single list", field_format: "list", possible_values: ["Local B"], is_for_all: true, trackers: Tracker.all)
+    error = assert_raises(RedmineMirror::Error) do
+      @adapter.translate_value(["Remote A"], source_id: 901, field: single, definition: { "field_format" => "list", "multiple" => true },
+        options: @setting.module_options.fetch(@adapter.key), mappings: @mappings, lookup: @lookup)
+    end
+    assert_match(/incompatible formats or multiplicity/, error.message)
+  end
+
   def test_history_remaps_field_and_list_values
     record = { "user" => { "id" => 7 }, "created_on" => "2026-01-01T12:00:00Z", "notes" => "Historical change",
       "details" => [{ "property" => "cf", "name" => "901", "old_value" => nil, "new_value" => "Remote A" }] }

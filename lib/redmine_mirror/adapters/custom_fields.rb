@@ -230,11 +230,12 @@ module RedmineMirror
         field
       end
 
-      # Compatible format and multiplicity are prerequisites. List/enumeration
+      # Compatible format and multiplicity are prerequisites. A single source value
+      # fits a multiple destination field; the reverse would drop values. List/enumeration
       # values require explicit choices; user and version values reuse object mappings.
       def translate_value(value, source_id:, field:, definition:, options:, mappings:, lookup:)
         format = effective_format(definition, field)
-        unless field.field_format == format && field.multiple? == !!definition["multiple"]
+        unless field.field_format == format && (field.multiple? || !definition["multiple"])
           raise Error, "Source custom field ##{source_id} and destination field \"#{field.name}\" have incompatible formats or multiplicity"
         end
         raise Error, "Unsupported custom field format #{format}" unless (SCALAR_FORMATS + %w[list enumeration user version project_enumeration]).include?(format)
@@ -332,7 +333,9 @@ module RedmineMirror
           field = target_field(id, mappings, project)
           check_available(field, record, issue, mappings, "ignore source field ##{id}")
           definition = definitions.fetch(id.to_s) { raise Error, "Refresh custom field references" }
-          [field.id.to_s, translate_value((reference["value"] || (field.multiple? ? [] : "")), source_id: id, field: field, definition: definition, options: options, mappings: mappings, lookup: lookup)]
+          # A multiple field holds a list, also when the source field has a single value.
+          value = field.multiple? ? Array(reference["value"]).reject { |entry| entry.to_s.empty? } : (reference["value"] || "")
+          [field.id.to_s, translate_value(value, source_id: id, field: field, definition: definition, options: options, mappings: mappings, lookup: lookup)]
         rescue Error => error
           TextFormat.warning("#{error.message}; the value was not imported")
           nil

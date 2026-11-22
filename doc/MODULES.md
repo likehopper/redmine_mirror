@@ -297,7 +297,8 @@ Discovery lists the fields used by the project's issues and their history.
 1. Create the local fields in Redmine administration and enable them on the project and
    trackers. Mirror never creates field definitions.
 2. In the module tab, map each source field to a local field, or **Ignore this field**,
-   and save. Formats (when known) and multiplicity must match.
+   and save. Formats (when known) must match. A single-value source field can go to a
+   multiple destination field; a multiple source field needs a multiple destination field.
 3. For list and key/value fields, map the values shown below the table and save again.
    Historical values still visible in the API are listed too.
 

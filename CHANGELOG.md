@@ -16,6 +16,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+- Accept a single-value source custom field mapped to a multiple-value destination field:
+  the value is written as a one-element list, and its history is imported. A multiple
+  source field mapped to a single-value field stays incompatible, as it would drop values.
+
 ## 1.0.0-beta.57 — 2026-11-22
 
 - Validate the destination container and attachment author before downloading a file;
