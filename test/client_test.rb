@@ -164,4 +164,14 @@ class MirrorClientTest < Minitest::Test
       assert_equal "Invalid Redmine API response", assert_raises(RedmineMirror::Error) { client.get("issues.json") }.message
     end
   end
+
+  def test_json_response_is_bounded_before_it_is_parsed
+    serve([["200 OK", JSON.generate("issues" => [{ "subject" => "private" }])]]) do |client, _requests|
+      error = assert_raises(RedmineMirror::Error) do
+        client.send(:request, :get, "issues.json", max_bytes: 8)
+      end
+      assert_equal "Redmine API response exceeds the import limit of 0 KB", error.message
+      refute_includes error.message, "private"
+    end
+  end
 end

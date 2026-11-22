@@ -137,28 +137,31 @@ module RedmineMirror
       http_client.read_timeout = 60
       # A retry after a transport failure could duplicate a successful POST.
       http_client.max_retries = 0
-      # Stream attachments with a size bound before retaining the entire body.
-      if binary
-        attachment_bytes = +"".b
-        http_client.start do |connection|
-          connection.request(request) do |response|
-            raise Error, caller_refusal(response) || "Redmine API returned HTTP #{response.code} for GET #{path}#{refusal(response)}" unless response.is_a?(Net::HTTPSuccess)
-            response.read_body do |chunk|
-              raise Error, "Attachment exceeds the import limit of #{max_bytes / 1024} KB" if attachment_bytes.bytesize + chunk.bytesize > max_bytes
-              attachment_bytes << chunk
-            end
+      # Bound every response before retaining it. A compromised source must not be able
+      # to exhaust the worker with a large JSON document or compressed response.
+      response = nil
+      body = +"".b
+      http_client.start do |connection|
+        connection.request(request) do |received|
+          response = received
+          received.read_body do |chunk|
+            label = binary ? "Attachment" : "Redmine API response"
+            raise Error, "#{label} exceeds the import limit of #{max_bytes / 1024} KB" if body.bytesize + chunk.bytesize > max_bytes
+            body << chunk
           end
         end
-        return attachment_bytes
       end
-      response = http_client.start { |connection| connection.request(request) }
+      if binary
+        raise Error, caller_refusal(response) || "Redmine API returned HTTP #{response.code} for GET #{path}#{refusal(response)}" unless response.is_a?(Net::HTTPSuccess)
+        return body
+      end
       # Never follow redirects or expose response bodies (which can contain private data),
       # except the validation messages of a refused write. The path names the refused
       # resource, typically a missing source permission.
       unless response.is_a?(Net::HTTPSuccess)
-        raise Error, caller_refusal(response) || "Redmine API returned HTTP #{response.code} for #{method.to_s.upcase} #{path}#{refusal(response)}#{validation_errors(response)}"
+        raise Error, caller_refusal(response) || "Redmine API returned HTTP #{response.code} for #{method.to_s.upcase} #{path}#{refusal(response)}#{validation_errors(response, body)}"
       end
-      response.body.to_s.empty? ? {} : JSON.parse(response.body)
+      body.empty? ? {} : JSON.parse(body)
     rescue JSON::ParserError, KeyError, ArgumentError
       raise Error, "Invalid Redmine API response"
     rescue IOError, SystemCallError, Timeout::Error, OpenSSL::SSL::SSLError
@@ -168,9 +171,9 @@ module RedmineMirror
     # Redmine explains a refused write (422) with its validation messages, those its own
     # forms show ("User is invalid"): the log gives them, so the cause is known without
     # replaying the request. Other bodies stay hidden.
-    def validation_errors(response)
+    def validation_errors(response, body)
       return "" unless response.code == "422"
-      messages = Array(JSON.parse(response.body.to_s)["errors"]).map { |message| message.to_s.gsub(/\s+/, " ").strip[0, 300] }
+      messages = Array(JSON.parse(body)["errors"]).map { |message| message.to_s.gsub(/\s+/, " ").strip[0, 300] }
       messages = messages.reject(&:empty?).first(10)
       messages.empty? ? "" : ": #{messages.join('; ')}"
     rescue JSON::ParserError, TypeError
