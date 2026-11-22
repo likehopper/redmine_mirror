@@ -25,6 +25,7 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
   def setup
     @project = Project.find(1)
     Role.find(1).add_permission!(:manage_mirror_source)
+    Role.find(1).add_permission!(:view_mirror_source_log)
   end
 
   def log_access(action, **attributes)
@@ -41,11 +42,28 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
     assert_select "#tab-mirror_source"
     assert_select "#mirror-source-disabled"
     assert_select "#mirror-source-share-documents:not([checked])"
-    patch "/projects/ecookbook/mirror_source", params: { shared_modules: ["", "documents", "unknown"] }
+    patch "/projects/ecookbook/mirror_source", params: { shared_modules: ["", "documents", "unknown"],
+      client_addresses: "192.0.2.10\n2001:db8::/64", authorized_user_ids: [2] }
     assert_redirected_to "/projects/ecookbook/settings/mirror_source"
-    assert_equal %w[documents], @project.reload.mirror_source_setting.shared_modules
-    patch "/projects/ecookbook/mirror_source", params: { shared_modules: [""] }
+    setting = @project.reload.mirror_source_setting
+    assert_equal %w[documents], setting.shared_modules
+    assert_equal ["192.0.2.10", "2001:db8::/64"], setting.client_addresses.lines(chomp: true)
+    assert_equal [2], setting.authorized_user_ids
+    get "/projects/ecookbook/settings", params: { tab: "mirror_source" }
+    assert_select "#mirror-source-client-addresses", text: /192\.0\.2\.10/
+    assert_select "#mirror-source-authorized-users option[value='2'][selected]"
+    patch "/projects/ecookbook/mirror_source", params: { shared_modules: [""], client_addresses: "192.0.2.10", authorized_user_ids: [2] }
     assert_empty @project.reload.mirror_source_setting.shared_modules
+  end
+
+  def test_invalid_client_address_is_not_saved
+    @project.enable_module!(:mirror_source)
+    setting = MirrorSourceSetting.create!(project: @project, client_addresses: "192.0.2.10", authorized_user_ids: [2])
+    log_user("jsmith", "jsmith")
+    patch "/projects/ecookbook/mirror_source", params: { shared_modules: ["documents"], client_addresses: "not-an-address", authorized_user_ids: [2] }
+    assert_redirected_to "/projects/ecookbook/settings/mirror_source"
+    assert_match(/invalid/i, flash[:error])
+    assert_equal "192.0.2.10", setting.reload.client_addresses
   end
 
   # Data whose Redmine module the project has not enabled is greyed; a checked one can
@@ -65,7 +83,8 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
   # Mirror source, limited to the data their own modules hold.
   def test_sharing_applies_to_the_subprojects_the_person_manages
     @project.enable_module!(:mirror_source)
-    MirrorSourceSetting.create!(project: @project, shared_modules: %w[documents news])
+    MirrorSourceSetting.create!(project: @project, shared_modules: %w[documents news],
+      client_addresses: "192.0.2.10", authorized_user_ids: [1, 2], client_key_digest: "a" * 64)
     Project.find(3).enable_module!(:documents)
     Project.find(3).disable_module!(:news)
     %i[documents news].each { |name| Project.find(5).enable_module!(name) }
@@ -75,6 +94,10 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
     [3, 4, 5, 6].each { |id| assert Project.find(id).module_enabled?(:mirror_source), "project #{id}" }
     assert_equal %w[documents], Project.find(3).mirror_source_setting.shared_modules
     assert_equal %w[documents news], Project.find(5).mirror_source_setting.shared_modules.sort
+    child_setting = Project.find(5).mirror_source_setting
+    assert_equal "192.0.2.10", child_setting.client_addresses
+    assert_equal [1, 2], child_setting.authorized_user_ids
+    assert_equal "a" * 64, child_setting.client_key_digest
   end
 
   def test_subprojects_without_the_permissions_are_left_as_they_are
@@ -99,23 +122,95 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
 
   def test_log_lists_sessions_then_what_one_session_received
     @project.enable_module!(:mirror_source)
-    log_access("list", object_count: 2, details: JSON.generate("documents" => [{ "id" => 1, "title" => "Test document" }, { "id" => 2, "title" => "An other document" }]))
-    log_access("download", object_count: 1, bytes: 2048, details: JSON.generate("attachment" => { "id" => 2, "filename" => "document.txt" }))
+    log_access("list", object_count: 2, details: JSON.generate("kind" => "documents"))
+    log_access("download", object_count: 1, bytes: 2048, details: JSON.generate("kind" => "documents"))
     log_access("refused", reason: "not_shared")
     log_user("jsmith", "jsmith")
     get "/projects/ecookbook/settings", params: { tab: "mirror_source" }
+    assert_select "#mirror-source-form"
+    assert_select "table.mirror-source-sessions", count: 0
+    get "/projects/ecookbook/mirror_source"
+    assert_no_match(/Translation missing/, response.body)
+    assert_select "#main-menu a[href='/projects/ecookbook/mirror_source']", text: "Mirror source"
+    assert_select "#mirror-source-filters"
     assert_select "table.mirror-source-sessions tbody tr", count: 1 do
       assert_select "td", text: "192.0.2.7"
       assert_select "td", text: "Preview"
       assert_select "td", text: /\A1 \(2 KB\)\z/
-      assert_select "a[href*='mirror_source_session=#{SESSION}']"
+      assert_select "a[href*='session=#{SESSION}']"
     end
-    get "/projects/ecookbook/settings", params: { tab: "mirror_source", mirror_source_session: SESSION }
+    get "/projects/ecookbook/mirror_source", params: { session: SESSION }
     assert_select "table.mirror-source-accesses tbody tr", count: 3
-    # What a list returned, under the name of its data.
-    assert_select "table.mirror-source-accesses td", text: /\ADocuments\s+Test document \(#1\), An other document \(#2\)\z/
-    assert_select "table.mirror-source-accesses td", text: /document\.txt/
+    assert_select "table.mirror-source-accesses td", text: /Documents\s+2 object/
+    assert_select "table.mirror-source-accesses", text: /document\.txt/, count: 0
     assert_select "table.mirror-source-accesses tr.mirror-source-refused td", text: "Data not shared"
+  end
+
+
+  def test_access_log_needs_its_own_permission
+    @project.enable_module!(:mirror_source)
+    log_access("list", object_count: 1, details: JSON.generate("kind" => "documents"))
+    Role.find(1).remove_permission!(:view_mirror_source_log)
+    log_user("jsmith", "jsmith")
+    get "/projects/ecookbook/settings", params: { tab: "mirror_source" }
+    assert_select "#mirror-source-form"
+    assert_select "table.mirror-source-sessions", count: 0
+    get "/projects/ecookbook/mirror_source"
+    assert_response :forbidden
+  end
+
+  def test_log_viewer_does_not_receive_source_configuration_controls
+    @project.enable_module!(:mirror_source)
+    log_access("list", object_count: 1, details: JSON.generate("kind" => "documents"))
+    Role.find(1).remove_permission!(:manage_mirror_source)
+    log_user("jsmith", "jsmith")
+    get "/projects/ecookbook/settings", params: { tab: "mirror_source" }
+    assert_select "#tab-mirror_source", count: 0
+    assert_select "#mirror-source-form", count: 0
+    get "/projects/ecookbook/mirror_source"
+    assert_response :success
+    assert_select "table.mirror-source-sessions"
+    assert_select ".contextual a.icon-settings", count: 0
+  end
+
+  def test_log_filters_sessions_and_groups_observed_destinations
+    @project.enable_module!(:mirror_source)
+    log_access("list", object_count: 2, details: JSON.generate("kind" => "documents"))
+    log_access("refused", reason: "not_shared")
+    log_access("list", session_key: "a" * 32, purpose: "synchronization", remote_ip: "198.51.100.8",
+      user_id: 1, object_count: 3, details: JSON.generate("kind" => "documents"))
+    log_user("jsmith", "jsmith")
+
+    get "/projects/ecookbook/mirror_source", params: { purpose: "preview" }
+    assert_select "table.mirror-source-sessions tbody tr", count: 1 do
+      assert_select "td", text: "192.0.2.7"
+    end
+    get "/projects/ecookbook/mirror_source", params: { refused: "1" }
+    assert_select "table.mirror-source-sessions tbody tr", count: 1 do
+      assert_select "td", text: "192.0.2.7"
+    end
+    get "/projects/ecookbook/mirror_source", params: { group_by: "destination" }
+    assert_select "table.mirror-source-destinations tbody tr", count: 2
+    assert_select "table.mirror-source-destinations td", text: "198.51.100.8"
+    get "/projects/ecookbook/mirror_source", params: { group_by: "destination", user_id: 2, remote_ip: "192.0.2.7" }
+    assert_select "table.mirror-source-destinations tbody tr", count: 1 do
+      assert_select "td", text: "192.0.2.7"
+    end
+  end
+
+  def test_generates_an_application_key_once_and_stores_only_its_digest
+    @project.enable_module!(:mirror_source)
+    log_user("jsmith", "jsmith")
+    post "/projects/ecookbook/mirror_source/client_key"
+    assert_response :success
+    key = css_select("#mirror-source-client-key").first.text
+    assert_operator key.length, :>=, 40
+    assert_equal "no-store", response.headers["Cache-Control"]
+    setting = @project.reload.mirror_source_setting
+    assert setting.client_key_matches?(key)
+    refute_includes setting.client_key_digest, key
+    get "/projects/ecookbook/settings", params: { tab: "mirror_source" }
+    assert_select "body", text: /#{Regexp.escape(key)}/, count: 0
   end
 
   def test_administrator_switches_mirror_source_in_the_plugin_settings

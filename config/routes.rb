@@ -50,8 +50,10 @@ patch "projects/:project_id/mirror/synchronizations/:id/cancel", to: "mirror_syn
 
 patch "projects/:project_id/mirror/conflicts/:id", to: "mirror_conflicts#update", as: "project_mirror_conflict"
 
-# Mirror source: what this Redmine shares with Mirror destinations, and its access log.
+# Mirror source: project settings and the separate operational access log.
+get "projects/:project_id/mirror_source", to: "mirror_source#index", as: "project_mirror_source_log"
 patch "projects/:project_id/mirror_source", to: "mirror_source_settings#update", as: "project_mirror_source"
+post "projects/:project_id/mirror_source/client_key", to: "mirror_source_settings#rotate_client_key", as: "project_mirror_source_client_key"
 post "projects/:project_id/mirror_source/subprojects", to: "mirror_source_settings#apply_to_subprojects", as: "project_mirror_source_subprojects"
 get "projects/:project_id/mirror/source/documents", to: "mirror_source_api#documents", as: "mirror_source_documents"
 get "mirror/source/documents/:id", to: "mirror_source_api#document", as: "mirror_source_document"

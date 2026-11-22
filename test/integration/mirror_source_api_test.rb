@@ -28,18 +28,26 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
   CONSUMER = "a" * 64
   # Integration requests come from the loopback; Mirror source needs an allowed address.
   LOOPBACK = "127.0.0.1"
+  APPLICATION_KEY = "mirror-application-key-for-tests"
 
   def setup
     super
     set_tmp_attachments_directory
     @project = Project.find(1)
     @project.enable_module!(:mirror_source)
-    MirrorSourceSetting.create!(project: @project, shared_modules: %w[documents])
+    reader_role = Role.find(1)
+    %i[view_issues view_private_notes view_time_entries view_members].each { |permission| reader_role.add_permission!(permission) }
+    reader_role.update!(issues_visibility: "all")
+    reader_role.update!(time_entries_visibility: "all") if reader_role.respond_to?(:time_entries_visibility=)
+    setting = MirrorSourceSetting.create!(project: @project, shared_modules: %w[documents],
+      client_addresses: "127.0.0.1\n10.0.0.0/8", authorized_user_ids: [2, 3])
+    setting.update!(client_key: APPLICATION_KEY)
   end
 
   # As Mirror clients send them: the API key in its header (Source.api_key_request?).
   def mirror_headers(user = "jsmith", _password = nil)
-    { "X-Redmine-API-Key" => User.find_by_login(user).api_key, "X-Mirror-Session" => SESSION, "X-Mirror-Purpose" => "synchronization" }
+    { "X-Redmine-API-Key" => User.find_by_login(user).api_key, "X-Mirror-Application-Key" => APPLICATION_KEY,
+      "X-Mirror-Session" => SESSION, "X-Mirror-Purpose" => "synchronization" }
   end
 
   # Only the API key header authenticates; a password, a key in the URL or a session is
@@ -98,6 +106,56 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     with_settings(plugin_redmine_mirror: { "source_enabled" => "1", "source_allowed_addresses" => "127.0.0.x" }) do
       get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
       assert_equal "address", response.headers["X-Mirror-Source-Refusal"]
+    end
+  end
+
+  def test_project_client_address_and_account_are_both_required
+    enabled do
+      @project.mirror_source_setting.update!(client_addresses: "192.0.2.10")
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
+      assert_response :forbidden
+      assert_equal "client_address", response.headers["X-Mirror-Source-Refusal"]
+
+      @project.mirror_source_setting.update!(client_addresses: "127.0.0.1", authorized_user_ids: [])
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
+      assert_response :forbidden
+      assert_equal "client_user", response.headers["X-Mirror-Source-Refusal"]
+    end
+    assert_equal %w[client_address client_user], MirrorSourceAccess.where(action: "refused").order(:id).pluck(:reason)
+  end
+
+  def test_project_application_key_is_required_and_compared_without_storing_it
+    enabled do
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers.except("X-Mirror-Application-Key")
+      assert_response :forbidden
+      assert_equal "client_key", response.headers["X-Mirror-Source-Refusal"]
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers.merge("X-Mirror-Application-Key" => "wrong")
+      assert_response :forbidden
+      assert_equal "client_key", response.headers["X-Mirror-Source-Refusal"]
+      get "/projects/ecookbook/mirror/source/documents.json", headers: mirror_headers
+      assert_response :success
+    end
+    refute_includes @project.mirror_source_setting.client_key_digest, APPLICATION_KEY
+  end
+
+  def test_client_authorization_is_scoped_to_the_requested_project
+    other = Project.find(3)
+    other.enable_module!(:mirror_source)
+    other.enable_module!(:documents)
+    MirrorSourceSetting.create!(project: other, shared_modules: %w[documents])
+    enabled do
+      get "/projects/subproject1/mirror/source/documents.json", headers: mirror_headers
+      assert_response :forbidden
+      assert_equal "client_address", response.headers["X-Mirror-Source-Refusal"]
+    end
+  end
+
+  def test_incremental_feed_is_refused_when_the_account_cannot_see_every_private_change
+    Role.find(1).remove_permission!(:view_private_notes)
+    enabled do
+      get "/projects/ecookbook/mirror/source/changes.json", headers: mirror_headers
+      assert_response :forbidden
+      assert_equal "incremental_visibility", response.headers["X-Mirror-Source-Refusal"]
     end
   end
 
@@ -315,7 +373,7 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
       end
     end
     access = MirrorSourceAccess.where(session_key: SESSION).last
-    assert_equal ["list", { "tracker" => 1, "status" => 1 }], [access.action, access.details.fetch("localized_names")]
+    assert_equal ["list", { "kind" => "localized_names" }], [access.action, access.details]
   end
 
   # Explicit kinds (Source::EXPLICIT_KINDS) need the administrator's choice.
@@ -349,7 +407,7 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     assert_equal [2], accesses.map(&:user_id).uniq
     assert_equal ["synchronization"], accesses.map(&:purpose).uniq
     assert_equal 3, accesses.first.object_count
-    assert_equal "testfile.txt", accesses.last.details.dig("attachment", "filename")
+    assert_equal({ "kind" => "documents" }, accesses.last.details)
     # One session (not `sole`: Redmine 5.1 runs Rails 6.1).
     sessions = @project.mirror_source_accesses.sessions.to_a
     assert_equal 1, sessions.size
@@ -390,7 +448,7 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
       assert_equal "permission", response.headers["X-Mirror-Source-Refusal"]
     end
     assert_equal %w[refused list show download refused refused], MirrorSourceAccess.where(session_key: SESSION).order(:id).pluck(:action)
-    assert_equal file.id, MirrorSourceAccess.find_by(action: "download").details.dig("attachment", "id")
+    assert_equal({ "kind" => "news" }, MirrorSourceAccess.find_by(action: "download").details)
   end
 
   # Tags need the Redmine Tags plugin on the source: without it, the shared kind answers
@@ -468,7 +526,7 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
     end
     access = MirrorSourceAccess.where(session_key: SESSION).last
     assert_equal ["list", 2], [access.action, access.object_count]
-    assert_equal [2, 3], access.details.fetch("users").map { |row| row["id"] }
+    assert_equal({ "kind" => "users" }, access.details)
   end
 
   # An email its owner hides is never sent; a destination recognizes the account only from
@@ -570,7 +628,7 @@ class MirrorSourceApiTest < Redmine::ApiTest::Base
       assert_equal "permission", response.headers["X-Mirror-Source-Refusal"]
     end
     access = MirrorSourceAccess.where(session_key: SESSION, action: "list").last
-    assert_equal field.id, access.details.fetch("custom_fields").find { |row| row["id"] == field.id }.fetch("id")
+    assert_equal({ "kind" => "issue_custom_fields" }, access.details)
   end
 
   # Each lock refuses with its reason, logged; the destination reads the header.

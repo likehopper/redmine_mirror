@@ -325,6 +325,26 @@ class MirrorCoreTest < Minitest::Test
     end
   end
 
+  def test_restricted_incremental_feed_keeps_permission_filtered_complete_runs
+    client = Object.new
+    client.define_singleton_method(:get) do |_path, _params|
+      raise RedmineMirror::Error, "Redmine API returned HTTP 403 (Mirror source: incremental_visibility)"
+    end
+    change_set = RedmineMirror::ChangeSet.read(client, 1, after: nil)
+    assert change_set.full_required?
+    refute change_set.supported?
+  end
+
+  def test_project_without_mirror_source_keeps_permission_filtered_complete_runs
+    client = Object.new
+    client.define_singleton_method(:get) do |_path, _params|
+      raise RedmineMirror::Error, "Redmine API returned HTTP 403 (Mirror source: module)"
+    end
+    change_set = RedmineMirror::ChangeSet.read(client, 1, after: nil)
+    assert change_set.full_required?
+    refute change_set.supported?
+  end
+
   def test_ignored_tracker_leaves_its_issues_and_their_records_out_without_errors
     @source.records["issues"] << @issue.merge("id" => 4, "tracker" => { "id" => 7 })
     @source.records["time_entries"] << @source.records["time_entries"].first.merge("id" => 9, "issue" => { "id" => 4 })

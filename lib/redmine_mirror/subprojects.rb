@@ -128,6 +128,7 @@ module RedmineMirror
         source_project_id: row["id"], source_project_identifier: row["identifier"], source_text_format: @setting.source_text_format,
         on_error: @setting.on_error, use_default_mappings: @setting.use_default_mappings)
       child[:encrypted_api_key] = @setting[:encrypted_api_key]
+      child[:encrypted_source_application_key] = @setting[:encrypted_source_application_key]
       child[:module_options] = @setting[:module_options]
       child.selected_modules = modules
       child

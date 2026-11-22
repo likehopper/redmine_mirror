@@ -22,6 +22,8 @@ raise "No Mirror source session logged" if sessions.empty?
 purposes = sessions.map(&:purpose).compact.uniq.sort
 raise "Purposes #{purposes.inspect}" unless (%w[preview references synchronization] - purposes).empty?
 synchronization = project.mirror_source_accesses.where(purpose: "synchronization")
-raise "Files not logged" unless synchronization.where(action: "download").pluck(:details).map { |details| JSON.parse(details).dig("attachment", "filename") }.sort == %w[architecture.txt diagram.txt]
+downloads = synchronization.where(action: "download")
+raise "File transfers not logged" unless downloads.count == 2 && downloads.sum(:bytes).positive?
+raise "Private file metadata logged" unless downloads.pluck(:details).all? { |details| JSON.parse(details) == { "kind" => "documents" } }
 raise "Account not logged" unless project.mirror_source_accesses.where(user_id: nil).none?
-puts "Documents source check passed: #{sessions.size} sessions (#{purposes.join(', ')}), file transfers and account logged"
+puts "Documents source check passed: #{sessions.size} sessions (#{purposes.join(', ')}), private-free file transfer metadata and account logged"

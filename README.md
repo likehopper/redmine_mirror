@@ -118,7 +118,9 @@ these rules in full: data sent, setup, credit, security and limits.
   1.0.0-beta.30 for Agile, 1.0.0-beta.31 for Saved queries, 1.0.0-beta.32 for user accounts, 1.0.0-beta.51 for incremental runs) on the source too (on Redmine 4.0 to 4.2, Mirror then runs as a source only),
   then share them through its **Mirror source** module
   (see [Mirror source](doc/CONFIGURATION.md#mirror-source-on-the-source-redmine)).
-  Use the key of a dedicated, read-only account member of the source projects
+  Use the key of a dedicated, read-only account member of the source projects,
+  generate a distinct Mirror application key, and authorize that account and the
+  destination address in each source project
   (see [source permissions](doc/CONFIGURATION.md#2-enable-the-rest-api)).
 - HTTPS URLs on both sides.
 - With SQLite, keep the `timeout: 5000` of Redmine's sample `database.yml`: the worker and

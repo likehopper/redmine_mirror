@@ -20,7 +20,7 @@ require "socket"
 require_relative "../lib/redmine_mirror"
 
 class MirrorClientTest < Minitest::Test
-  def serve(responses)
+  def serve(responses, application_key: nil)
     server = TCPServer.new("127.0.0.1", 0)
     requests = []
     thread = Thread.new do
@@ -35,7 +35,8 @@ class MirrorClientTest < Minitest::Test
         socket.close
       end
     end
-    client = RedmineMirror::Client.new(url: "http://127.0.0.1:#{server.addr[1]}/redmine", api_key: "test-token", allow_http: true)
+    client = RedmineMirror::Client.new(url: "http://127.0.0.1:#{server.addr[1]}/redmine", api_key: "test-token",
+      application_key: application_key, allow_http: true)
     yield client, requests
     thread.value
   ensure
@@ -123,6 +124,20 @@ class MirrorClientTest < Minitest::Test
       assert_equal "Redmine API returned HTTP 403 for GET issues.json", assert_raises(RedmineMirror::Error) { client.get("issues.json") }.message
       # A refused caller is said as such, not as a missing permission.
       assert_match(/refuses this Redmine's address/, assert_raises(RedmineMirror::Error) { client.get("issues.json") }.message)
+    end
+  end
+
+  def test_application_key_is_sent_only_when_configured
+    serve([["200 OK", "{}"]], application_key: "mirror-secret") do |client, requests|
+      client.get("projects/1.json")
+      assert_match(/x-mirror-application-key: mirror-secret\r\n/i, requests.first)
+    end
+  end
+
+  def test_long_known_refusal_reason_is_kept_for_secure_fallbacks
+    serve([["403 Forbidden\r\nX-Mirror-Source-Refusal: incremental_visibility", ""]]) do |client, _requests|
+      error = assert_raises(RedmineMirror::Error) { client.get("projects/1/mirror/source/changes.json") }
+      assert_includes error.message, "Mirror source: incremental_visibility"
     end
   end
 

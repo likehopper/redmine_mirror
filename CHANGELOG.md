@@ -29,6 +29,20 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   on the source (HTTP 404), an unreadable repository. Refused downloads and repositories
   are one cause each instead of one line per file or path.
 
+- **Mirror source clients restricted per project** (migration 27): each source project
+  accepts only the client addresses or networks, API accounts and generated Mirror
+  application key selected in its settings. Empty project client settings refuse every
+  request: configure them, and the application key on each destination, before the
+  destinations run again. The administrator's allowed addresses and Redmine permissions
+  still apply.
+- **Source access logs keep only operational metadata**: no object titles, filenames or
+  user names; migration 27 clears those details from existing rows and keeps the audit
+  envelope. The logs move to a **Mirror source** project tab, filtered by account,
+  address, purpose or refusal and grouped by session or destination (API account and
+  client address), with its own viewing permission. Users are listed through watchers
+  only when the account may see watchers. The incremental feed is refused to an account
+  that cannot see every private change; the destination then reads in full.
+
 ## 1.0.0-beta.53 — 2026-11-21
 
 Run the plugin migrations (26) before restarting Redmine and the worker.

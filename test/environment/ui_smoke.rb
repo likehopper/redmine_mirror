@@ -84,9 +84,14 @@ begin
     end
     driver.find_element(name: "connection[source_project_id]").send_keys(config.fetch("source_project_id").to_s)
     driver.find_element(name: "connection[api_key]").send_keys(ENV.fetch("MIRROR_SOURCE_API_KEY"))
-    in_tab.call('input[value="time_tracking"]').click
+    driver.find_element(name: "connection[source_application_key]").send_keys(ENV.fetch("MIRROR_SOURCE_APPLICATION_KEY", "disposable-mirror-application-key"))
     in_tab.call("[name=commit]").click
     wait.until { driver.find_elements(css: "#mirror-settings-subtabs a[href*='mirror_tab=modules']").any? }
+    wait_catalog.call
+    driver.navigate.to(settings)
+    in_tab.call('input[value="time_tracking"]').click
+    in_tab.call("[name=commit]").click
+    wait.until { driver.find_elements(id: "flash_notice").any? }
     wait_catalog.call
     %w[users issue_tracking time_tracking].each do |key|
       driver.navigate.to("#{settings}?mirror_tab=#{key}")
@@ -140,6 +145,7 @@ begin
   driver.navigate.to("#{settings}?mirror_tab=users")
   abort "Missing user correspondence table" unless driver.find_elements(id: "mirror-table-user").any?
   abort "API key leaked" if driver.page_source.include?(ENV.fetch("MIRROR_SOURCE_API_KEY"))
+  abort "Application key leaked" if driver.page_source.include?(ENV.fetch("MIRROR_SOURCE_APPLICATION_KEY", "disposable-mirror-application-key"))
   driver.save_screenshot("/mirror-data/mirror-mappings.png")
   puts "Manual UI smoke passed: login, connection, module tabs and saved project correspondences"
 ensure

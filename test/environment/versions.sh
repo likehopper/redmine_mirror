@@ -57,10 +57,15 @@ done
 # Mirror source refuses administrators' keys: with the source plugin, reader by default.
 default_account=admin
 [ "${MIRROR_SOURCE_PLUGIN:-}" = 1 ] && default_account=reader
-key_args=()
+key_args=(-e MIRROR_SOURCE_APPLICATION_KEY=disposable-mirror-application-key)
 if [ "${MIRROR_SOURCE_ACCOUNT:-$default_account}" = reader ]; then
   "${compose[@]}" exec -T source bundle exec rails runner /mirror-environment/reader_account.rb
-  key_args=(-e "MIRROR_SOURCE_API_KEY=$(printf '3%.0s' $(seq 40))")
+  key_args+=(-e "MIRROR_SOURCE_API_KEY=$(printf '3%.0s' $(seq 40))")
+fi
+if [ "${MIRROR_SOURCE_SECURITY_ONLY:-}" = 1 ]; then
+  script=source_security_smoke run "${key_args[@]}"
+  "${compose[@]}" exec -T source bundle exec rails runner /mirror-environment/source_security_source_check.rb
+  exit
 fi
 script=ui_smoke run "${key_args[@]}"
 script=ui_smoke run "${key_args[@]}" -e MIRROR_ENABLE_HISTORY=1 -e MIRROR_REFRESH_TEST=1 -e MIRROR_COMPLETE_STATUS_MAPPINGS=1

@@ -18,5 +18,8 @@ Setting.plugin_redmine_mirror = Setting.plugin_redmine_mirror.to_h.merge("source
   "source_allowed_addresses" => "127.0.0.0/8\n10.0.0.0/8\n172.16.0.0/12\n192.168.0.0/16")
 project = Project.find_by!(identifier: "mirror-demo")
 project.enable_module!(:mirror_source)
-MirrorSourceSetting.find_or_create_by!(project: project) { |row| row.shared_modules = [] }
+setting = MirrorSourceSetting.find_or_initialize_by(project: project)
+setting.client_key = ENV.fetch("MIRROR_SOURCE_APPLICATION_KEY", "disposable-mirror-application-key")
+setting.update!(shared_modules: [], client_addresses: "0.0.0.0/0\n::/0",
+  authorized_user_ids: [User.find_by!(login: "admin").id])
 puts "Incremental Mirror source enabled"

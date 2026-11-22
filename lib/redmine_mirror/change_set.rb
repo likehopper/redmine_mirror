@@ -36,9 +36,13 @@ module RedmineMirror
       end
     # 404: a source without the journal, or with it suspended. 422: a source up to
     # 1.0.0-beta.50, which requires the consumer key it no longer gets. Both leave the
-    # destination in its compatible mode until the source is upgraded.
+    # destination in its compatible mode until the source is upgraded. A source that refuses
+    # the feed to this account or project leaves it there too: complete, filtered reads.
     rescue Error => error
-      raise unless error.message.match?(/HTTP (404|422)/) && error.message.include?("mirror/source/changes")
+      unavailable = error.message.match?(/HTTP (404|422)/) && error.message.include?("mirror/source/changes")
+      restricted = error.message.include?("Mirror source: incremental_visibility")
+      module_disabled = error.message.include?("Mirror source: module")
+      raise unless unavailable || restricted || module_disabled
       new(cursor: 0, changes: [], full_required: true, supported: false)
     end
 
