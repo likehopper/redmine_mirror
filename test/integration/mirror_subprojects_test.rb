@@ -181,6 +181,46 @@ class MirrorSubprojectsTest < Redmine::IntegrationTest
     User.current = nil
   end
 
+  # A subproject created before application keys existed uses its parent's key.
+  def test_subproject_without_application_key_uses_the_parent_key
+    @setting.update!(source_application_key: "parent-application-key")
+    child_project = Project.create!(name: "Keyless child", identifier: "keyless-child", parent: @project, enabled_module_names: %w[mirror issue_tracking])
+    child = MirrorProjectSetting.new(project: child_project, parent_setting: @setting, source_url: @setting.source_url, source_project_id: 106)
+    child.selected_modules = %w[issue_tracking]
+    child[:encrypted_api_key] = @setting[:encrypted_api_key]
+    child.save!
+    assert_equal "parent-application-key", child.reload.source_client.instance_variable_get(:@application_key)
+    child.update!(source_application_key: "own-key")
+    assert_equal "own-key", child.reload.source_client.instance_variable_get(:@application_key)
+  end
+
+  # From the parent: fill only what the checked subprojects lack, or replace it all.
+  def test_parent_applies_its_correspondences_to_checked_subprojects
+    @setting.update!(source_catalog: @setting.source_catalog.merge("tracker" => { "1" => "Bug", "2" => "Feature" }),
+      module_options: { "issue_attachments" => { "missing_file" => "skip" } })
+    @project.mirror_reference_mappings.create!(reference_type: "tracker", source_id: 1, mode: "existing", destination_id: 1)
+    @project.mirror_reference_mappings.create!(reference_type: "tracker", source_id: 2, mode: "existing", destination_id: 2)
+    child_project = Project.find(3)
+    child_project.enable_module!(:mirror)
+    child = MirrorProjectSetting.new(project: child_project, parent_setting: @setting, source_url: @setting.source_url, source_project_id: 103)
+    child.selected_modules = %w[issue_tracking]
+    child[:encrypted_api_key] = @setting[:encrypted_api_key]
+    child.source_catalog = { "tracker" => { "1" => "Bug", "2" => "Feature" } }
+    child.save!
+    child_project.mirror_reference_mappings.create!(reference_type: "tracker", source_id: 2, mode: "existing", destination_id: 3)
+    trackers = -> { child_project.mirror_reference_mappings.where(reference_type: "tracker").pluck(:source_id, :destination_id).to_h }
+    log_user("admin", "admin")
+    get "/projects/ecookbook/settings/mirror"
+    assert_select "#mirror-parent-mappings-form input[name='child_ids[]'][value='#{child.id}']"
+    post "/projects/ecookbook/mirror/settings/subprojects/mappings", params: { child_ids: [child.id], mode: "fill" }
+    assert_redirected_to "/projects/ecookbook/settings/mirror#mirror-subprojects"
+    assert_equal({ 1 => 1, 2 => 3 }, trackers.call)
+    assert_nil child.reload.module_options["issue_attachments"]
+    post "/projects/ecookbook/mirror/settings/subprojects/mappings", params: { child_ids: [child.id], mode: "replace" }
+    assert_equal({ 1 => 1, 2 => 2 }, trackers.call)
+    assert_equal "skip", child.reload.module_options.dig("issue_attachments", "missing_file")
+  end
+
   # A parent's successful run queues its subprojects' runs, the same way.
   def test_parent_run_queues_its_subprojects
     log_user("admin", "admin")

@@ -66,6 +66,18 @@ Connection tab: the source subprojects and their local subprojects (RedmineMirro
       </table>
       <p><%= submit_tag l(:button_mirror_subprojects_apply) %></p>
     <% end %>
+    <% if subprojects.linked.any? %>
+      <%= form_tag project_mirror_subprojects_mappings_path(@project), id: "mirror-parent-mappings-form" do %>
+        <fieldset class="box"><legend><%= l(:label_mirror_parent_mappings) %></legend>
+          <p><em class="info"><%= l(:text_mirror_parent_mappings) %></em></p>
+          <% subprojects.linked.each_value do |child| %>
+            <label class="block"><%= check_box_tag "child_ids[]", child.id, false, id: "mirror-parent-mappings-#{child.id}" %> <%= child.project.name %></label>
+          <% end %>
+          <p><%= select_tag :mode, options_for_select(%w[fill replace].map { |mode| [l("label_mirror_parent_mappings_#{mode}"), mode] }), id: "mirror-parent-mappings-mode", "aria-label": l(:label_mirror_parent_mappings) %>
+            <%= submit_tag l(:button_mirror_parent_mappings_apply), data: { confirm: l(:text_mirror_parent_mappings_confirm) } %></p>
+        </fieldset>
+      <% end %>
+    <% end %>
   <% end %>
   <%= button_to l(:button_mirror_subprojects_refresh), project_mirror_subprojects_refresh_path(@project), method: :post, id: "mirror-subprojects-refresh" %>
 <% end %>

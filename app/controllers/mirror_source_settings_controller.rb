@@ -41,9 +41,15 @@ class MirrorSourceSettingsController < ApplicationController
   # independently of the Redmine account whose permissions still bound the data.
   def rotate_client_key
     setting = @project.mirror_source_setting || @project.build_mirror_source_setting
+    previous = setting.client_key_digest
     @client_key = SecureRandom.urlsafe_base64(32)
     setting.client_key = @client_key
     setting.save!
+    # Subprojects that shared this project's key follow it; one given its own key keeps it.
+    if previous.present?
+      allowed = @project.descendants.visible.select { |child| User.current.allowed_to?(:manage_mirror_source, child) }.map(&:id)
+      MirrorSourceSetting.where(project_id: allowed, client_key_digest: previous).update_all(client_key_digest: setting.client_key_digest)
+    end
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
   end

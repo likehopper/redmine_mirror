@@ -124,6 +124,18 @@ class MirrorSettingsController < ApplicationController
     redirect_to configuration_path(nil, anchor: "mirror-subprojects")
   end
 
+  # The parent's correspondences into the checked subprojects: fill only the references
+  # without one, or replace them all with the module options. Only subprojects the person
+  # may configure; the others are counted.
+  def apply_parent_mappings
+    return render_404 unless @setting.persisted? && @setting.parent_setting_id.nil?
+    children = @setting.child_settings.where(id: Array(params[:child_ids])).preload(:project).to_a
+    allowed = children.select { |child| RedmineMirror.manager?(child.project) }
+    count = allowed.sum { |child| RedmineMirror::ParentMappings.apply(child, replace: params[:mode] == "replace") }
+    flash[:notice] = l(:text_mirror_parent_mappings_applied, count: count, projects: allowed.size, skipped: children.size - allowed.size)
+    redirect_to configuration_path(nil, anchor: "mirror-subprojects")
+  end
+
   # Read the source subprojects again (one request), without the whole references.
   def refresh_subprojects
     return render_404 unless @setting.persisted? && @setting.parent_setting_id.nil?

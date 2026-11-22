@@ -209,9 +209,14 @@ subproject has enabled.
   existing one (*Select project modules* on it);
 - enables Mirror and the Redmine modules its Mirror modules need;
 - gives it a Mirror configuration taken from this one: same source, API key and Mirror
-  application key (a new key saved here reaches it), same options, and this project's correspondences for the
-  references it has none for, once its own references are read. Change them in its own
-  Mirror tab to override them; members follow its user and role correspondences.
+  application key (a new key saved here reaches it; a subproject without its own
+  application key uses this project's), same options, and this project's correspondences
+  for the references it has none for, once its own references are read. Change them in
+  its own Mirror tab to override them; members follow its user and role correspondences.
+
+Below, **This project's correspondences in the subprojects** applies them on demand to the
+checked subprojects: *Fill the references without correspondence*, or *Replace their
+correspondences and module options* with this project's.
 
 A subproject whose source parent is not configured is refused: check its parent too.
 After a successful synchronization here, each configured subproject runs the
@@ -554,8 +559,8 @@ only, and categories to their managers only, without sharing. On the source Redm
    data. After upgrading an existing installation through migration 27, access therefore
    remains closed until each shared project configures these client settings and each
    destination saves the generated key. **Generate a new key** again replaces it: the old
-   key is refused at once, so copy the new one into every destination project (and apply
-   the sharing to the subprojects again).
+   key is refused at once, so copy the new one into every destination project. Subprojects
+   that shared the old key take the new one; apply the sharing to the others again.
    The **Access of the destinations** box at the top of the tab lists each control, in
    green when in place and in red when missing, and for each authorized account what it
    lacks: an administrator account (refused), a locked account, a permission for the

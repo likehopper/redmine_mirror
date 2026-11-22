@@ -135,7 +135,9 @@ class MirrorProjectSetting < ActiveRecord::Base
   # purpose: what a Mirror source logs this client's session for (Source::PURPOSES).
   def source_client(purpose: nil)
     RedmineMirror::Client.new(url: source_url, api_key: api_key,
-      allow_http: ENV["MIRROR_TEST_ENVIRONMENT"] == "disposable", purpose: purpose, application_key: source_application_key)
+      allow_http: ENV["MIRROR_TEST_ENVIRONMENT"] == "disposable", purpose: purpose,
+      # A subproject without its own Mirror application key uses its parent's: same source.
+      application_key: source_application_key || parent_setting&.source_application_key)
   end
 
   def adapters

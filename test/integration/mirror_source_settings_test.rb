@@ -289,6 +289,19 @@ class MirrorSourceSettingsTest < Redmine::IntegrationTest
     assert_select "body", text: /#{Regexp.escape(key)}/, count: 0
   end
 
+  # A new key reaches the subprojects that shared the old one; one with its own key keeps it.
+  def test_a_new_key_reaches_the_subprojects_that_shared_the_previous_one
+    [1, 3, 4].each { |id| Project.find(id).enable_module!(:mirror_source) }
+    MirrorSourceSetting.create!(project: @project, client_key_digest: "a" * 64)
+    MirrorSourceSetting.create!(project: Project.find(3), client_key_digest: "a" * 64)
+    MirrorSourceSetting.create!(project: Project.find(4), client_key_digest: "b" * 64)
+    log_user("admin", "admin")
+    post "/projects/ecookbook/mirror_source/client_key"
+    key = css_select("#mirror-source-client-key").first.text
+    assert Project.find(3).mirror_source_setting.client_key_matches?(key)
+    assert_equal "b" * 64, Project.find(4).mirror_source_setting.client_key_digest
+  end
+
   def test_administrator_switches_mirror_source_in_the_plugin_settings
     log_user("admin", "admin")
     get "/settings/plugin/redmine_mirror"

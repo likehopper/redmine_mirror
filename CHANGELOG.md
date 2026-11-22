@@ -16,6 +16,17 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+- A destination subproject without its own Mirror application key uses its parent's: the
+  subprojects configured before application keys existed no longer get "The source
+  project refuses this Mirror application key".
+- Mirror source: **Generate a new key** gives the new key to the subprojects that shared
+  the previous one; a subproject with its own key keeps it.
+- **This project's correspondences in the subprojects** (parent's Subprojects section):
+  fill the checked subprojects' references without correspondence, or replace their
+  correspondences and module options with the parent's.
+
 ## 1.0.0-beta.59 — 2026-11-22
 
 - The execution log shows the **Related objects** of every logged object that was not
