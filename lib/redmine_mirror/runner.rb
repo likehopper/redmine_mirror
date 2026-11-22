@@ -70,12 +70,18 @@ module RedmineMirror
       # records in later modules (history, time, watchers, relations...) are ignored with
       # them, not errors.
       ignored_issues = {}
+      # Every logged object but an unchanged one names the objects it belongs to (Base#related_references).
+      related = nil
+      emit = lambda do |event|
+        event[:related] ||= related if related && !related.empty? && event[:action] != "unchanged"
+        yield event if block_given?
+      end
       process_record = lambda do |adapter, record|
         TextFormat.reset_flags
         if @mapping_store.respond_to?(:excluded?) && @mapping_store.excluded?(adapter.key, record.fetch("id"))
           event = { module: adapter.key, source_id: record.fetch("id"), destination_id: @mapping_store.find(adapter.key, record.fetch("id"))&.fetch("destination_id"), action: "ignored", reason: "Local object retained by project conflict resolution" }
           results << event
-          yield event if block_given?
+          emit.call(event)
           next
         end
         reason = nil
@@ -93,7 +99,7 @@ module RedmineMirror
           end
           event = { module: adapter.key, source_id: record.fetch("id"), destination_id: @mapping_store.find(adapter.key, record.fetch("id"))&.fetch("destination_id"), action: "ignored", reason: reason }
           results << event
-          yield event if block_given?
+          emit.call(event)
           next
         end
         begin
@@ -108,7 +114,7 @@ module RedmineMirror
             @mapping_store.resolve_retry(adapter.key, record.fetch("id")) if apply && @mapping_store.respond_to?(:resolve_retry)
             flag(event)
             results << event
-            yield event if block_given?
+            emit.call(event)
             next
           end
           id = record.fetch("id")
@@ -189,7 +195,7 @@ module RedmineMirror
           # Before the callback, which may stop the execution once the object is written.
           @mapping_store.resolve_conflict(adapter.key, record.fetch("id")) if apply && @mapping_store.respond_to?(:resolve_conflict)
           @mapping_store.resolve_retry(adapter.key, record.fetch("id")) if apply && @mapping_store.respond_to?(:resolve_retry)
-          yield event if block_given?
+          emit.call(event)
         # Keep the first actionable divergence and stop; remaining records are
         # deliberately left unprocessed rather than reported as successful.
         rescue Error => error
@@ -208,11 +214,12 @@ module RedmineMirror
           event[:parent_id] = parent_id if defined?(parent_id) && parent_id
           event.merge!(error_fields(error))
           results << event
-          yield event if block_given?
+          emit.call(event)
         end
       end
       # A conflict resolved with the source version: the source wins for that object only.
       process = lambda do |adapter, record|
+        related = adapter.respond_to?(:related_references) ? adapter.related_references(record) : nil
         chosen = @mapping_store.respond_to?(:source_chosen?) && @mapping_store.source_chosen?(adapter.key, record.fetch("id"))
         Policy.with(source_wins: Policy.source_wins? || chosen) { process_record.call(adapter, record) }
       end

@@ -16,6 +16,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+- The execution log shows the **Related objects** of every logged object that was not
+  unchanged: its issue on the source and here, and its author or user as mapped here.
+  Errors of issue attachments, notes and relations logged before show their issue too.
+
 ## 1.0.0-beta.58 — 2026-11-22
 
 - Accept a single-value source custom field mapped to a multiple-value destination field:

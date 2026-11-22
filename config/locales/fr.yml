@@ -764,3 +764,6 @@ fr:
   button_mirror_take_source: "Prendre la version source"
   text_mirror_take_source_confirm: "Remplacer les modifications locales de %{count} objet(s) par la version de la source à la prochaine synchronisation ? Les modifications locales seront perdues."
   text_mirror_conflicts_partly_updated: "%{count} conflit(s) sur %{total} mis à jour : un objet local ne peut être conservé que s'il a une correspondance."
+  label_mirror_related: "Objets liés"
+  label_mirror_related_user_anonymous: "anonymisé"
+  label_mirror_related_user_ignore: "ignoré"

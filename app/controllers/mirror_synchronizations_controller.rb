@@ -113,6 +113,7 @@ class MirrorSynchronizationsController < ApplicationController
     order = @group_by ? [@group_by, :id] : [:id]
     @events = scope.order(*order).offset(@event_pages.offset).limit(50).map(&:to_event)
     @object_mappings = mappings_for(@events, key)
+    @related_issues, @related_users = related_for(@events, key)
     # A filtered or paged journal opens on its own tab.
     log_params = %i[module_key action_filter source_id flag warning reason group_by page]
     @tab = params[:tab].presence || (log_params.any? { |name| params[name].present? } ? "log" : "summary")
@@ -131,6 +132,18 @@ class MirrorSynchronizationsController < ApplicationController
     rows.each_with_object({}) do |row, mappings|
       mappings[[row.module_key, row.source_id]] = row.destination_id if missing.fetch(row.module_key, []).include?(row.source_id)
     end
+  end
+
+  # Local issues and users of the related objects shown on this page, in two queries.
+  def related_for(events, connection_key)
+    related = events.flat_map { |event| view_context.mirror_related_references(event) }
+    issue_ids = related.select { |kind, _| kind == "issue_tracking" }.map(&:last).uniq
+    user_ids = related.select { |kind, _| kind == "user" }.map(&:last).uniq
+    issues = connection_key && issue_ids.any? ? MirrorMapping.where(connection_key: connection_key, module_key: "issue_tracking", source_id: issue_ids).pluck(:source_id, :destination_id).to_h : {}
+    rows = user_ids.any? ? @project.mirror_reference_mappings.where(reference_type: "user", source_id: user_ids).to_a : []
+    local_users = User.where(id: rows.filter_map(&:destination_id)).index_by(&:id)
+    users = rows.to_h { |row| [row.source_id, row.mode == "existing" ? local_users[row.destination_id] : row.mode] }
+    [issues, users]
   end
 
   # Causes that differ only by the source object ID are one cause.

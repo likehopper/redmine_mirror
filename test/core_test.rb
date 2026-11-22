@@ -401,6 +401,18 @@ class MirrorCoreTest < Minitest::Test
     assert_equal [], RedmineMirror::Adapters::TimeEntries.new.source_issue_ids({ "id" => 1 })
   end
 
+  def test_logged_objects_name_their_related_objects_unless_unchanged
+    @issue["author"] = { "id" => 1 }
+    runner = mirror_runner(1)
+    events = []
+    runner.run(@config, apply: true) { |event| events << event }
+    assert_equal ["create", [["user", 1]]], [events.first[:action], events.first[:related]]
+    events.clear
+    runner.run(@config, apply: true) { |event| events << event }
+    assert_equal "unchanged", events.first[:action]
+    assert_nil events.first[:related]
+  end
+
   def test_local_edit_is_a_conflict_even_if_source_unchanged
     @runner.run(@config, apply: true)
     @destination.records["issues"].first["subject"] = "Local edit"

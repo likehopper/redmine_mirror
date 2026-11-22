@@ -346,7 +346,8 @@ Mirror tabs link to it with **Follow the execution**.
 A finished execution has three tabs: **Summary** (actions per module, each count opens
 its objects), **To check** (errors by cause, warnings and special cases) and **Execution
 log** (the objects, filtered by module, action, source ID or special case, and grouped by
-module, action or reason).
+module, action or reason). Each logged object that was not unchanged shows its **Related
+objects**: its issue on the source and here, and its author or user as mapped here.
 
 In **To check**, errors are grouped by cause, the largest first: fixing one unblocks all its
 objects. Objects that failed only because an object they depend on failed (the issue of a

@@ -632,6 +632,31 @@ module MirrorHelper
     RedmineMirror::REGISTRY[key] || RedmineMirror::REGISTRY.mapping_table(key)
   end
 
+  # Objects a logged object belongs to: recorded since beta.59; older errors of issue
+  # children only kept their source issue.
+  def mirror_related_references(event)
+    related = Array(event["related"]).select { |pair| pair.is_a?(Array) && pair.size == 2 && pair.last.is_a?(Integer) }
+    related = [["issue_tracking", event["parent_id"]]] if related.empty? && event["parent_id"].is_a?(Integer)
+    related
+  end
+
+  # The issue on both sides and the user as mapped here (name from the source otherwise).
+  def mirror_related_links(event)
+    links = mirror_related_references(event).map do |kind, id|
+      case kind
+      when "issue_tracking"
+        local = @related_issues[id]
+        source = link_to("##{id}", "#{@source_url.to_s.sub(%r{/+\z}, "")}/issues/#{id}", class: "external")
+        safe_join([l(:label_issue), " ", source, (local ? safe_join([" → ", link_to("##{local}", issue_path(local))]) : nil)].compact)
+      when "user"
+        local = @related_users[id]
+        name = local.is_a?(User) ? link_to_user(local) : (@setting.source_catalog.dig("user", id.to_s) || "##{id}")
+        safe_join([l(:label_user), " ", name, (local.is_a?(String) ? " (#{l("label_mirror_related_user_#{local}", default: local)})" : nil)].compact)
+      end
+    end
+    links.empty? ? "" : safe_join(links.compact, tag.br)
+  end
+
   def mirror_object_link(module_key, id, source_url: nil, local_issue_id: nil)
     return "—" if id.blank?
     id = Integer(id)

@@ -112,6 +112,16 @@ module RedmineMirror
         []
       end
 
+      # Source objects a logged object belongs to or names, as [reference key, source ID]
+      # pairs: its issue and its author or user. The run log shows them beside the object.
+      def related_references(record)
+        issues = source_issue_ids(record).reject { |id| key == "issue_tracking" && id == record["id"] }
+        user = record.dig("author", "id") || record.dig("user", "id")
+        (issues.map { |id| ["issue_tracking", id] } + (user ? [["user", user]] : [])).uniq
+      rescue KeyError, TypeError, NoMethodError
+        []
+      end
+
       # The mapping table key of a reference mapped to "ignore" that leaves this record out
       # of the import (an issue's tracker, a time entry's activity...), else nil.
       def ignored_reference(_record, _mappings)

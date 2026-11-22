@@ -237,6 +237,20 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     assert_select "#mirror-error-causes a.mirror-fix[href=?]", "/projects/#{@project.identifier}/mirror/conflicts", text: "resolve the conflict"
   end
 
+  def test_log_shows_related_objects_on_both_sides_including_older_runs
+    run = log_mirror_events(@project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "partial"), [
+      { "module" => "issue_attachments", "source_id" => 328, "action" => "error", "reason" => "Redmine API returned HTTP 404 for GET attachments/download/328",
+        "related" => [["issue_tracking", 12], ["user", 7]] },
+      { "module" => "issue_attachments", "source_id" => 500, "action" => "error", "reason" => "Redmine API returned HTTP 404 for GET attachments/download/500", "parent_id" => 13 }])
+    get :show, params: { project_id: @project.identifier, id: run.id, tab: "log" }
+    assert_response :success
+    assert_select "#mirror-log th", text: "Related objects"
+    assert_select "#mirror-log td.mirror-related a[href$='/issues/12']", text: "#12"
+    assert_select "#mirror-log td.mirror-related a[href$='/issues/13']", text: "#13"
+    # A user without local correspondence keeps its source number.
+    assert_select "#mirror-log td.mirror-related", text: /User #7/
+  end
+
   def test_unauthorized_member_cannot_cancel
     run = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual")
     revoke_member_rights
