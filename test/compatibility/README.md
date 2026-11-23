@@ -18,7 +18,22 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Minimum declared Redmine version: **5.0** as a destination, **4.0** as a source with
 Mirror source (source only). This is not a compatibility certification.
-Current plugin version: **1.0.0-beta.60**.
+Current plugin version: **1.0.0-beta.61**.
+
+## 1.0.0-beta.61 validation — 2026-11-23
+
+Candidate based on `v1.0.0-beta.60`: mapping tables of more than 100 references
+paginated and searchable, "proposed" filter, page/filter/search kept after saving,
+Accounts to create as its own view of the Users tab. Destination settings page only.
+No migration.
+
+- `bash test/compatibility/run.sh` (same container script, run with `--network host`
+  because the default Docker network had no DNS): Redmine 6.1.4 / Ruby 3.4.11 /
+  Rails 7.2.3.2 / SQLite; standalone suites green; 411 Redmine tests, 2,526 assertions,
+  no failures, errors or skips.
+- Not rerun for this candidate: Redmine 4.0.3 source-only suites (no source-side
+  change), PostgreSQL, MySQL, MariaDB, Redmine 5.1, interinstance smokes, `versions.sh`
+  and documentation guides.
 
 ## 1.0.0-beta.60 validation — 2026-11-23
 

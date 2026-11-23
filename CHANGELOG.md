@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.61 — 2026-11-23
 
 - Mapping tables of more than 100 references (a source sharing thousands of users) are
   paginated, with a **Search** on the source name, login, email and company. **Save**
@@ -25,6 +25,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
   name or AI).
 - Users tab: **Accounts to create** is its own view beside **Mappings**, with its counter,
   and is paginated too.
+- No migration since beta.54.
 
 ## 1.0.0-beta.60 — 2026-11-23
 
