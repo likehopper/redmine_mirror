@@ -252,8 +252,8 @@ explicitly authorized Mirror destination is trusted: an authorized client can te
 guessed address by its fingerprint. Without a match, **Accounts to create** asks for the
 email of such a user, and the account keeps it hidden.
 
-**Accounts to create**, below the table, lists the unmapped source users whose email has
-no account here. Check them, optionally check roles to add them as members, and click
+**Accounts to create**, a view of the Users tab beside **Mappings** (its counter gives the
+number of candidates), lists the unmapped source users whose email has no account here. Check them, optionally check roles to add them as members, and click
 **Create the checked accounts**: each gets a registered account (login, name, email and
 company of the source, no password), awaiting activation as after a self-registration,
 mapped to its source user. Administrators receive Redmine's activation request. A login
@@ -273,8 +273,14 @@ the action that opens its focused form. **Issues** maps trackers,
 statuses and priorities. Only the references used by the source project's issues and
 their history are listed, plus those already mapped; a link shows the others. Local
 statuses are limited to those of the project's tracker workflows. Long lists, such as
-users, can be filtered by typing. **Show** lists the references to map first, then the
-mapped ones or all of them.
+users, can be filtered by typing. **Show** lists the references to map first, then those
+with an unsaved proposal, the mapped ones or all of them.
+
+A table of more than 100 references is shown one page at a time, with Redmine's
+*Per page* choice, and gets a **Search** on the source name (and, for users, the login,
+email and company the source shares). **Save** only changes the rows of the page, then
+comes back to the same page, filter and search: with **to map**, the next references
+take the place of those just mapped.
 
 A checkbox beside the field replaces a local reference: **Anonymize** a user, or leave
 a tracker, status, activity or document category out of the import (**Do not import

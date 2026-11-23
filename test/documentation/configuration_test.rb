@@ -391,6 +391,7 @@ class MirrorConfigurationDocumentationTest < ApplicationSystemTestCase
       "lastname" => "Martin", "mail" => "chloe.martin@client.example", "company" => "Client Corp" })
     setting.update!(source_catalog: catalog)
     open_module_tab "users"
+    find("#mirror-users-subtabs a", text: "Accounts to create").click
     assert_selector "table.mirror-user-creation tbody tr", count: 1
     check "mirror-create-user-9001"
     find("input[name='role_ids[]']", match: :first).check

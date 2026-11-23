@@ -198,6 +198,56 @@ module MirrorHelper
     [("#{hours} h" if hours.positive?), ("#{minutes} min" if minutes.positive?), ("#{secs} s" if secs.positive? && hours.zero?)].compact.join(" ")
   end
 
+  # Above this many rows, a mapping list is shown one page at a time: a source project can
+  # share thousands of users. Saving only touches the rows the page shows.
+  MIRROR_PAGINATION_THRESHOLD = 100
+
+  # One page of rows and its Redmine paginator, or every row and nil when they are few.
+  # A page past the end (rows saved out of the filter) falls back to the last one.
+  def mirror_page_of(rows, param)
+    return [rows, nil] if rows.size <= MIRROR_PAGINATION_THRESHOLD
+    per_page = controller.per_page_option
+    last_page = (rows.size + per_page - 1) / per_page
+    paginator = Redmine::Pagination::Paginator.new(rows.size, per_page, params[param].to_i.clamp(1, last_page), param)
+    [rows.slice(paginator.offset, per_page), paginator]
+  end
+
+  # Redmine's pagination links, kept on the Mirror tab of the project settings: that tab is
+  # a path segment, which Redmine's own links drop.
+  def mirror_pagination_links(paginator)
+    content_tag(:span, class: "pagination") do
+      pagination_links_full(paginator, paginator.item_count) do |text, parameters, options|
+        query = request.query_parameters.merge(parameters.stringify_keys).compact.symbolize_keys
+        link_to text, mirror_configuration_path(@project, nil, **query), options
+      end
+    end
+  end
+
+  # Whether a source reference matches the typed search (already downcased): its name or,
+  # for users, the login, name, email and company the source shares.
+  def mirror_reference_matches?(search, name, info)
+    return true if search.empty?
+    [name, *info&.values_at("login", "firstname", "lastname", "mail", "company")].any? { |text| text.to_s.downcase.include?(search) }
+  end
+
+  # The Users tab offers account creation when the source shares user details, or explains
+  # why it does not to those who may create accounts (mirror_settings/_user_creation).
+  def mirror_user_accounts_tab?(project, catalog)
+    catalog.key?("user_details") || RedmineMirror.user_creation?(project)
+  end
+
+  # Unmapped source users with a shared (or hidden, to be typed) email that no local account
+  # uses: the accounts a members manager may create, sorted by source name.
+  def mirror_user_creation_candidates(project, catalog)
+    @mirror_user_creation_candidates ||= begin
+      mapped = project.mirror_reference_mappings.where(reference_type: "user").pluck(:source_id).map(&:to_s).to_set
+      candidates = catalog.fetch("user_details", {}).select { |id, info| !mapped.include?(id) && (info["mail"].present? || info["mail_hidden"]) }
+      shared = candidates.values.map { |info| info["mail"].to_s.downcase }.reject(&:empty?)
+      taken = shared.empty? ? Set.new : EmailAddress.where("LOWER(address) IN (?)", shared).pluck(:address).map(&:downcase).to_set
+      candidates.reject { |_, info| taken.include?(info["mail"].to_s.downcase) }.sort_by { |id, _| [catalog.fetch("user", {})[id].to_s.downcase, id.to_i] }
+    end
+  end
+
   # A single local reference with the same name, ignoring case, accents, punctuation and
   # word order. index: mirror_name_index of the table's choices.
   def mirror_name_suggestion(index, name, aliases = [])

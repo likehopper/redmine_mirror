@@ -121,6 +121,46 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     assert_not_includes choices.map(&:last), ""
   end
 
+  # A source project sharing thousands of users: the table is searched and paginated, and
+  # saving comes back to the same page, filter and search.
+  def test_long_mapping_tables_are_searched_filtered_and_paginated
+    users = (0...130).to_h { |number| [(1000 + number).to_s, format("Remote User %03d", number)] }
+    details = { "1005" => { "login" => "ruser5", "mail" => "jsmith@somenet.foo", "company" => "Initech" } }
+    @setting.update!(source_catalog: @setting.source_catalog.merge("user" => users, "user_details" => details))
+    log_user("admin", "admin")
+    settings("users")
+    assert_select "#mirror-mapping-filter strong", text: "to map (130)"
+    assert_select "#mirror-mapping-filter a", text: "proposed (1)"
+    assert_select "#mirror-table-user tbody tr", count: 25
+    assert_select "#mirror-table-user + .pagination a[href^='/projects/ecookbook/settings/mirror?'][href*='mirror_page_user=2'][href*='mirror_tab=users']"
+    assert_select ".pagination .per-page a[href^='/projects/ecookbook/settings/mirror?'][href*='per_page=50']"
+    assert_select "#mirror-user-1000"
+    settings("users", mirror_page_user: "6")
+    assert_select "#mirror-table-user tbody tr", count: 5
+    assert_select "#mirror-mappings-form input[type=hidden][name=mirror_page_user][value='6']"
+    # A page past the end shows the last one.
+    settings("users", mirror_page_user: "99")
+    assert_select "#mirror-user-1129"
+    # The search covers the source name and the login, email and company the source shares.
+    settings("users", mirror_search: "user 01")
+    assert_select "#mirror-table-user tbody tr", count: 10
+    assert_select "#mirror-table-user + .pagination", count: 0
+    assert_select "#mirror-mapping-filter strong", text: "to map (10)"
+    settings("users", mirror_search: "INITECH")
+    assert_select "#mirror-table-user tbody tr", count: 1
+    assert_select "#mirror-user-1005 option[selected][value='2']"
+    settings("users", mirror_filter: "proposed")
+    assert_select "#mirror-table-user tbody tr", count: 1
+    assert_select "#mirror-user-1005"
+
+    patch "/projects/ecookbook/mirror/settings/modules/users",
+      params: { mappings: { user: { "1005" => "2" } }, mirror_filter: "unmapped", mirror_search: "user", mirror_page_user: "3" }
+    assert_redirected_to "/projects/ecookbook/settings/mirror?mirror_filter=unmapped&mirror_page_user=3&mirror_search=user&mirror_tab=users"
+    assert_equal 2, @project.mirror_reference_mappings.find_by!(reference_type: "user", source_id: 1005).destination_id
+    # Rows outside the page are left as they were.
+    assert_equal 1, @project.mirror_reference_mappings.where(reference_type: "user").count
+  end
+
   # Local users show their login, email and company, and the search covers them.
   def test_user_choices_show_login_email_and_company
     company = UserCustomField.create!(name: "Company", field_format: "string", visible: true)
@@ -304,13 +344,19 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     # Same email first: John is jsmith here.
     assert_select "#mirror-user-9 option[selected][value='2']"
     assert_select "#mirror-table-user em.mirror-suggestion", text: "proposed: same email"
+    # Account creation is a separate view of the Users tab.
+    assert_select "#mirror-user-creation", count: 0
+    assert_select "#mirror-users-subtabs a[href$='mirror_view=accounts'] .mirror-badge", text: "2"
+    settings("users", mirror_view: "accounts")
     assert_select "#mirror-user-creation-off"
+    assert_select "#mirror-mappings-form", count: 0
     # Without details from the source, only those who may create accounts see why.
     @setting.update!(source_catalog: @setting.source_catalog.except("user_details").merge("user_details_refusal" => "not_shared"))
-    settings("users")
+    settings("users", mirror_view: "accounts")
     assert_select "#mirror-user-creation", count: 0
+    assert_select "#mirror-users-subtabs", count: 0
     with_settings(plugin_redmine_mirror: { "user_creation_enabled" => "1" }) do
-      settings("users")
+      settings("users", mirror_view: "accounts")
       assert_select "#mirror-user-details-refused", text: /Data not shared/
     end
     @setting.update!(source_catalog: @setting.source_catalog.except("user_details_refusal").merge("user_details" => details))
@@ -318,12 +364,12 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     assert_equal 0, User.where(login: "ralice").count
 
     with_settings(plugin_redmine_mirror: { "user_creation_enabled" => "1" }) do
-      settings("users")
+      settings("users", mirror_view: "accounts")
       assert_select "table.mirror-user-creation tbody tr", count: 2
       assert_select "#mirror-create-user-9", count: 0
       ActionMailer::Base.deliveries.clear
       post "/projects/ecookbook/mirror/settings/users", params: { source_user_ids: %w[7 8], role_ids: ["2"] }
-      assert_redirected_to "/projects/ecookbook/settings/mirror?mirror_tab=users#mirror-user-creation"
+      assert_redirected_to "/projects/ecookbook/settings/mirror?mirror_tab=users&mirror_view=accounts#mirror-user-creation"
       alice = User.find_by(login: "ralice")
       assert alice, flash[:error]
       assert_equal [User::STATUS_REGISTERED, "alice@source.example", "ACME"], [alice.status, alice.mail, alice.custom_field_value(company)]
@@ -350,7 +396,7 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     @setting.update!(source_catalog: @setting.source_catalog.merge("user" => { "7" => "Remote Hidden" }, "user_details" => details))
     log_user("jsmith", "jsmith")
     with_settings(plugin_redmine_mirror: { "user_creation_enabled" => "1" }) do
-      settings("users")
+      settings("users", mirror_view: "accounts")
       assert_select "#mirror-create-user-7"
       assert_select "input#mirror-create-user-mail-7[type=email]"
       post "/projects/ecookbook/mirror/settings/users", params: { source_user_ids: %w[7], mails: { "7" => "" } }

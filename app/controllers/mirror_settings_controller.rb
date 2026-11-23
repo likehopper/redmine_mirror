@@ -276,7 +276,7 @@ class MirrorSettingsController < ApplicationController
       @setting.update!(module_options: @setting.module_options.merge(adapter.key => options))
     end
     flash[:notice] = l(:notice_successful_update)
-    redirect_to configuration_path(adapter.key, mirror_filter: params[:mirror_filter].presence_in(%w[unmapped mapped all]))
+    redirect_to configuration_path(adapter.key, **mapping_view_params(adapter))
   rescue RedmineMirror::Error, ActiveRecord::RecordInvalid, ArgumentError, TypeError => error
     # The cause follows, so that the page says what to fix ("Unavailable modules: news").
     cause = case error
@@ -284,7 +284,7 @@ class MirrorSettingsController < ApplicationController
             when RedmineMirror::Error then error.message
             end
     flash[:error] = [l(:text_mirror_invalid_mapping), cause.presence].compact.join(" ")
-    redirect_to configuration_path(params[:module_key])
+    redirect_to configuration_path(params[:module_key], **mapping_view_params(adapter))
   end
 
   # Queue AI proposals for one mapping table (doc/AI.md). The worker asks the API as the
@@ -338,10 +338,10 @@ class MirrorSettingsController < ApplicationController
     end
     flash[:notice] = l(:text_mirror_users_created, count: created.size, names: created.map(&:name).join(", ")) if created.any?
     flash[:error] = l(:text_mirror_users_not_created, errors: errors.join(" ; ")) if errors.any?
-    redirect_to configuration_path("users", anchor: "mirror-user-creation")
+    redirect_to configuration_path("users", mirror_view: "accounts", anchor: "mirror-user-creation")
   rescue RedmineMirror::Error, ArgumentError, TypeError => error
     flash[:error] = error.is_a?(RedmineMirror::Error) ? error.message : l(:text_mirror_invalid_mapping)
-    redirect_to configuration_path("users")
+    redirect_to configuration_path("users", mirror_view: "accounts")
   end
 
   private
@@ -424,6 +424,12 @@ class MirrorSettingsController < ApplicationController
 
   def load_setting
     @setting = @project.mirror_project_setting || @project.build_mirror_project_setting
+  end
+
+  # The page, filter and search correspondences were saved from (mirror_settings/_mappings).
+  def mapping_view_params(adapter)
+    keys = %w[mirror_filter mirror_search all_references] + (adapter ? adapter.mapping_tables.map { |table| "mirror_page_#{table.key}" } : [])
+    params.slice(*keys).permit(*keys).to_h.reject { |_, value| value.blank? }.symbolize_keys
   end
 
   def configuration_path(mirror_tab = nil, **options)

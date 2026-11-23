@@ -1,0 +1,24 @@
+<%#
+File: redmine_mirror/app/views/mirror_settings/_users_subtabs.html.erb
+
+Redmine Mirror - modular project import and asynchronous replication.
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Users tab: the correspondences and the accounts to create are separate views, each with
+its own form, so that a long list of one does not follow the other.
+%><% catalog = @setting.source_catalog %>
+<% if mirror_user_accounts_tab?(@project, catalog) %>
+  <div class="mirror-tabs"><div class="tabs" id="mirror-users-subtabs"><ul>
+    <li><%= link_to l(:label_mirror_user_mappings), mirror_configuration_path(@project, "users"), class: (accounts_view ? nil : "selected") %></li>
+    <li><%= link_to mirror_configuration_path(@project, "users", mirror_view: "accounts"), class: (accounts_view ? "selected" : nil) do %><%= l(:label_mirror_user_creation) %><% if catalog.key?("user_details") && (count = mirror_user_creation_candidates(@project, catalog).size).positive? %> <span class="mirror-badge"><%= count %></span><% end %><% end %></li>
+  </ul></div></div>
+<% end %>

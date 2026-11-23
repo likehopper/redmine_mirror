@@ -17,9 +17,16 @@ A module's correspondences: each source reference used by the project and its lo
 reference. Unmapped references with a single local namesake, or an AI proposal, are
 preselected; nothing is saved until the form is. AI proposals are asked for per table.
 Source users whose email the source shares (Mirror source) are preselected by email first;
-the Users tab then offers to create the missing accounts (mirror_settings/_user_creation).
+the Users tab then offers to create the missing accounts in its own view
+(mirror_settings/_user_creation). Long tables are searched and paginated: saving only
+touches the rows shown, and comes back to the same page, filter and search.
 %><h3><%= l(adapter.label) %></h3>
 <%= render "mirror_settings/module_overview", adapter: adapter %>
+<% accounts_view = adapter.key == "users" && params[:mirror_view] == "accounts" %>
+<%= render "mirror_settings/users_subtabs", accounts_view: accounts_view if adapter.key == "users" %>
+<% if accounts_view %>
+  <%= render "mirror_settings/user_creation" %>
+<% else %>
 <% if adapter.is_a?(RedmineMirror::Adapters::ProjectReferences) %>
   <p><%= l(:text_mirror_reference_objects) %> <%= link_to l(:label_mirror_objects), mirror_page_path(@project, "objects", module_key: adapter.key) %></p>
 <% end %>
@@ -58,9 +65,10 @@ the Users tab then offers to create the missing accounts (mirror_settings/_user_
     <p class="warning" id="mirror-ai-blocked"><%= l(:text_mirror_ai_blocked, reason: ai_config.blocked_reason) %></p>
   <% end %>
 <% end %>
-<%# Each table's rows, computed before the form so that the filter counts them all. Only
-    references used by the source project are listed unless all are requested. Unsaved
-    proposals count as to map. %>
+<%# Each table's rows and proposals, computed before the form so that the filter counts
+    them all. Only references used by the source project are listed unless all are
+    requested; the search keeps the matching ones. Unsaved proposals count as to map. %>
+<% search = params[:mirror_search].to_s.strip.downcase %>
 <% tables = adapter.mapping_tables.reject { |table| table.unused?(@setting) }.map do |table|
   # The special choice (anonymize, do not give, ignore) is a checkbox beside the field.
   special = if table.anonymous_allowed? then ["anonymous", l(:label_mirror_anonymous)]
@@ -72,25 +80,67 @@ the Users tab then offers to create the missing accounts (mirror_settings/_user_
   used = @setting.source_catalog["#{table.key}_used"]&.to_set
   rows = @setting.source_catalog.fetch(table.key, {}).sort_by { |id, name| [name.downcase, id.to_i] }
   hidden, rows = rows.partition { |id, _| used && params[:all_references] != "1" && !used.include?(id) }
+  unsearched = rows.size
+  details = table.key == "user" ? catalog.fetch("user_details", {}) : {}
+  rows = rows.select { |id, name| mirror_reference_matches?(search, name, details[id]) }
   mails = table.key == "user" ? records.each_with_object({}) { |user, index| index[user.mail.downcase] ||= user.id.to_s if user.mail.present? } : {}
-  { table: table, special: special, records: records, choices: local_choices, labels: local_choices.to_h { |label, value| [value, label] },
-    names: mirror_name_index(local_choices, type: table.key, records: records), rows: rows, hidden: hidden, mails: mails,
-    details: table.key == "user" ? catalog.fetch("user_details", {}) : {} }
+  labels = local_choices.to_h { |label, value| [value, label] }
+  names = mirror_name_index(local_choices, type: table.key, records: records)
+  # Same email first, then a single namesake, then the AI proposal if one was asked for.
+  proposals = rows.each_with_object({}) do |(id, name), found|
+    next if @mapping_values[[table.key, id]].present?
+    info = details[id]
+    mail_match = info && info["mail"].present? ? mails[info["mail"].downcase] : nil
+    suggestion = mail_match || mirror_name_suggestion(names, name, catalog.dig("reference_aliases", table.key, id) || [])
+    ai_proposal = suggestion ? nil : mirror_ai_suggestion(ai, labels, table.key, id)
+    found[id] = { suggestion: suggestion, mail: mail_match, ai: ai_proposal } if suggestion || ai_proposal
+  end
+  { table: table, special: special, records: records, choices: local_choices, labels: labels,
+    rows: rows, hidden: hidden, unsearched: unsearched, proposals: proposals, details: details }
 end %>
 <% to_map = tables.sum { |entry| entry[:rows].count { |id, _| @mapping_values[[entry[:table].key, id]].blank? } } %>
+<% proposed = tables.sum { |entry| entry[:proposals].size } %>
 <% total = tables.sum { |entry| entry[:rows].size } %>
-<% filter = params[:mirror_filter].presence_in(%w[unmapped mapped all]) || (to_map.positive? ? "unmapped" : "all") %>
-<% if total.positive? %>
+<% filter = params[:mirror_filter].presence_in(%w[unmapped proposed mapped all]) || (to_map.positive? ? "unmapped" : "all") %>
+<%# Then the rows the filter keeps, one page at a time for long tables. %>
+<% tables.each do |entry|
+  shown = entry[:rows].select do |id, _|
+    case filter
+    when "unmapped" then @mapping_values[[entry[:table].key, id]].blank?
+    when "proposed" then entry[:proposals].key?(id)
+    when "mapped" then @mapping_values[[entry[:table].key, id]].present?
+    else true
+    end
+  end
+  entry[:page], entry[:paginator] = mirror_page_of(shown, "mirror_page_#{entry[:table].key}")
+end %>
+<%# The search is offered once a table is long; GET forms drop the action's query string. %>
+<% if search.present? || tables.any? { |entry| entry[:unsearched] > MirrorHelper::MIRROR_PAGINATION_THRESHOLD } %>
+  <%= form_tag mirror_configuration_path(@project), method: :get, id: "mirror-mapping-search", class: "mirror-mapping-search" do %>
+    <%= hidden_field_tag :mirror_tab, adapter.key, id: nil %>
+    <%= hidden_field_tag :all_references, params[:all_references], id: nil if params[:all_references].present? %>
+    <%= hidden_field_tag :mirror_filter, params[:mirror_filter], id: nil if params[:mirror_filter].present? %>
+    <%= label_tag "mirror-search", l(:label_search) %>
+    <%= search_field_tag :mirror_search, params[:mirror_search], id: "mirror-search", size: 30, placeholder: l(:text_mirror_mapping_search) %>
+    <%= submit_tag l(:button_apply), name: nil %>
+    <% if search.present? %><%= link_to l(:button_clear), mirror_configuration_path(@project, adapter.key, all_references: params[:all_references].presence, mirror_filter: params[:mirror_filter].presence), class: "icon icon-reload" %><% end %>
+  <% end %>
+<% end %>
+<% if total.positive? || search.present? %>
   <p class="mirror-mapping-filter" id="mirror-mapping-filter"><%= l(:label_mirror_mapping_filter) %>
-    <% { "unmapped" => to_map, "mapped" => total - to_map, "all" => total }.each do |value, count| %>
+    <% { "unmapped" => to_map, "proposed" => proposed, "mapped" => total - to_map, "all" => total }.each do |value, count| %>
       <% text = l("label_mirror_mapping_filter_#{value}", count: count) %>
-      <%= value == filter ? content_tag(:strong, text) : link_to(text, mirror_configuration_path(@project, adapter.key, all_references: params[:all_references].presence, mirror_filter: value)) %>
+      <%= value == filter ? content_tag(:strong, text) : link_to(text, mirror_configuration_path(@project, adapter.key, all_references: params[:all_references].presence, mirror_search: params[:mirror_search].presence, mirror_filter: value)) %>
     <% end %>
   </p>
 <% end %>
 <%= form_tag project_mirror_mappings_path(@project, module_key: adapter.key), method: :patch, id: "mirror-mappings-form" do %>
-  <%= hidden_field_tag :mirror_filter, params[:mirror_filter], id: nil if params[:mirror_filter].present? %>
+  <%# Where the page was saved from, to come back to it. %>
+  <% %w[mirror_filter mirror_search all_references].each do |name| %>
+    <%= hidden_field_tag name, params[name], id: nil if params[name].present? %>
+  <% end %>
   <% tables.each do |entry| %>
+    <% if (paginator = entry[:paginator]) %><%= hidden_field_tag paginator.page_param, paginator.page, id: nil %><% end %>
     <% table, special, local_choices, labels = entry.values_at(:table, :special, :choices, :labels) %>
     <%# Long lists are sent once per table and searched as the user types (mirror.js): each
         row's select only holds the empty choice and its current or proposed value. %>
@@ -99,17 +149,13 @@ end %>
     <table class="list mirror-mapping-table" id="mirror-table-<%= table.key %>">
       <thead><tr><th><%= l(:label_mirror_source) %></th><th><%= l(:label_mirror_destination) %></th></tr></thead>
       <tbody>
-      <% entry[:rows].each do |id, name| %>
+      <% entry[:page].each do |id, name| %>
         <% selected = @mapping_values[[table.key, id]] %>
-        <% next if filter == (selected.blank? ? "mapped" : "unmapped") %>
         <% info = entry[:details][id] %>
         <% usage = mirror_reference_usage(catalog, table.key, id) %>
-        <% mail_match = selected.blank? && info && info["mail"].present? ? entry[:mails][info["mail"].downcase] : nil %>
-        <% source_aliases = @setting.source_catalog.dig("reference_aliases", table.key, id) || [] %>
-        <% suggestion = selected.blank? ? mail_match || mirror_name_suggestion(entry[:names], name, source_aliases) : nil %>
+        <% proposal = entry[:proposals][id] || {} %>
+        <% suggestion, mail_match, ai_proposal = proposal.values_at(:suggestion, :mail, :ai) %>
         <% suggested += 1 if suggestion %>
-        <%# Then the AI proposal, if one was asked for. %>
-        <% ai_proposal = selected.blank? && !suggestion ? mirror_ai_suggestion(ai, labels, table.key, id) : nil %>
         <% ai_suggested += 1 if ai_proposal %>
         <% checked = special && selected == special.first %>
         <% value = checked ? "" : selected.presence || suggestion || (ai_proposal && ai_proposal["id"].to_s) %>
@@ -134,6 +180,7 @@ end %>
       <% end %>
       </tbody>
     </table>
+    <% if entry[:paginator] %><%= mirror_pagination_links entry[:paginator] %><% end %>
     <% if shared %><%= content_tag :script, local_choices.reject { |_, value| value.empty? }.to_json.html_safe, type: "application/json", id: "mirror-choices-#{table.key}" %><% end %>
     <% if @setting.source_catalog.fetch(table.key, {}).empty? %><p class="nodata"><%= l(:label_no_data) %></p><% end %>
     <% local_names = entry[:records].flat_map { |record| RedmineMirror::LocalizedNames.record_names(table.key, record).map { |name| [record.id.to_s, name] } } %>
@@ -182,4 +229,4 @@ end %>
   <%= render "mirror_settings/repositories_form", adapter: adapter if adapter.key == "repositories" %>
   <%= submit_tag l(:button_save) if adapter.mapping_tables.any? || adapter.anonymous_time_user_required? || %w[issue_relations repositories issue_attachments].include?(adapter.key) %>
 <% end %>
-<%= render "mirror_settings/user_creation" if adapter.key == "users" %>
+<% end %>

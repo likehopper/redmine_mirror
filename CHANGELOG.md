@@ -16,6 +16,16 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## Unreleased
+
+- Mapping tables of more than 100 references (a source sharing thousands of users) are
+  paginated, with a **Search** on the source name, login, email and company. **Save**
+  only changes the rows shown and comes back to the same page, filter and search.
+- **Show** gains **proposed**: the references with an unsaved proposal (same email, same
+  name or AI).
+- Users tab: **Accounts to create** is its own view beside **Mappings**, with its counter,
+  and is paginated too.
+
 ## 1.0.0-beta.60 — 2026-11-23
 
 - A destination subproject without its own Mirror application key uses its parent's: the
