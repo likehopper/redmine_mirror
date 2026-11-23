@@ -18,7 +18,24 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Minimum declared Redmine version: **5.0** as a destination, **4.0** as a source with
 Mirror source (source only). This is not a compatibility certification.
-Current plugin version: **1.0.0-beta.59**.
+Current plugin version: **1.0.0-beta.60**.
+
+## 1.0.0-beta.60 validation — 2026-11-23
+
+Candidate based on `v1.0.0-beta.59`: destination subprojects without their own Mirror
+application key use their parent's, a new Mirror source key reaches the subprojects that
+shared the previous one, parent correspondences applied on demand to checked subprojects.
+No migration.
+
+- `bash test/compatibility/run.sh` (same container script): Redmine 6.1.4 / Ruby 3.4.11 /
+  Rails 7.2.3.2 / SQLite; standalone suites green; 410 Redmine tests, 2,492 assertions,
+  no failures, errors or skips.
+- Redmine 4.0.3 / Ruby 2.6.3 / MySQL 5.7 source-only suites (runner with `mysql2`
+  pinned to the image's 0.5.2): API 36 tests, 197 assertions; settings 19 tests, 197
+  assertions, including the new key propagation. Only the two failures known since
+  beta.50 remain (document access log row count, administration session list).
+- Not rerun for this candidate: PostgreSQL, MySQL, MariaDB, Redmine 5.1, interinstance
+  smokes, `versions.sh` and documentation guides.
 
 ## 1.0.0-beta.59 validation — 2026-11-22
 

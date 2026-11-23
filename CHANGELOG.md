@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
-## Unreleased
+## 1.0.0-beta.60 — 2026-11-23
 
 - A destination subproject without its own Mirror application key uses its parent's: the
   subprojects configured before application keys existed no longer get "The source
@@ -26,6 +26,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 - **This project's correspondences in the subprojects** (parent's Subprojects section):
   fill the checked subprojects' references without correspondence, or replace their
   correspondences and module options with the parent's.
+- No migration since beta.54.
 
 ## 1.0.0-beta.59 — 2026-11-22
 
