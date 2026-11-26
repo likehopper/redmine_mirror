@@ -16,6 +16,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.63 — 2026-11-26
+
+- Empty source values now clear multiple-value destination issue custom fields without
+  a false persistence error when Redmine stores the empty choice as a blank value.
+- No migration since beta.54.
+
 ## 1.0.0-beta.62 — 2026-11-26
 
 - When Redmine does not retain imported issue custom field values, the execution log

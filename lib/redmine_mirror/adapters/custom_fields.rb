@@ -373,7 +373,8 @@ module RedmineMirror
       def state(issue, ids)
         issue.custom_field_values.select { |value| ids.include?(value.custom_field_id.to_s) }.to_h do |value|
           raw = value.value
-          [value.custom_field_id.to_s, raw.is_a?(Array) ? raw.map(&:to_s).sort : raw.to_s]
+          # Redmine stores an empty multiple choice as [""].
+          [value.custom_field_id.to_s, raw.is_a?(Array) ? raw.map(&:to_s).reject(&:empty?).sort : raw.to_s]
         end
       end
     end

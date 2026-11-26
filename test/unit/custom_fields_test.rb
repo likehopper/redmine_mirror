@@ -105,6 +105,18 @@ class MirrorCustomFieldsTest < ActiveSupport::TestCase
     assert_match(/incompatible formats or multiplicity/, error.message)
   end
 
+  def test_empty_single_source_value_clears_a_multiple_destination_field
+    @setting.source_catalog = @setting.source_catalog.deep_merge("custom_field_definitions" => { "901" => { "multiple" => false } })
+    @setting.save!
+    @record["custom_fields"][1]["value"] = "Remote A"
+    run_adapter
+    assert_equal ["Local B"], @issue.reload.custom_field_value(@list)
+    @record["custom_fields"][1]["value"] = nil
+    run_adapter
+    assert_equal [], @adapter.state(@issue.reload, [@list.id.to_s]).fetch(@list.id.to_s)
+    assert_equal "unchanged", run_adapter[:action]
+  end
+
   def test_failed_persistence_names_the_fields_without_logging_values
     Issue.stubs(:find_by).returns(@issue)
     @issue.stubs(:save!).returns(true)

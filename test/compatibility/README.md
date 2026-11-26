@@ -18,7 +18,25 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Minimum declared Redmine version: **5.0** as a destination, **4.0** as a source with
 Mirror source (source only). This is not a compatibility certification.
-Current plugin version: **1.0.0-beta.62**.
+Current plugin version: **1.0.0-beta.63**.
+
+## 1.0.0-beta.63 validation — 2026-11-26
+
+Candidate based on `v1.0.0-beta.62`: normalize Redmine's blank sentinel for an
+empty multiple-value issue custom field. The GESCOM preproduction run 2295 showed
+485 persistence errors for destination field `Defect Cause` (#40); all 485 mapped
+issues held one blank custom value. Source field #78 is single-value, and a checked
+source issue had no value. No migration.
+
+- Redmine 5.1.12 / Ruby 3.2.11 / Rails 6.1.7.10 / SQLite, disposable container:
+  `test/unit/custom_fields_test.rb` passed, 17 tests, 70 assertions, no failures,
+  errors or skips. Includes the empty single-value source to multiple destination
+  regression.
+- `bash test/compatibility/run.sh`: Redmine 6.1.4 / Ruby 3.4.11 / Rails 7.2.3.2 /
+  SQLite; standalone suites green; 413 Redmine tests, 2,538 assertions, no failures,
+  errors or skips.
+- Not rerun for this candidate: Redmine 4.0.3 source-only suites, PostgreSQL,
+  MariaDB, MySQL, interinstance smoke tests and `versions.sh`.
 
 ## 1.0.0-beta.62 validation — 2026-11-26
 
