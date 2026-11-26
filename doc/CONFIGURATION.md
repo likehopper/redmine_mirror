@@ -361,6 +361,12 @@ The **Processing time** column shows how long each module has been running, incl
 modules with no objects. Completed module times remain visible after the run ends;
 older runs without timing data show a dash.
 
+For issue watchers, Mirror follows the destination's watcher eligibility rule. With
+Extended Watchers in **extended** mode, an active mapped user may be added without
+prior issue visibility; the subscription grants access according to that plugin's
+policy. In the default or protected modes, the destination's normal visibility
+restrictions still apply.
+
 A finished execution has three tabs: **Summary** (actions per module, each count opens
 its objects), **To check** (errors by cause, warnings and special cases) and **Execution
 log** (the objects, filtered by module, action, source ID or special case, and grouped by

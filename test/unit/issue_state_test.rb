@@ -111,6 +111,17 @@ class MirrorIssueStateTest < ActiveSupport::TestCase
     assert_raises(RedmineMirror::Error) { run_adapter(adapter, mappings: { "user" => { "7" => outsider.id.to_s } }) }
     assert_empty @issue.reload.watcher_users
   end
+
+  def test_watcher_allowed_by_native_policy_without_prior_visibility_is_added
+    @issue.update_columns(is_private: true)
+    outsider = User.active.where(admin: false).detect { |user| !@issue.visible?(user) }
+    assert outsider
+    Issue.any_instance.stubs(:valid_watcher?).with(outsider).returns(true)
+
+    run_adapter(RedmineMirror::Adapters::Watchers.new, mappings: { "user" => { "7" => outsider.id.to_s } })
+
+    assert_includes @issue.reload.watcher_users.pluck(:id), outsider.id
+  end
   def test_cycle_is_rejected_in_preview
     @record["parent"]["id"] = 100
     assert_raises(RedmineMirror::Error) { run_adapter(RedmineMirror::Adapters::Hierarchy.new, apply: false) }

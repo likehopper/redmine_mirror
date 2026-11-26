@@ -53,7 +53,7 @@ module RedmineMirror
           # Redmine refuses locked or registered watchers, who receive no notification anyway.
           next if user && (user.locked? || user.registered?)
           raise Error, "Watcher mapping must reference an active user" unless user&.active?
-          raise Error, "Mapped watcher cannot view destination issue" if issue && !issue.visible?(user)
+          raise Error, "Mapped watcher cannot view destination issue" if issue && !issue.valid_watcher?(user)
           id
         end.uniq.sort
       end

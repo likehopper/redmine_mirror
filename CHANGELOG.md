@@ -16,6 +16,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.65 — 2026-11-27
+
+- Issue watcher synchronization now follows the destination's native watcher
+  eligibility rule. Extended Watchers in extended mode can add active mapped
+  users without prior issue visibility, while default visibility rules remain
+  in force on other destinations.
+- No migration since beta.54.
+
 ## 1.0.0-beta.64 — 2026-11-26
 
 - The execution page shows each module's processing time while it runs and after
