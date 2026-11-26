@@ -18,7 +18,18 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Minimum declared Redmine version: **5.0** as a destination, **4.0** as a source with
 Mirror source (source only). This is not a compatibility certification.
-Current plugin version: **1.0.0-beta.61**.
+Current plugin version: **1.0.0-beta.62**.
+
+## 1.0.0-beta.62 validation — 2026-11-26
+
+Candidate based on `v1.0.0-beta.61`: identify destination issue custom fields in
+the persistence error without recording their values. No migration.
+
+- `bash test/compatibility/run.sh`: Redmine 6.1.4 / Ruby 3.4.11 / Rails 7.2.3.2 /
+  SQLite; standalone suites green; 412 Redmine tests, 2,535 assertions, no failures,
+  errors or skips. Includes the regression test for field names and value privacy.
+- Not rerun for this candidate: Redmine 4.0.3 source-only suites, PostgreSQL,
+  MariaDB, MySQL, Redmine 5.1, interinstance smoke tests and `versions.sh`.
 
 ## 1.0.0-beta.61 validation — 2026-11-23
 

@@ -310,7 +310,13 @@ module RedmineMirror
               issue.reload.update_columns(dates)
             end
             actual = state(issue.reload, desired.keys)
-            raise Error, "Destination did not preserve imported custom field values" unless actual == desired
+            unless actual == desired
+              fields = issue.available_custom_fields.index_by { |field| field.id.to_s }
+              changed = desired.keys.select { |id| actual[id] != desired[id] }.map do |id|
+                "#{fields[id]&.name || 'Custom field'} (##{id})"
+              end
+              raise Error, "Destination did not preserve imported custom field values: #{changed.join(', ')}"
+            end
             store.save(key, record.fetch("id"), "destination_id" => issue.id,
               "source_fingerprint" => digest(desired), "destination_fingerprint" => digest(actual))
           end

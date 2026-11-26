@@ -319,6 +319,8 @@ and list values one by one. Two cross-field correspondences come on top of these
 History and saved queries follow: a severity change becomes a priority change, a
 source priority change a change of the field receiving it. A tracker change stays a
 tracker change, and also changes the field receiving the source tracker.
+If Redmine does not retain imported values, the execution log names the affected
+destination fields and their IDs, without exposing the values.
 
 ![Cross-field correspondences](screenshots/configuration/40-cross-field-mappings.png)
 

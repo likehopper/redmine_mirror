@@ -16,6 +16,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.62 — 2026-11-26
+
+- When Redmine does not retain imported issue custom field values, the execution log
+  names the destination fields and their IDs without recording the values.
+- No migration since beta.54.
+
 ## 1.0.0-beta.61 — 2026-11-23
 
 - Mapping tables of more than 100 references (a source sharing thousands of users) are

@@ -105,6 +105,16 @@ class MirrorCustomFieldsTest < ActiveSupport::TestCase
     assert_match(/incompatible formats or multiplicity/, error.message)
   end
 
+  def test_failed_persistence_names_the_fields_without_logging_values
+    Issue.stubs(:find_by).returns(@issue)
+    @issue.stubs(:save!).returns(true)
+    error = assert_raises(RedmineMirror::Error) { run_adapter }
+    assert_includes error.message, "Mirror text (##{@field.id})"
+    assert_includes error.message, "Mirror list (##{@list.id})"
+    refute_includes error.message, "Remote text"
+    refute_includes error.message, "Local B"
+  end
+
   def test_history_remaps_field_and_list_values
     record = { "user" => { "id" => 7 }, "created_on" => "2026-01-01T12:00:00Z", "notes" => "Historical change",
       "details" => [{ "property" => "cf", "name" => "901", "old_value" => nil, "new_value" => "Remote A" }] }
