@@ -357,6 +357,9 @@ Click **Synchronize now**. The run is queued, then processed by the worker (see
 itself and shows the phase, each module with its state and the source objects handled
 out of the total the source gives, and the log fills as objects are written. The other
 Mirror tabs link to it with **Follow the execution**.
+The **Processing time** column shows how long each module has been running, including
+modules with no objects. Completed module times remain visible after the run ends;
+older runs without timing data show a dash.
 
 A finished execution has three tabs: **Summary** (actions per module, each count opens
 its objects), **To check** (errors by cause, warnings and special cases) and **Execution

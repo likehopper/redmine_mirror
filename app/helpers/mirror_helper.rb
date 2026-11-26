@@ -198,6 +198,15 @@ module MirrorHelper
     [("#{hours} h" if hours.positive?), ("#{minutes} min" if minutes.positive?), ("#{secs} s" if secs.positive? && hours.zero?)].compact.join(" ")
   end
 
+  def mirror_module_duration(entry, run)
+    seconds = entry["duration_seconds"]
+    if seconds.nil? && entry["started_at"]
+      end_time = run.status == "running" ? Time.current : run.finished_at
+      seconds = [end_time.to_f - entry["started_at"].to_f, 0].max if end_time
+    end
+    seconds.nil? ? "—" : mirror_duration(seconds)
+  end
+
   # Above this many rows, a mapping list is shown one page at a time: a source project can
   # share thousands of users. Saving only touches the rows the page shows.
   MIRROR_PAGINATION_THRESHOLD = 100

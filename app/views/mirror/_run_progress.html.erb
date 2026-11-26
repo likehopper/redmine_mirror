@@ -16,17 +16,19 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 Live progress of a running execution: phase, overall bar, then each module with its state
 and counters. The page reloads itself while the execution runs (mirror.js).
 %><% summary = mirror_progress_summary(run.live_progress) %>
-<div class="box" id="mirror-run-progress" data-mirror-reload="5">
+<div class="box" id="mirror-run-progress"<% if run.status == "running" %> data-mirror-reload="5"<% end %>>
 <% if summary %>
+  <% percentage = run.status != "running" && summary[:modules].all? { |entry| entry["state"] == "done" } ? 100 : summary[:percentage] %>
   <p><strong><%= l("label_mirror_phase_#{summary[:phase]}", default: summary[:phase].to_s) %></strong> —
     <%= l(:text_mirror_module_position, position: summary[:position], count: summary[:count]) %></p>
-  <p><progress value="<%= summary[:percentage] %>" max="100"></progress> <%= summary[:percentage] %>%</p>
-  <table class="list" id="mirror-run-modules"><thead><tr><th><%= l(:label_mirror_modules) %></th><th><%= l(:field_status) %></th><th><%= l(:label_mirror_objects_handled) %></th></tr></thead><tbody>
+  <p><progress value="<%= percentage %>" max="100"></progress> <%= percentage %>%</p>
+  <table class="list" id="mirror-run-modules"><thead><tr><th><%= l(:label_mirror_modules) %></th><th><%= l(:field_status) %></th><th><%= l(:label_mirror_objects_handled) %></th><th><%= l(:label_mirror_processing_time) %></th></tr></thead><tbody>
   <% summary[:modules].each do |entry| %>
     <% total = entry["total"] && entry["done"] <= entry["total"] ? entry["total"] : nil %>
     <tr class="<%= 'mirror-module-running' if entry['state'] == 'running' %>"><td><%= mirror_module_label(entry["key"]) %></td>
       <td><%= l("label_mirror_module_state_#{entry['state']}", default: entry["state"].to_s) %></td>
-      <td><%= entry["state"] == "waiting" ? "—" : (total ? "#{entry['done']} / #{total}" : entry["done"]) %></td></tr>
+      <td><%= entry["state"] == "waiting" ? "—" : (total ? "#{entry['done']} / #{total}" : entry["done"]) %></td>
+      <td><%= mirror_module_duration(entry, run) %></td></tr>
   <% end %>
   </tbody></table>
 <% else %>

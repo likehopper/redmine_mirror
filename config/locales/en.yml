@@ -193,6 +193,7 @@ en:
   label_mirror_phase_writing: "Writing"
   text_mirror_module_position: "module %{position} of %{count}"
   label_mirror_objects_handled: "Objects handled"
+  label_mirror_processing_time: "Processing time"
   label_mirror_module_state_waiting: "Waiting"
   label_mirror_module_state_running: "In progress"
   label_mirror_module_state_done: "Done"

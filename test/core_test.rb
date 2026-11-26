@@ -235,8 +235,10 @@ class MirrorCoreTest < Minitest::Test
     assert_equal [["users", "done", 0, 0], ["issue_tracking", "done", 1, 1], ["time_tracking", "done", 1, 1]],
       run.writes.last.fetch("modules").map { |entry| entry.values_at("key", "state", "done", "total") }
     assert_equal "writing", run.writes.last.fetch("phase")
+    assert run.writes.last.fetch("modules").all? { |entry| entry["duration_seconds"].is_a?(Numeric) && entry["duration_seconds"] >= 0 }
     # Each module was shown running before it was done.
     assert run.writes.any? { |write| write.fetch("modules").find { |entry| entry["key"] == "issue_tracking" }&.values_at("state", "total") == ["running", nil] }
+    assert run.writes.any? { |write| write.fetch("modules").any? { |entry| entry["key"] == "issue_tracking" && entry["state"] == "running" && entry["started_at"].is_a?(Numeric) } }
     assert_nil @source.list_total_listener
   end
 

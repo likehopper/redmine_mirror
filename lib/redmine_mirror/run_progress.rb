@@ -26,26 +26,34 @@ module RedmineMirror
       @run = run
       @phase = nil
       @modules = {}
+      @module_started_at = {}
       @written_at = nil
     end
 
     # checking: objects are read and validated without writing; writing: objects are written.
     def phase!(phase)
       @phase = phase
-      @modules.each_value { |entry| entry.merge!("state" => "waiting", "done" => 0) }
+      @module_started_at.clear
+      @modules.each_value do |entry|
+        entry.merge!("state" => "waiting", "done" => 0)
+        entry.delete("started_at")
+        entry.delete("duration_seconds")
+      end
       write(force: true)
     end
 
     # The modules of the run, in their execution order.
     def modules!(keys)
+      @module_started_at.clear
       @modules = keys.to_h { |key| [key, { "state" => "waiting", "done" => 0, "total" => nil }] }
       write(force: true)
     end
 
     def start(key)
-      @modules.each_value { |entry| entry["state"] = "done" if entry["state"] == "running" }
+      finish_running_modules
       entry = (@modules[key] ||= { "done" => 0, "total" => nil })
-      entry.merge!("state" => "running", "done" => 0)
+      entry.merge!("state" => "running", "done" => 0, "started_at" => Time.now.to_f)
+      @module_started_at[key] = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       write(force: true)
     end
 
@@ -64,7 +72,7 @@ module RedmineMirror
     end
 
     def finish
-      @modules.each_value { |entry| entry["state"] = "done" if entry["state"] == "running" }
+      finish_running_modules
       write(force: true)
     end
 
@@ -73,6 +81,16 @@ module RedmineMirror
     end
 
     private
+
+    def finish_running_modules
+      now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      @modules.each do |key, entry|
+        next unless entry["state"] == "running"
+        entry["state"] = "done"
+        started_at = @module_started_at.delete(key)
+        entry["duration_seconds"] = [now - started_at, 0].max if started_at
+      end
+    end
 
     def write(force: false)
       now = Process.clock_gettime(Process::CLOCK_MONOTONIC)

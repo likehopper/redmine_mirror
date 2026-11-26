@@ -18,7 +18,22 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Minimum declared Redmine version: **5.0** as a destination, **4.0** as a source with
 Mirror source (source only). This is not a compatibility certification.
-Current plugin version: **1.0.0-beta.63**.
+Current plugin version: **1.0.0-beta.64**.
+
+## 1.0.0-beta.64 validation — 2026-11-26
+
+Candidate based on `v1.0.0-beta.63`: record and display processing time per module
+on the execution page, with completed timings retained. No migration.
+
+- `bash test/compatibility/run.sh`: Redmine 6.1.4 / Ruby 3.4.11 / Rails 7.2.3.2 /
+  SQLite; standalone suites green; 413 Redmine tests, 2,543 assertions, no failures,
+  errors or skips, on the final candidate snapshot.
+- Redmine 5.1.12 / Ruby 3.2.11 / Rails 6.1.7.10 / SQLite, disposable container:
+  the execution page render test passed, 1 test, 8 assertions, no failures, errors
+  or skips, on the final candidate snapshot. The broader controller suite has four
+  unrelated Redmine 5.1 rendering failures and is not counted as passed.
+- Not rerun for this candidate: Redmine 4.0.3 source-only suites, PostgreSQL,
+  MariaDB, MySQL, interinstance smoke tests and `versions.sh`.
 
 ## 1.0.0-beta.63 validation — 2026-11-26
 

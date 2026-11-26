@@ -25,7 +25,7 @@ Render project-scoped Mirror controls and diagnostics using native Redmine helpe
 <% if @run.stopped_on_request? %>
   <p class="info" id="mirror-stopped-by"><%= l(:text_mirror_stopped_by, time: format_time(@run.stop_requested_at), user: @run.stop_requested_by&.name || "—") %></p>
 <% elsif @run.error_message.present? %><p><%= link_to l(:label_mirror_conflicts), mirror_conflicts_path(@project) %></p><div class="flash error"><%= mirror_reason_label(@run.error_message) %></div><% end %>
-<%= render "mirror/run_progress", run: @run if %w[queued running].include?(@run.status) %>
+<%= render "mirror/run_progress", run: @run if %w[queued running].include?(@run.status) || @run.live_progress["modules"].present? %>
 <% tabs = [{ name: "summary", partial: "mirror_synchronizations/run_summary", label: :label_mirror_run_summary }]
    tabs << { name: "attention", partial: "mirror_synchronizations/run_attention", label: :label_mirror_to_check } if @error_groups.any? || @warning_counts.any? || @flag_counts.any?
    tabs << { name: "log", partial: "mirror_synchronizations/run_log", label: :label_mirror_log } %>

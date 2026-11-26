@@ -193,6 +193,7 @@ fr:
   label_mirror_phase_writing: "Écriture"
   text_mirror_module_position: "module %{position} sur %{count}"
   label_mirror_objects_handled: "Objets traités"
+  label_mirror_processing_time: "Temps de traitement"
   label_mirror_module_state_waiting: "À venir"
   label_mirror_module_state_running: "En cours"
   label_mirror_module_state_done: "Terminé"

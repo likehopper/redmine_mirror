@@ -416,13 +416,23 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     run = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual")
     run.update!(status: "running", started_at: Time.current)
     run.update_columns(progress: JSON.generate("phase" => "writing", "modules" => [
-      { "key" => "issue_tracking", "state" => "done", "done" => 4, "total" => 4 },
-      { "key" => "time_tracking", "state" => "running", "done" => 25, "total" => 100 },
+      { "key" => "issue_tracking", "state" => "done", "done" => 4, "total" => 4, "duration_seconds" => 12 },
+      { "key" => "time_tracking", "state" => "running", "done" => 25, "total" => 100, "started_at" => 65.seconds.ago.to_f },
       { "key" => "issue_watchers", "state" => "waiting", "done" => 0, "total" => nil }]))
     get :show, params: { project_id: @project.identifier, id: run.id }
     assert_select "#mirror-run-progress[data-mirror-reload]", text: /Writing\s+—\s+module 2 of 3/
     assert_select "#mirror-run-progress progress[value='41']"
     assert_select "#mirror-run-modules tr.mirror-module-running td", text: "25 / 100"
+    assert_select "#mirror-run-modules td", text: "12 s"
+    assert_select "#mirror-run-modules tr.mirror-module-running td:last-child", text: /\A1 min \d+ s\z/
+    completed_progress = run.live_progress
+    completed_progress["modules"].each { |entry| entry["state"] = "done" }
+    run.update_columns(progress: JSON.generate(completed_progress))
+    run.finish!(status: "succeeded")
+    get :show, params: { project_id: @project.identifier, id: run.id }
+    assert_select "#mirror-run-progress[data-mirror-reload]", count: 0
+    assert_select "#mirror-run-progress progress[value='100']"
+    assert_select "#mirror-run-modules td", text: "12 s"
   end
 
   def test_source_without_change_protocol_uses_previous_applied_run_for_issue_filter
