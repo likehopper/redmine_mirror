@@ -18,7 +18,7 @@ Document Mirror setup, operation, extension points or validation evidence.
 
 # <img src="assets/images/synchronisation-des-donnees-64.png" width="64" height="64" alt=""> Redmine Mirror
 
-![Version](https://img.shields.io/badge/Version-1.0.0--beta.65-orange)
+![Version](https://img.shields.io/badge/Version-1.0.0--beta.66-orange)
 ![Destination tested](https://img.shields.io/badge/Destination_tested-5.1_%7C_6.1-blue)
 ![Source tested](https://img.shields.io/badge/Source_tested-4.0_%7C_4.2_%7C_5.0_%7C_6.1-blue)
 ![Database tested](https://img.shields.io/badge/Database_tested-SQLite_3-blue)
@@ -32,7 +32,7 @@ existing destination project, through the destination REST API and native models
 
 Use it to migrate projects to a new instance, or to keep a regularly updated secondary
 copy. Each project has its own connection, mappings, schedule, history and conflicts.
-Version **1.0.0-beta.65** is a pre-release for testing before 1.0.0, not a stable release.
+Version **1.0.0-beta.66** is a pre-release for testing before 1.0.0, not a stable release.
 
 ## Features
 
@@ -45,7 +45,7 @@ Version **1.0.0-beta.65** is a pre-release for testing before 1.0.0, not a stabl
 | Issue attachments | Current files (32 MiB max.), descriptions, authors, dates |
 | Issue relations | Type and delay, including endpoints in other mirrored projects |
 | Issue hierarchy | Parents, including parents imported by another project |
-| Issue watchers | Mapped active users who can see the issue |
+| Issue watchers | Mapped users with a real destination account, regardless of current issue visibility |
 | Issue custom fields | Existing compatible local fields, list value mappings, history; a list can feed the priority, the priority a list |
 | Users | Identity mappings and anonymization; registered accounts created from a Mirror source when the administrator allows it |
 | Wiki | Pages with every version, authors, dates, parents and attachments |

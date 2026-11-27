@@ -16,6 +16,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.66 — 2026-11-27
+
+- Restore mapped issue watchers even when their current issue access has been removed
+  or their destination account is locked. A missing source watcher subscription is
+  restored when the issue is processed again. Anonymous mappings remain excluded.
+- No migration.
+
 ## 1.0.0-beta.65 — 2026-11-27
 
 - Issue watcher synchronization now follows the destination's native watcher

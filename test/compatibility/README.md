@@ -18,7 +18,23 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Minimum declared Redmine version: **5.0** as a destination, **4.0** as a source with
 Mirror source (source only). This is not a compatibility certification.
-Current plugin version: **1.0.0-beta.65**.
+Current plugin version: **1.0.0-beta.66**.
+
+## 1.0.0-beta.66 validation — 2026-11-27
+
+Candidate based on `v1.0.0-beta.65`: restore each mapped source issue watcher
+to a real destination user regardless of current issue visibility or account
+lock. Anonymous mappings remain excluded; missing source subscriptions are
+restored when their issue is processed again. No migration.
+
+- `bash test/compatibility/run.sh`: Redmine 6.1.4 / Ruby 3.4.11 / Rails 7.2.3.2 /
+  SQLite, disposable container; standalone suites green; 415 Redmine tests,
+  2,553 assertions, no failures, errors or skips.
+- Redmine 5.1.12 / Ruby 3.2.11 / Rails 6.1.7.10 / SQLite, disposable container:
+  issue-state, locked-reference and module-overview suites passed, 27 tests,
+  133 assertions, no failures, errors or skips.
+- Not rerun for this candidate: Redmine 4.0.3 source-only suites, PostgreSQL,
+  MariaDB, MySQL and interinstance write tests.
 
 ## 1.0.0-beta.65 validation — 2026-11-27
 

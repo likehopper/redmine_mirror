@@ -95,10 +95,10 @@ class MirrorLockedReferencesTest < ActiveSupport::TestCase
     assert_same active, adapter.rest_attributes(active)
   end
 
-  def test_locked_watchers_are_not_subscribed
+  def test_locked_watchers_remain_mapped
     issue = Issue.find(1)
     record = { "id" => 100, "watchers" => [{ "id" => 7 }, { "id" => 8 }] }
     mapped = RedmineMirror::Adapters::Watchers.new.mapped_watchers(record, { "user" => { "7" => LOCKED.to_s, "8" => "2" } }, issue)
-    assert_equal [2], mapped
+    assert_equal [2, LOCKED], mapped
   end
 end

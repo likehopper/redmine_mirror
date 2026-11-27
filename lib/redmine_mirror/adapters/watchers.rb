@@ -13,7 +13,7 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 #
-# Add mapped observers with native visibility checks while preserving local subscriptions.
+# Restore mapped issue subscriptions while preserving local subscriptions.
 
 module RedmineMirror
   module Adapters
@@ -25,18 +25,13 @@ module RedmineMirror
         { "watchers" => watchers.size, "watcher_users" => watchers.to_h { |watcher| [watcher.fetch("id").to_s, 1] } }
       end
 
-      # Subscriptions that will not be imported: anonymized users, and users mapped to a
-      # locked or registered account, which Redmine refuses as watchers.
+      # Anonymous mappings have no destination account to subscribe.
       def overview_checks(project, _setting, statistics)
         users = statistics.fetch("watcher_users", {})
         rows = project.mirror_reference_mappings.where(reference_type: "user", source_id: users.keys.map(&:to_i)).index_by { |row| row.source_id.to_s }
-        inactive = User.where(id: rows.values.select { |row| row.mode == "existing" }.map(&:destination_id),
-          status: [User::STATUS_LOCKED, User::STATUS_REGISTERED]).pluck(:id)
         anonymized = users.sum { |id, count| rows[id]&.mode == "anonymous" ? count : 0 }
-        refused = users.sum { |id, count| rows[id]&.mode == "existing" && inactive.include?(rows[id].destination_id) ? count : 0 }
         checks = []
         checks << { key: :text_mirror_check_watchers_anonymized, count: anonymized } if anonymized.positive?
-        checks << { key: :text_mirror_check_watchers_inactive, count: refused } if refused.positive?
         checks
       end
       def empty_state; []; end
@@ -44,16 +39,13 @@ module RedmineMirror
       def local_state(issue); issue.watcher_users.pluck(:id).sort; end
       # Missing watcher data can mean insufficient source permissions. Distinguish
       # that from an explicitly empty list before touching destination subscriptions.
-      def mapped_watchers(record, mappings, issue)
+      def mapped_watchers(record, mappings, _issue)
         raise Error, "Source API did not expose watchers; check source permissions" unless record.key?("watchers")
         record.fetch("watchers").filter_map do |reference|
           id = Users.new.resolve(mappings, reference.fetch("id"))
           next unless id # Anonymized identities cannot receive notifications.
           user = User.find_by(id: id)
-          # Redmine refuses locked or registered watchers, who receive no notification anyway.
-          next if user && (user.locked? || user.registered?)
-          raise Error, "Watcher mapping must reference an active user" unless user&.active?
-          raise Error, "Mapped watcher cannot view destination issue" if issue && !issue.valid_watcher?(user)
+          raise Error, "Watcher mapping must reference a destination user" unless user && !user.anonymous?
           id
         end.uniq.sort
       end
@@ -64,13 +56,22 @@ module RedmineMirror
       end
 
       def write_state(issue, desired)
-        issue.watcher_users = User.where(id: desired).to_a
+        current = local_state(issue)
+        removed = current - desired
+        issue.watchers.where(user_id: removed).destroy_all if removed.any?
+        User.where(id: desired - current).each do |user|
+          watcher = Watcher.new(watchable: issue, user: user)
+          # A source subscription is historical data. Redmine's validation rejects
+          # locked and registered users even when their subscription still exists.
+          user.active? ? watcher.save! : watcher.save!(validate: false)
+        end
+        issue.watchers.reset
+        issue.watcher_users.reset
       end
 
-      # Additive module: only the watchers Mirror adds are its own. Redmine subscribes
-      # authors and the API account that writes issues, and users subscribe themselves;
-      # those local watchers are kept and are not conflicts. A conflict is a mirrored
-      # watcher removed locally while the source still lists it.
+      # Additive mode keeps subscriptions created locally by Redmine or users.
+      # Source subscriptions are restored whenever this issue is processed,
+      # including after Redmine prunes watchers who lost issue visibility.
       def synchronize(record, project_id:, mappings:, lookup:, store:, source:, apply:)
         local_id = lookup.call("issue_tracking", record.fetch("id"))
         event = { module: key, source_id: record.fetch("id"), destination_id: local_id, action: "update" }
@@ -90,10 +91,6 @@ module RedmineMirror
             end
           end
           return event
-        end
-        previous = store.find(key, record.fetch("id"))
-        if previous && previous.fetch("source_fingerprint") == digest(mapped) && digest(mapped & current) != previous.fetch("destination_fingerprint")
-          raise Error, "Local modification detected for #{key}: a watcher added from the source was removed locally"
         end
         missing = mapped - current
         event[:action] = missing.empty? ? "unchanged" : "update"

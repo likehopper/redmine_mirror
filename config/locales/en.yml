@@ -542,7 +542,6 @@ en:
   text_mirror_check_oversized: "%{count} source files exceed this Redmine's maximum attachment size (%{limit} KB): they will not be imported."
   text_mirror_check_existing_pages: "%{count} source pages already exist here without correspondence: their import stops until the local page is renamed or deleted."
   text_mirror_check_watchers_anonymized: "%{count} subscriptions belong to anonymized users: they will not be imported."
-  text_mirror_check_watchers_inactive: "%{count} subscriptions belong to users mapped to a locked or registered account here: Redmine refuses them as watchers."
   text_mirror_check_pending_parents: "%{count} subtasks are waiting for their parent issue."
   text_mirror_check_pending_relations: "%{count} relations are waiting for their other issue."
   text_mirror_source_read_at: "Source figures read on %{time}, at the last reference refresh."

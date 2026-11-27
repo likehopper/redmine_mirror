@@ -262,9 +262,13 @@ Requires the source permission *View watchers list*; a response without `watcher
 blocks the run rather than meaning "no watchers". Refresh the references after enabling
 it, to discover watchers who are not source project members, then map them in *Users*.
 
-Mapped users must be able to see the issue, private ones included. Local subscriptions
-are kept and new mapped watchers added; removals are not propagated. A local change to
-an imported watcher list blocks the run.
+Mapped users are restored as watchers even when their current permissions no longer
+allow them to see the issue or their account is locked. Anonymous mappings are skipped.
+In additive mode, local subscriptions are kept and new mapped watchers added;
+source removals are not propagated.
+A source watcher removed locally is restored when this issue is processed again.
+With Extended Watchers in extended mode, restoring a subscription can grant the
+user issue visibility.
 
 ## Text formats
 

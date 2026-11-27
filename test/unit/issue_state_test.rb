@@ -71,7 +71,7 @@ class MirrorIssueStateTest < ActiveSupport::TestCase
     assert_equal @parent.id, @issue.reload.parent_id
   end
 
-  def test_watchers_preview_anonymization_idempotence_and_conflict
+  def test_watchers_preview_anonymization_idempotence_and_restoration
     adapter = RedmineMirror::Adapters::Watchers.new
     assert_equal [{ "id" => 7, "name" => "External watcher" }], adapter.referenced_users(@record)
     run_adapter(adapter, apply: false)
@@ -82,7 +82,8 @@ class MirrorIssueStateTest < ActiveSupport::TestCase
     assert_equal [1], @issue.reload.watcher_users.pluck(:id)
     assert_equal "unchanged", run_adapter(adapter)[:action]
     @issue.watcher_users = []
-    assert_raises(RedmineMirror::Error) { run_adapter(adapter) }
+    assert_equal "update", run_adapter(adapter)[:action]
+    assert_equal [1], @issue.reload.watcher_users.pluck(:id)
   end
 
   # Redmine subscribes authors and the API account that writes issues: local watchers
@@ -103,24 +104,35 @@ class MirrorIssueStateTest < ActiveSupport::TestCase
     assert_raises(RedmineMirror::Error) { run_adapter(adapter) }
   end
 
-  def test_watcher_without_visibility_is_rejected
+  def test_watcher_without_current_visibility_is_restored
     @issue.update_columns(is_private: true)
     adapter = RedmineMirror::Adapters::Watchers.new
     outsider = User.active.where(admin: false).detect { |user| !@issue.visible?(user) }
     assert outsider
-    assert_raises(RedmineMirror::Error) { run_adapter(adapter, mappings: { "user" => { "7" => outsider.id.to_s } }) }
+    mapping = { "user" => { "7" => outsider.id.to_s } }
+    assert_equal "update", run_adapter(adapter, apply: false, mappings: mapping)[:action]
     assert_empty @issue.reload.watcher_users
+    run_adapter(adapter, mappings: mapping)
+    assert_includes @issue.reload.watcher_users.pluck(:id), outsider.id
+    assert_equal "unchanged", run_adapter(adapter, mappings: mapping)[:action]
   end
 
-  def test_watcher_allowed_by_native_policy_without_prior_visibility_is_added
-    @issue.update_columns(is_private: true)
-    outsider = User.active.where(admin: false).detect { |user| !@issue.visible?(user) }
-    assert outsider
-    Issue.any_instance.stubs(:valid_watcher?).with(outsider).returns(true)
+  def test_locked_mapped_watcher_is_restored_without_activation
+    locked = User.find(5)
+    assert locked.locked?
+    mapping = { "user" => { "7" => locked.id.to_s } }
+    adapter = RedmineMirror::Adapters::Watchers.new
+    run_adapter(adapter, mappings: mapping)
+    assert_includes @issue.reload.watcher_users.pluck(:id), locked.id
+    assert locked.reload.locked?
+    assert_equal "unchanged", run_adapter(adapter, mappings: mapping)[:action]
+  end
 
-    run_adapter(RedmineMirror::Adapters::Watchers.new, mappings: { "user" => { "7" => outsider.id.to_s } })
-
-    assert_includes @issue.reload.watcher_users.pluck(:id), outsider.id
+  def test_multiple_source_watchers_mapped_to_one_destination_user_are_deduplicated
+    @record["watchers"] << { "id" => 8 }
+    mapping = { "user" => { "7" => "1", "8" => "1" } }
+    run_adapter(RedmineMirror::Adapters::Watchers.new, mappings: mapping)
+    assert_equal [1], @issue.reload.watcher_users.pluck(:id)
   end
   def test_cycle_is_rejected_in_preview
     @record["parent"]["id"] = 100

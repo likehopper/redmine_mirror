@@ -93,7 +93,7 @@ class MirrorModuleOverviewTest < Redmine::IntegrationTest
     end
   end
 
-  def test_watcher_checks_count_subscriptions_that_will_not_be_imported
+  def test_watcher_checks_count_anonymized_subscriptions_only
     @setting.selected_modules = %w[issue_watchers]
     @setting.source_catalog = { "user" => { "7" => "Gone", "8" => "Locked", "9" => "Active" },
       "module_statistics" => { "issue_watchers" => { "records" => 4, "watchers" => 6, "watcher_users" => { "7" => 3, "8" => 2, "9" => 1 } } } }
@@ -105,7 +105,7 @@ class MirrorModuleOverviewTest < Redmine::IntegrationTest
     get "/projects/ecookbook/settings/mirror", params: { mirror_tab: "issue_watchers" }
     assert_response :success
     assert_select "#mirror-module-checks li", text: /3 subscriptions belong to anonymized users/
-    assert_select "#mirror-module-checks li", text: /2 subscriptions belong to users mapped to a locked or registered account/
+    assert_select "#mirror-module-checks li", count: 1
   end
 
   def test_hierarchy_check_counts_pending_parents
