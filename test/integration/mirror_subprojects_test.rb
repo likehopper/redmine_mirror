@@ -231,8 +231,12 @@ class MirrorSubprojectsTest < Redmine::IntegrationTest
     assert_equal 1, runs.size
     queued = runs.first
     assert_equal [true, "parent", "queued", 1], [queued.apply?, queued.trigger, queued.status, queued.requested_by_id]
+    queued.update!(status: "cancelled")
+    recovery = @project.mirror_sync_runs.create!(apply: true, trigger: "recovery", status: "succeeded", requested_by: User.find(1))
+    RedmineMirror::Synchronization.queue_subprojects(@setting, recovery)
+    assert_equal "recovery", Project.find(3).mirror_sync_runs.order(:id).last.trigger
     failed = @project.mirror_sync_runs.create!(apply: true, trigger: "manual", status: "failed")
     RedmineMirror::Synchronization.queue_subprojects(@setting, failed)
-    assert_equal 1, Project.find(3).mirror_sync_runs.count
+    assert_equal 2, Project.find(3).mirror_sync_runs.count
   end
 end

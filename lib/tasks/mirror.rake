@@ -64,6 +64,9 @@ namespace :redmine_mirror do
       # Validate all currently visible records before beginning destination writes.
       preview = runner.run(config)
       puts JSON.pretty_generate(ENV["APPLY"] == "1" ? runner.run(config, apply: true) : preview)
+    ensure
+      source&.close
+      destination&.close
     end
   end
 end

@@ -16,6 +16,15 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 # Changelog
 
+## 1.0.0-beta.67 — 2026-11-28
+
+- Missing issue and wiki attachments can use same-name text, PDF or image placeholders.
+  Ordinary runs retain provisional mappings without retrying missing downloads;
+  an explicit recovery action replaces placeholders when source files return. The
+  Wiki module now has the same missing-file choice as issue attachments.
+- Reuse each source and destination HTTP connection across requests in a run.
+- No migration.
+
 ## 1.0.0-beta.66 — 2026-11-27
 
 - Restore mapped issue watchers even when their current issue access has been removed

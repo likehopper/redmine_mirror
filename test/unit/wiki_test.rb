@@ -73,6 +73,28 @@ class MirrorWikiTest < ActiveSupport::TestCase
     end
   end
 
+  class AttachmentSource < Source
+    attr_accessor :available
+
+    def initialize
+      super
+      @available = false
+    end
+
+    def get(path, params = {})
+      result = super
+      return result unless path == "projects/9/wiki/Mirror_home.json"
+      result.merge("wiki_page" => result.fetch("wiki_page").merge("attachments" => [{ "id" => 501,
+        "filename" => "wiki-note.txt", "filesize" => 5, "content_type" => "text/plain", "description" => "",
+        "created_on" => "2026-01-12T09:00:00Z", "author" => { "id" => 7, "name" => "Remote" } }]))
+    end
+
+    def download_attachment(id, max_bytes:, path: nil)
+      raise RedmineMirror::Error, "Redmine API returned HTTP 404 for GET attachments/download/#{id}" unless available
+      "file\n"
+    end
+  end
+
   def setup
     @project = Project.find(1)
     @store = Store.new
@@ -87,9 +109,10 @@ class MirrorWikiTest < ActiveSupport::TestCase
     end
   end
 
-  def listed_sync(source, changed: [])
+  def listed_sync(source, changed: [], recover_missing_files: false)
     @adapter.listed_records(source, 9, store: @store, changed: changed).map do |record|
-      @adapter.synchronize(record, project_id: @project.id, mappings: @mappings, lookup: @lookup, store: @store, source: source, apply: true)
+      @adapter.synchronize(record, project_id: @project.id, mappings: @mappings, lookup: @lookup, store: @store,
+        source: source, apply: true, recover_missing_files: recover_missing_files)
     end
   end
 
@@ -209,5 +232,53 @@ class MirrorWikiTest < ActiveSupport::TestCase
   def test_missing_version_author_mapping_fails_in_preview
     @mappings = { "user" => { "7" => "2" } }
     assert_raises(RedmineMirror::Error) { sync(apply: false) }
+  end
+
+  def test_missing_wiki_file_is_retried_and_replaced_when_source_returns
+    setting = MirrorProjectSetting.new(project: @project, source_url: "https://source.example", source_project_id: 9)
+    setting.api_key = "unit-test-key"
+    setting.module_options = { "wiki" => { "missing_file" => "placeholder" } }
+    setting.save!
+    source = AttachmentSource.new
+    with_settings attachment_max_size: 1024 do
+      sync(source: source)
+      page = @project.wiki.find_page("Mirror_home")
+      first = page.attachments.find_by!(filename: "wiki-note.txt")
+      assert_includes File.read(first.diskfile), "not available on the source"
+      assert_equal RedmineMirror::Adapters::Attachments::MISSING_FINGERPRINT,
+        @store.find("wiki_attachments", 501)["source_fingerprint"]
+      database_store = RedmineMirror::DatabaseStore.new("wiki-recovery-test", project_id: @project.id)
+      page_id = @adapter.class.source_id("Mirror_home")
+      database_store.save("wiki", page_id, @store.find("wiki", page_id))
+      database_store.save("wiki_attachments", 501, @store.find("wiki_attachments", 501))
+      assert_empty database_store.retries
+      assert_equal [{ "module_key" => "wiki", "source_id" => page_id, "action" => "upsert" }],
+        database_store.retries(recover_missing_files: true)
+      downloads = source.paths.size
+      assert_equal %w[unchanged unchanged], listed_sync(source).map { |event| event[:action] }
+      assert_equal downloads + 2, source.paths.size
+      assert_equal %w[update unchanged], listed_sync(source,
+        changed: [@adapter.class.source_id("Mirror_home")], recover_missing_files: true).map { |event| event[:action] }
+      assert_equal first.id, page.attachments.find_by!(filename: "wiki-note.txt").id
+      original_description = first.description
+      first.update!(description: "Local edit")
+      assert_match(/Local modification detected for wiki_attachments/, assert_raises(RedmineMirror::Error) do
+        listed_sync(source, changed: [@adapter.class.source_id("Mirror_home")], recover_missing_files: true)
+      end.message)
+      first.update!(description: original_description)
+      source.available = true
+      assert_equal %w[unchanged unchanged], listed_sync(source).map { |event| event[:action] }
+      assert_equal %w[update unchanged], listed_sync(source,
+        changed: [@adapter.class.source_id("Mirror_home")], recover_missing_files: true).map { |event| event[:action] }
+      restored = page.attachments.find_by!(filename: "wiki-note.txt")
+      assert_not_equal first.id, restored.id
+      assert_equal "file\n", File.binread(restored.diskfile)
+      assert_not_equal RedmineMirror::Adapters::Attachments::MISSING_FINGERPRINT,
+        @store.find("wiki_attachments", 501)["source_fingerprint"]
+      fresh_source = AttachmentSource.new
+      fresh_source.available = true
+      assert_equal %w[unchanged unchanged], listed_sync(fresh_source).map { |event| event[:action] }
+      assert_not_includes fresh_source.paths, "projects/9/wiki/Mirror_home.json"
+    end
   end
 end

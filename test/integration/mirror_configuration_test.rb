@@ -178,14 +178,15 @@ class MirrorConfigurationTest < Redmine::IntegrationTest
     end
   end
 
-  # Tabs without references have no Save button; a disabled project module is reported.
+  # Wiki file policy remains configurable while the Redmine wiki module is disabled.
   def test_wiki_tab_warns_about_the_disabled_module_and_members_option_clears_the_counter
     @setting.update!(selected_modules: %w[wiki project_members], source_catalog: { "user" => {}, "role" => { "41" => "Remote reviewer" } })
     @project.disable_module!(:wiki)
     log_user("admin", "admin")
     settings("wiki")
     assert_select "#mirror-project-module-disabled a[href='/projects/ecookbook/settings/modules']"
-    assert_select "#mirror-mappings-form input[type=submit]", count: 0
+    assert_select "#mirror-mappings-form select#attachments-missing-file"
+    assert_select "#mirror-mappings-form input[type=submit]", count: 1
     assert_select "#mirror-settings-subtabs a[href$='mirror_tab=modules'] .mirror-badge", text: "1"
     patch "/projects/ecookbook/mirror/settings/modules/project_members", params: { module_options: { unmapped: "skip" } }
     assert_equal "skip", @setting.reload.module_options.dig("project_members", "unmapped")

@@ -25,6 +25,10 @@ module RedmineMirror
     # Local versions keep the source numbers, authors, comments and dates.
     class Wiki < Base
       def key; "wiki"; end
+      def configuration_options(input, _project)
+        raise Error, "Unsupported wiki options" unless (input.keys - ["missing_file"]).empty?
+        { "missing_file" => input["missing_file"].presence_in(Attachments::MISSING_FILE) || "retry" }
+      end
       def project_module; :wiki; end
       def phase; :history; end
       def dependencies; ["users"]; end
@@ -143,7 +147,7 @@ module RedmineMirror
         page && "projects/#{setting.source_project_identifier.presence || setting.source_project_id}/wiki/#{ERB::Util.url_encode(page.title)}"
       end
 
-      def synchronize(record, project_id:, mappings:, lookup:, store:, source:, apply:)
+      def synchronize(record, project_id:, mappings:, lookup:, store:, source:, apply:, recover_missing_files: false)
         project = Project.find(project_id)
         wiki = project.wiki
         raise Error, "Enable the Wiki module on the destination project" unless project.module_enabled?(:wiki) && wiki
@@ -177,7 +181,10 @@ module RedmineMirror
         # Every version written is checked first, in the preview as well.
         authors = pending.to_h { |version| [version.fetch("version"), author_id(version, mappings)] }
         text = TextFormat.convert(record.fetch("text").to_s)
-        new_attachments = record.fetch("attachments", []).reject { |attachment| page && store.find("wiki_attachments", attachment.fetch("id")) }
+        new_attachments = record.fetch("attachments", []).select do |attachment|
+          file_mapping = page && store.find("wiki_attachments", attachment.fetch("id"))
+          !file_mapping || (recover_missing_files && file_mapping["source_fingerprint"] == Attachments::MISSING_FINGERPRINT)
+        end
         # Mirror mode: local files whose source file is gone.
         listed = record.fetch("attachments", []).map { |attachment| attachment.fetch("id") }
         removed = page && Policy.source_wins? && store.respond_to?(:mappings) ?
@@ -213,13 +220,29 @@ module RedmineMirror
               wiki.update_columns(start_page: title) if start
               new_attachments.each do |attachment|
                 attributes = attachment_attributes.fetch(attachment.fetch("id"))
-                local = Attachments.new.import(attachment, attributes, page, source)
+                file_mapping = store.find("wiki_attachments", attachment.fetch("id"))
+                existing = file_mapping && page.attachments.find_by(id: file_mapping["destination_id"])
+                importer = Attachments.new
+                if file_mapping
+                  current_fingerprint = digest(importer.local_attributes(existing)) if existing && File.file?(existing.diskfile)
+                  Policy.local_change!("Local modification detected for wiki_attachments source ID #{attachment.fetch('id')}") if
+                    current_fingerprint != file_mapping["destination_fingerprint"]
+                end
+                begin
+                  local = importer.import(attachment, attributes, page, source, existing: existing)
+                rescue Attachments::MissingSourceFile
+                  TextFormat.note("missing_file_skipped")
+                  next
+                end
+                existing.destroy if existing && existing.id != local.id
                 store.save("wiki_attachments", attachment.fetch("id"), "destination_id" => local.id,
-                  "source_fingerprint" => digest(attributes), "destination_fingerprint" => digest(Attachments.new.local_attributes(local)))
+                  "source_fingerprint" => importer.imported_source_fingerprint(digest(attributes)),
+                  "destination_fingerprint" => digest(importer.local_attributes(local)))
               end
               page.reload
               store.save(key, record.fetch("id"), "destination_id" => page.id,
-                "source_fingerprint" => source_fingerprint(record), "destination_fingerprint" => digest(local_state(page)))
+                "source_fingerprint" => source_fingerprint(record),
+                "destination_fingerprint" => digest(local_state(page)))
             end
           end
         end

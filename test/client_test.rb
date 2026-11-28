@@ -17,9 +17,37 @@
 
 require "minitest/autorun"
 require "socket"
+require "timeout"
 require_relative "../lib/redmine_mirror"
 
 class MirrorClientTest < Minitest::Test
+  def test_successive_requests_reuse_one_http_connection
+    server = TCPServer.new("127.0.0.1", 0)
+    paths = []
+    thread = Thread.new do
+      socket = server.accept
+      2.times do
+        paths << socket.gets.split[1]
+        loop do
+          line = socket.gets
+          break if line.nil? || line == "\r\n"
+        end
+        socket.write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: keep-alive\r\n\r\n{}")
+      end
+      socket.close
+    end
+    client = RedmineMirror::Client.new(url: "http://127.0.0.1:#{server.addr[1]}", api_key: "test-token", allow_http: true)
+    Timeout.timeout(3) do
+      2.times { assert_equal({}, client.get("projects/1.json")) }
+      thread.value
+    end
+    assert_equal ["/projects/1.json"] * 2, paths
+  ensure
+    client&.close
+    server&.close
+    thread&.kill
+  end
+
   def serve(responses, application_key: nil)
     server = TCPServer.new("127.0.0.1", 0)
     requests = []

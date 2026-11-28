@@ -208,10 +208,17 @@ never follows redirects or sends the key to a URL supplied by the source.
 
 **File missing on the source** (module tab) decides what happens when the source answers
 HTTP 404 for a file: *Retry at every synchronization* (default, the attachment is an
-error), *Stop synchronizing it* (logged as ignored, not retried; a complete pass asks the
-source again) or *Create a placeholder file with the same name* (a short text file that
-says the file was not available keeps the entry and the links in the issue; it is then
-the synchronized version, and is not replaced if the file comes back on the source).
+error), *Stop synchronizing it* (logged as ignored; a complete pass asks the source
+again) or *Create a placeholder file with the same name*. A placeholder keeps links
+working and says the source file was unavailable. PDFs and common image formats get
+valid PDF/image content; other files get text content. Its mapping stays provisional:
+ordinary runs keep the placeholder without another download. After the source files
+have been restored, use **Recover missing attachments** on the Mirror overview to
+retry provisional issue and wiki files. Available originals replace their placeholders;
+still missing files stay provisional for a later recovery request. A recovery run also
+queues recovery for configured subprojects, as ordinary synchronization does. The same choice is
+available on the *Wiki* tab for wiki page attachments. Existing placeholders created
+before this behavior cannot be identified reliably and require manual reimport.
 
 Both write through local models, so the worker must share the destination's database
 and attachment storage. New source journals and files are added on later runs. A journal

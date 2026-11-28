@@ -70,11 +70,27 @@ module RedmineMirror
       MirrorConflict.where(project_id: @project_id, connection_key: @connection_key, module_key: module_key, source_id: source_id, status: %w[open source]).update_all(status: "resolved", checked_at: Time.current, updated_at: Time.current)
     end
 
-    def retries
+    def retries(recover_missing_files: false)
       return [] unless @project_id
-      MirrorSyncRetry.where(project_id: @project_id, connection_key: @connection_key).map do |row|
+      pending = MirrorSyncRetry.where(project_id: @project_id, connection_key: @connection_key).map do |row|
         row.attributes.slice("module_key", "source_id", "action", "parent_id")
       end
+      return pending unless recover_missing_files
+      placeholders = MirrorMapping.where(connection_key: @connection_key, module_key: "issue_attachments",
+        source_fingerprint: Adapters::Attachments::MISSING_FINGERPRINT).pluck(:source_id, :destination_id)
+      local_issues = Attachment.where(id: placeholders.map(&:last), container_type: "Issue").pluck(:id, :container_id).to_h
+      source_issues = MirrorMapping.where(connection_key: @connection_key, module_key: "issue_tracking",
+        destination_id: local_issues.values).pluck(:destination_id, :source_id).to_h
+      issue_retries = placeholders.filter_map do |source_id, destination_id|
+        parent_id = source_issues[local_issues[destination_id]]
+        { "module_key" => "issue_attachments", "source_id" => source_id, "action" => "upsert", "parent_id" => parent_id } if parent_id
+      end
+      wiki_files = MirrorMapping.where(connection_key: @connection_key, module_key: "wiki_attachments",
+        source_fingerprint: Adapters::Attachments::MISSING_FINGERPRINT).pluck(:destination_id)
+      wiki_pages = Attachment.where(id: wiki_files, container_type: "WikiPage").distinct.pluck(:container_id)
+      wiki_retries = MirrorMapping.where(connection_key: @connection_key, module_key: "wiki", destination_id: wiki_pages)
+        .pluck(:source_id).map { |source_id| { "module_key" => "wiki", "source_id" => source_id, "action" => "upsert" } }
+      pending + issue_retries + wiki_retries
     end
 
     def record_retry(module_key, source_id, error, action: "upsert", parent_id: nil)

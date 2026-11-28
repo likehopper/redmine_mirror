@@ -51,9 +51,10 @@ class MirrorAttachmentsTest < ActiveSupport::TestCase
     }
   end
 
-  def synchronize(mappings: { "user" => { "7" => "2" } }, issue_id: @issue.id)
+  def synchronize(mappings: { "user" => { "7" => "2" } }, issue_id: @issue.id, recover_missing_files: false)
     @adapter.synchronize(@record, project_id: @issue.project_id, mappings: mappings,
-      lookup: ->(key, _id) { issue_id if key == "issue_tracking" }, store: @store, source: @source, apply: true)
+      lookup: ->(key, _id) { issue_id if key == "issue_tracking" }, store: @store, source: @source, apply: true,
+      recover_missing_files: recover_missing_files)
   end
 
   class MissingSource < Source
@@ -86,8 +87,50 @@ class MirrorAttachmentsTest < ActiveSupport::TestCase
       assert_equal ["create", "proof.txt", "text/plain"], [event[:action], attachment.filename, attachment.content_type]
       assert_includes File.read(attachment.diskfile), "not available on the source"
       assert_equal "File not available on the source", attachment.description
-      # The placeholder is now the synchronized version: the next run leaves it alone.
+      assert_equal RedmineMirror::Adapters::Attachments::MISSING_FINGERPRINT, @store.find("issue_attachments", 501)["source_fingerprint"]
+      downloads = @source.downloads.size
       assert_equal "unchanged", synchronize[:action]
+      assert_equal downloads, @source.downloads.size
+      assert_equal "update", synchronize(recover_missing_files: true)[:action]
+      assert_equal attachment.id, @issue.reload.attachments.find_by!(filename: "proof.txt").id
+      @source = Source.new
+      assert_equal "unchanged", synchronize[:action]
+      restored = synchronize(recover_missing_files: true)
+      assert_equal "update", restored[:action]
+      assert_equal "file\n", File.binread(@issue.reload.attachments.find(restored[:destination_id]).diskfile)
+      assert_not_equal attachment.id, restored[:destination_id]
+      assert_not_equal RedmineMirror::Adapters::Attachments::MISSING_FINGERPRINT, @store.find("issue_attachments", 501)["source_fingerprint"]
+      assert_equal "unchanged", synchronize[:action]
+    end
+  end
+
+  def test_pdf_and_image_placeholders_have_valid_file_types
+    with_settings attachment_max_size: 1024, default_language: "en" do
+      missing_file("placeholder")
+      { "report.pdf" => ["application/pdf", "%PDF"], "photo.jpg" => ["image/jpeg", "\xFF\xD8".b],
+        "chart.png" => ["image/png", "\x89PNG".b] }.each_with_index do |(filename, (mime, header)), index|
+        @record = @record.merge("id" => 501 + index, "filename" => filename, "content_type" => mime)
+        event = synchronize
+        attachment = @issue.reload.attachments.find(event.fetch(:destination_id))
+        assert_equal filename, attachment.filename
+        assert_equal mime, attachment.content_type
+        assert File.binread(attachment.diskfile).start_with?(header)
+      end
+    end
+  end
+
+  def test_provisional_attachment_is_included_in_incremental_retries
+    with_settings attachment_max_size: 1024 do
+      missing_file("placeholder")
+      attachment_id = synchronize.fetch(:destination_id)
+      store = RedmineMirror::DatabaseStore.new("placeholder-test", project_id: @issue.project_id)
+      store.save("issue_tracking", 1001, "destination_id" => @issue.id,
+        "source_fingerprint" => "a" * 64, "destination_fingerprint" => "b" * 64)
+      store.save("issue_attachments", 501, @store.find("issue_attachments", 501).merge("destination_id" => attachment_id))
+      assert_empty store.retries
+      assert_equal [{ "module_key" => "issue_attachments", "source_id" => 501, "action" => "upsert", "parent_id" => 1001 }],
+        store.retries(recover_missing_files: true)
+      assert_empty RedmineMirror::DatabaseStore.new("another-connection", project_id: @issue.project_id).retries
     end
   end
 

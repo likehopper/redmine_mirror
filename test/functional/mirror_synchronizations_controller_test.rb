@@ -58,6 +58,14 @@ class MirrorSynchronizationsControllerTest < ActionController::TestCase
     assert @project.mirror_sync_runs.order(:id).last.force_full?
   end
 
+  def test_missing_file_recovery_is_explicitly_queued
+    post :create, params: { project_id: @project.identifier, mode: "apply", recover_missing_files: "1" }
+    assert_response :redirect
+    run = @project.mirror_sync_runs.order(:id).last
+    assert_equal "recovery", run.trigger
+    assert_not run.force_full?
+  end
+
   def test_queued_run_is_cancelled_and_a_running_one_asked_to_stop
     run = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual")
     patch :cancel, params: { project_id: @project.identifier, id: run.id }

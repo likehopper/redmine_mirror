@@ -23,7 +23,7 @@ class MirrorSyncRun < ActiveRecord::Base
   # The journal: one row per logged object (migration 26).
   has_many :log_entries, class_name: "MirrorSyncRunEvent", foreign_key: :run_id, dependent: :delete_all
   validates :status, inclusion: { in: %w[queued running succeeded partial failed cancelled] }
-  validates :trigger, inclusion: { in: %w[manual automatic operator parent] }
+  validates :trigger, inclusion: { in: %w[manual automatic operator parent recovery] }
 
   # partial: finished, but some objects failed and were skipped (on_error "skip").
   STATUSES = %w[queued running succeeded partial failed cancelled].freeze
@@ -66,7 +66,7 @@ class MirrorSyncRun < ActiveRecord::Base
   def stalled_in_queue?(now = Time.current)
     status == "queued" && created_at && created_at < now - QUEUE_WARNING_DELAY
   end
-  TRIGGERS = %w[manual automatic operator parent].freeze
+  TRIGGERS = %w[manual automatic operator parent recovery].freeze
 
   def progress_percentage
     return 100 if %w[succeeded partial].include?(status)

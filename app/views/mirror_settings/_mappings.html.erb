@@ -218,15 +218,15 @@ end %>
       <em class="info"><%= l(:text_mirror_anonymous_time_user) %></em>
     </p></div>
   <% end %>
-  <% if adapter.key == "issue_attachments" %>
+  <% if %w[issue_attachments wiki].include?(adapter.key) %>
     <div class="box tabular"><p>
       <%= label_tag "attachments-missing-file", l(:label_mirror_missing_file) %>
       <%= select_tag "module_options[missing_file]", options_for_select(RedmineMirror::Adapters::Attachments::MISSING_FILE.map { |value| [l("label_mirror_missing_file_#{value}"), value] }, @setting.module_options.dig(adapter.key, "missing_file") || "retry"), id: "attachments-missing-file" %>
       <em class="info"><%= l(:text_mirror_missing_file) %></em>
     </p></div>
   <% end %>
-  <%# Modules without references or options (hierarchy, watchers, wiki) have nothing to save. %>
+  <%# Modules without references or options (hierarchy, watchers) have nothing to save. %>
   <%= render "mirror_settings/repositories_form", adapter: adapter if adapter.key == "repositories" %>
-  <%= submit_tag l(:button_save) if adapter.mapping_tables.any? || adapter.anonymous_time_user_required? || %w[issue_relations repositories issue_attachments].include?(adapter.key) %>
+  <%= submit_tag l(:button_save) if adapter.mapping_tables.any? || adapter.anonymous_time_user_required? || %w[issue_relations repositories issue_attachments wiki].include?(adapter.key) %>
 <% end %>
 <% end %>

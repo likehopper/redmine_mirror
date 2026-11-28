@@ -24,6 +24,11 @@ module RedmineMirror
       # retry at every run (default), stop synchronizing it, or write a placeholder file
       # under the same name so that the issue keeps the entry.
       MISSING_FILE = %w[retry skip placeholder].freeze
+      # A provisional mapping must never match the real source fingerprint.
+      MISSING_FINGERPRINT = ("0" * 64).freeze
+      PLACEHOLDER_ASSETS = { ".pdf" => ["application/pdf", "pdf"], ".png" => ["image/png", "png"],
+        ".jpg" => ["image/jpeg", "jpg"], ".jpeg" => ["image/jpeg", "jpg"],
+        ".gif" => ["image/gif", "gif"], ".webp" => ["image/webp", "webp"] }.freeze
 
       # The source has no file for this attachment and the project chose to stop asking.
       class MissingSourceFile < Error; end
@@ -45,8 +50,10 @@ module RedmineMirror
       end
 
       # Ignored instead of failing: the object is not retried and its issue is not blocked.
-      def synchronize(record, **options)
-        super
+      def synchronize(record, recover_missing_files: false, **options)
+        @recover_missing_files = recover_missing_files
+        @retrying_placeholder = options.fetch(:store).find(key, record.fetch("id"))&.fetch("source_fingerprint") == MISSING_FINGERPRINT
+        super(record, **options)
       rescue MissingSourceFile => error
         { module: key, source_id: record.fetch("id"), action: "ignored", reason: error.message }
       end
@@ -64,8 +71,17 @@ module RedmineMirror
 
       # A file cannot be edited in place: the local one is replaced.
       def overwrite(attachment, record, attributes, issue, source)
-        attachment.destroy
-        import(record, attributes, issue, source)
+        replacement = import(record, attributes, issue, source, existing: (@retrying_placeholder ? attachment : nil))
+        attachment.destroy unless replacement.id == attachment.id
+        replacement
+      end
+
+      def imported_source_fingerprint(fingerprint)
+        @last_import_placeholder ? MISSING_FINGERPRINT : fingerprint
+      end
+
+      def retain_placeholder?(mapping)
+        mapping["source_fingerprint"] == MISSING_FINGERPRINT && !@recover_missing_files
       end
 
       def source_state(client, source_id, _destination_id, source_project_id:, project_id:)
@@ -78,7 +94,8 @@ module RedmineMirror
       end
 
       # path: where a Mirror source serves the file, instead of the attachments API.
-      def import(record, attributes, issue, source, path: nil)
+      def import(record, attributes, issue, source, path: nil, existing: nil)
+        @last_import_placeholder = false
         raise Error, "Missing destination attachment container" unless issue&.persisted?
         raise Error, "Missing destination attachment author" unless User.exists?(id: attributes.fetch("author_id"))
         # The destination's own limit (Administration > Files) is the one that matters.
@@ -90,15 +107,17 @@ module RedmineMirror
         bytes = begin
           path ? source.download_attachment(record.fetch("id"), max_bytes: limit, path: path) : source.download_attachment(record.fetch("id"), max_bytes: limit)
         rescue Error => error
-          # Only issue attachments read through the attachments API follow the module option.
-          raise unless path.nil? && issue.is_a?(Issue) && error.message.match?(/HTTP 404 for GET \S*attachments\/download/)
+          raise unless path.nil? && (issue.is_a?(Issue) || issue.is_a?(WikiPage)) && error.message.match?(/HTTP 404 for GET \S*attachments\/download/)
           case missing_file_choice(issue)
           when "skip" then raise MissingSourceFile, "Source file missing: not synchronized, as chosen in the module options"
           when "placeholder" then placeholder = true
           else raise
           end
-          placeholder_text(attributes)
+          @last_import_placeholder = true
+          return existing if existing && existing.persisted?
+          placeholder_content(attributes)
         end
+        content_type, bytes = bytes if placeholder
         raise Error, "Attachment size mismatch" unless placeholder || bytes.bytesize == attributes.fetch("filesize")
         Tempfile.create("mirror-attachment") do |file|
           file.binmode
@@ -106,7 +125,7 @@ module RedmineMirror
           file.rewind
           attachment = issue.attachments.new(attributes.except("filesize"))
           if placeholder
-            attachment.content_type = "text/plain"
+            attachment.content_type = content_type
             attachment.description = [::I18n.t(:text_mirror_missing_file_description, locale: Setting.default_language, default: "File not available on the source"),
               attributes["description"].presence].compact.join(" — ")
           end
@@ -121,7 +140,17 @@ module RedmineMirror
       private
 
       def missing_file_choice(issue)
-        issue.project.mirror_project_setting&.module_options.to_h.fetch(key, {})["missing_file"].presence_in(MISSING_FILE) || "retry"
+        project = issue.is_a?(WikiPage) ? issue.wiki.project : issue.project
+        module_key = issue.is_a?(WikiPage) ? "wiki" : key
+        project.mirror_project_setting&.module_options.to_h.fetch(module_key, {})["missing_file"].presence_in(MISSING_FILE) || "retry"
+      end
+
+      def placeholder_content(attributes)
+        extension = File.extname(attributes.fetch("filename")).downcase
+        format = PLACEHOLDER_ASSETS[extension]
+        format ||= ["image/png", "png"] if attributes.fetch("content_type").start_with?("image/")
+        return ["text/plain", placeholder_text(attributes)] unless format
+        [format.first, File.binread(File.expand_path("../../../assets/missing-attachment.#{format.last}", __dir__))]
       end
 
       # Same name, so that links and inline references in the issue still find it.

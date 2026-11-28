@@ -18,7 +18,32 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
 
 Minimum declared Redmine version: **5.0** as a destination, **4.0** as a source with
 Mirror source (source only). This is not a compatibility certification.
-Current plugin version: **1.0.0-beta.66**.
+Current plugin version: **1.0.0-beta.67**.
+
+## 1.0.0-beta.67 placeholder and recovery validation — 2026-11-28
+
+Candidate on `fix/recoverable-missing-attachments`, based on `8218719`.
+No migration. The checks below were run before publication and deployment.
+
+- `bash test/compatibility/run.sh`: Redmine 6.1.4 / Ruby 3.4.11 /
+  Rails 7.2.3.2 / SQLite; standalone suites green and 419 Redmine tests,
+  2,605 assertions, no failures, errors or skips. This run includes the
+  explicit recovery, wiki local-conflict, subproject propagation and connection
+  reuse checks.
+- Redmine 5.1.12 / Ruby 3.2.11 / Rails 6.1.7.10 / SQLite: focused attachment
+  and wiki suites passed on this working tree, 17 tests, 112 assertions, no
+  failures, errors or skips. The broader controller/subproject suite in this
+  disposable setup returned HTTP 503 across unrelated actions (12 failures)
+  and is not counted as passed.
+- The generated PDF opened with `pdfinfo`; PNG, JPEG, GIF and WebP file signatures
+  were checked. The PNG was visually reviewed.
+- Read-only preproduction baseline before this change: GESCOMESPACEUSER run #2371
+  spent 3,544 seconds on 2,829 issue attachments; GESCOM run #2385 spent 808
+  seconds on 312 wiki pages. The source nginx answered `Connection: keep-alive`.
+  No deployed speedup has been measured.
+- Not run: PostgreSQL, MariaDB, MySQL, source-only Redmine 4, two-instance
+  download/restore smoke tests and a live preproduction run. The two-instance
+  environment could not start here: Docker Compose and its base image are absent.
 
 ## 1.0.0-beta.66 validation — 2026-11-27
 

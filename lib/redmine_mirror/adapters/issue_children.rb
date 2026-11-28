@@ -79,6 +79,7 @@ module RedmineMirror
               TextFormat.note("local_overwritten")
             end
             action = local_changed || fingerprint != mapping.fetch("source_fingerprint") ? "update" : "unchanged"
+            action = "unchanged" if !local_changed && respond_to?(:retain_placeholder?) && retain_placeholder?(mapping)
           end
         end
         target_id = mapping && mapping.fetch("destination_id")
@@ -87,7 +88,8 @@ module RedmineMirror
             target = action == "update" ? overwrite(target, record, attributes, issue, source) : import(record, attributes, issue, source)
             target_id = target.id
             store.save(key, record.fetch("id"), "destination_id" => target_id,
-              "source_fingerprint" => fingerprint, "destination_fingerprint" => digest(local_attributes(target)))
+              "source_fingerprint" => (respond_to?(:imported_source_fingerprint) ? imported_source_fingerprint(fingerprint) : fingerprint),
+              "destination_fingerprint" => digest(local_attributes(target)))
           end
         end
         { module: key, source_id: record.fetch("id"), destination_id: target_id, action: action }

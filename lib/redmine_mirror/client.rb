@@ -101,6 +101,14 @@ module RedmineMirror
       request(:get, path || "attachments/download/#{Integer(id)}", binary: true, max_bytes: max_bytes)
     end
 
+    def close
+      @http_client&.finish if @http_client&.started?
+    rescue IOError, SystemCallError, Timeout::Error, OpenSSL::SSL::SSLError
+      nil
+    ensure
+      @http_client = nil
+    end
+
     # Redmine paginates collections. Reject empty intermediate pages rather than
     # looping forever or silently reporting a complete import.
     def each_record(collection, params)
@@ -131,24 +139,24 @@ module RedmineMirror
       request["X-Mirror-Purpose"] = @purpose if @purpose
       request["Content-Type"] = "application/json"
       request.body = JSON.generate(payload) if payload
-      http_client = Net::HTTP.new(uri.host, uri.port, nil)
-      http_client.use_ssl = uri.scheme == "https"
-      http_client.open_timeout = 10
-      http_client.read_timeout = 60
-      # A retry after a transport failure could duplicate a successful POST.
-      http_client.max_retries = 0
+      @http_client ||= Net::HTTP.new(uri.host, uri.port, nil).tap do |connection|
+        connection.use_ssl = uri.scheme == "https"
+        connection.open_timeout = 10
+        connection.read_timeout = 60
+        # A retry after a transport failure could duplicate a successful POST.
+        connection.max_retries = 0
+      end
       # Bound every response before retaining it. A compromised source must not be able
       # to exhaust the worker with a large JSON document or compressed response.
       response = nil
       body = +"".b
-      http_client.start do |connection|
-        connection.request(request) do |received|
-          response = received
-          received.read_body do |chunk|
-            label = binary ? "Attachment" : "Redmine API response"
-            raise Error, "#{label} exceeds the import limit of #{max_bytes / 1024} KB" if body.bytesize + chunk.bytesize > max_bytes
-            body << chunk
-          end
+      @http_client.start unless @http_client.started?
+      @http_client.request(request) do |received|
+        response = received
+        received.read_body do |chunk|
+          label = binary ? "Attachment" : "Redmine API response"
+          raise Error, "#{label} exceeds the import limit of #{max_bytes / 1024} KB" if body.bytesize + chunk.bytesize > max_bytes
+          body << chunk
         end
       end
       if binary
@@ -164,7 +172,11 @@ module RedmineMirror
       body.empty? ? {} : JSON.parse(body)
     rescue JSON::ParserError, KeyError, ArgumentError
       raise Error, "Invalid Redmine API response"
+    rescue Error => error
+      close if error.message.include?("exceeds the import limit")
+      raise
     rescue IOError, SystemCallError, Timeout::Error, OpenSSL::SSL::SSLError
+      close
       raise Error, "Redmine API connection failed; a write may have succeeded, inspect before retrying"
     end
 

@@ -159,6 +159,7 @@ module RedmineMirror
           message = error.is_a?(Error) ? error.message : "Internal error (#{error.class.name})"
           setting.update_columns(catalog_status: "failed", catalog_error: message)
         ensure
+          client.close if client.respond_to?(:close)
           heartbeat.kill
         end
       end
@@ -208,7 +209,8 @@ module RedmineMirror
         # A removed or unavailable adapter must not silently shrink a scheduled run.
         raise Error, "Unavailable modules: #{setting.unavailable_modules.join(', ')}" if setting.unavailable_modules.any?
         destination_url = ENV.fetch("MIRROR_DESTINATION_URL") { raise Error, "MIRROR_DESTINATION_URL is not configured for the worker" }
-        config = setting.synchronization_config(destination_url: destination_url).merge("confirm_deletions" => run.confirm_deletions?)
+        config = setting.synchronization_config(destination_url: destination_url).merge(
+          "confirm_deletions" => run.confirm_deletions?, "recover_missing_files" => run.trigger == "recovery")
         source_url = config.fetch("source_url").sub(%r{/+\z}, "")
         destination_url = destination_url.sub(%r{/+\z}, "")
         raise Error, "Cannot mirror a project onto itself" if source_url == destination_url && setting.source_project_id == setting.project_id
@@ -317,6 +319,8 @@ module RedmineMirror
       # Release only our own lease. A process crash cannot run this cleanup, so
       # recovery requires checking whether a write succeeded before another run.
       ensure
+        source.close if source.respond_to?(:close)
+        destination.close if destination.respond_to?(:close)
         heartbeat.kill
         setting.with_lock do
           if acquired && setting.running_run_id == run.id
@@ -370,7 +374,7 @@ module RedmineMirror
       # Asked to stop too late to interrupt it: the run keeps its result, nothing follows.
       return if run.stop_requested_at
       setting.child_settings.preload(:project).each do |child|
-        enqueue(child, apply: run.apply?, trigger: "parent", user: run.requested_by)
+        enqueue(child, apply: run.apply?, trigger: run.trigger == "recovery" ? "recovery" : "parent", user: run.requested_by)
       rescue Error
         next
       end

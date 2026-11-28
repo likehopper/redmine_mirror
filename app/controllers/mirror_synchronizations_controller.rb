@@ -42,7 +42,8 @@ class MirrorSynchronizationsController < ApplicationController
   def create
     # The simulation is withdrawn from the pages; operators keep it through rake.
     raise RedmineMirror::Error, "Invalid synchronization mode" unless params[:mode] == "apply"
-    run = RedmineMirror::Synchronization.enqueue(@setting, apply: true, trigger: "manual", user: User.current,
+    run = RedmineMirror::Synchronization.enqueue(@setting, apply: true,
+      trigger: params[:recover_missing_files] == "1" ? "recovery" : "manual", user: User.current,
       confirm_deletions: params[:confirm_deletions] == "1", force_full: params[:force_full] == "1")
     flash[:notice] = l(:text_mirror_sync_queued)
     redirect_to project_mirror_run_path(@project, run)

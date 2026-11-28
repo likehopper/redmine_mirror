@@ -106,9 +106,12 @@ module RedmineMirror
           # Native adapters own their validation and transactions; REST adapters
           # below use the generic payload/read/fingerprint import path.
           if adapter.respond_to?(:synchronize)
+            recovery_options = adapter.is_a?(Adapters::Attachments) || adapter.is_a?(Adapters::Wiki) ?
+              { recover_missing_files: config["recover_missing_files"] } : {}
             event = adapter.synchronize(record, project_id: destination_project_id,
               mappings: config.fetch("mappings", {}), lookup: lookup,
-              store: @mapping_store, source: @source_client, apply: apply, **(adapter.is_a?(Adapters::Relations) ? { options: config.fetch("module_options", {}).fetch(adapter.key, {}), track_blocks: track_relation_blocks } : (adapter.is_a?(Adapters::Hierarchy) ? { track_blocks: track_relation_blocks } : {})))
+              store: @mapping_store, source: @source_client, apply: apply, **recovery_options,
+              **(adapter.is_a?(Adapters::Relations) ? { options: config.fetch("module_options", {}).fetch(adapter.key, {}), track_blocks: track_relation_blocks } : (adapter.is_a?(Adapters::Hierarchy) ? { track_blocks: track_relation_blocks } : {})))
             planned_correspondences[[adapter.key, record.fetch("id")]] = "planned:#{record.fetch('id')}" if !apply && !event[:destination_id] && adapter.is_a?(Adapters::ProjectReferences)
             @mapping_store.resolve_conflict(adapter.key, record.fetch("id")) if apply && @mapping_store.respond_to?(:resolve_conflict)
             @mapping_store.resolve_retry(adapter.key, record.fetch("id")) if apply && @mapping_store.respond_to?(:resolve_retry)
@@ -225,7 +228,13 @@ module RedmineMirror
       end
       seen = {}
       incremental_changes = Array(config["changes"])
-      retries = @mapping_store.respond_to?(:retries) ? @mapping_store.retries : []
+      retries = if @mapping_store.is_a?(DatabaseStore)
+        @mapping_store.retries(recover_missing_files: config["recover_missing_files"])
+      elsif @mapping_store.respond_to?(:retries)
+        @mapping_store.retries
+      else
+        []
+      end
       progress&.modules!(adapters.map(&:key))
       adapters.each do |adapter|
         seen_source_ids = seen[adapter.key] = []
